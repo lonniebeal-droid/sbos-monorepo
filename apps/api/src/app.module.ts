@@ -6,8 +6,11 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import configuration from './config/configuration';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
+import { PrismaModule } from './prisma/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { LocationsModule } from './modules/locations/locations.module';
 import { HealthController } from './modules/health/health.controller';
 
 @Module({
@@ -23,8 +26,11 @@ import { HealthController } from './modules/health/health.controller';
         limit: 120,
       },
     ]),
+    PrismaModule,
     AuthModule,
     UsersModule,
+    OrganizationsModule,
+    LocationsModule,
   ],
   controllers: [HealthController],
   providers: [

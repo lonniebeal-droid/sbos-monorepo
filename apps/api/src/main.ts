@@ -39,6 +39,8 @@ async function bootstrap(): Promise<void> {
     .addBearerAuth()
     .addTag('Authentication')
     .addTag('Users')
+    .addTag('Organizations')
+    .addTag('Locations')
     .addTag('Health')
     .build();
 
