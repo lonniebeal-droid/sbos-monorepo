@@ -25,7 +25,7 @@ provider-abstracted module so it can eventually be licensed independently.
   BIRP/DAP/SOAP composer), Billing, Reports, Settings.
 
 ### API (`apps/api`) — NestJS 10 (`/api/v1`, Swagger at `/docs`)
-- **68 routes** across 13 resource groups.
+- **86 routes** across 14 resource groups.
 - Auth (JWT access+refresh), hierarchical RBAC, validation, rate limiting.
 - Prisma-backed, tenant-scoped: Organizations, Locations, Clients,
   Appointments (conflict detection), **Clinical Notes** (BIRP/DAP/SOAP/progress/
@@ -36,13 +36,11 @@ provider-abstracted module so it can eventually be licensed independently.
   (Jessie note-assistant, provider-swappable), **StorageModule** (S3-swappable).
 
 ### Database (`packages/database`) — Prisma + PostgreSQL
-- 34 models, 28 enums; three migrations (initial + note versions/templates +
-  scheduling).
+- 36 models, 28 enums; four migrations (initial + note versions/templates +
+  scheduling + billing reference).
 - Generated client singleton; idempotent dev seed.
 
 ## In progress / next
-- Phase 8 Billing (payers, CPT/ICD, claims, invoices, payments, superbills,
-  ERA/EOB, Stripe architecture).
 - Phase 9 Jessie AI expansion (receptionist, scheduling, intake, clinical
   assistant, knowledge base, voice/chat, workflow automation, analytics).
 - Phase 10 Enterprise (analytics, notifications, messaging, tasks, file mgmt,

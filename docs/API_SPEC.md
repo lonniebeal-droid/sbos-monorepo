@@ -145,6 +145,23 @@ enabled.
 | GET/POST/DELETE | `/api/v1/documents` | Metadata + presigned upload/download |
 | POST | `/api/v1/documents/:id/sign` | Electronic signature |
 
+### Billing (revenue cycle)
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET/POST/PATCH | `/api/v1/billing/payers` | Insurance companies / payers |
+| GET/POST/PATCH | `/api/v1/billing/service-codes` | CPT fee schedule |
+| GET/POST | `/api/v1/billing/claims` | Claims (list/create) |
+| POST | `/api/v1/billing/claims/:id/submit` | Submit a claim |
+| PATCH | `/api/v1/billing/claims/:id/status` | Accept/deny/pay (ERA/EOB posting) |
+| GET/POST | `/api/v1/billing/invoices` | Invoices + line items |
+| GET/POST | `/api/v1/billing/payments` | Record payments (via provider) |
+| GET | `/api/v1/billing/superbill` | Generate a superbill (client + date range) |
+
+Payments route through a **provider abstraction** (`PAYMENT_PROVIDER`): a manual
+provider records cash/check/external payments by default; a Stripe provider
+implements the same interface for card processing.
+
 > All resource endpoints are **Prisma-backed** (via the global `PrismaModule`),
 > tenant-scoped by `organizationId`, and require a live PostgreSQL connection.
 > The API boots without a database (connection is non-fatal); these endpoints

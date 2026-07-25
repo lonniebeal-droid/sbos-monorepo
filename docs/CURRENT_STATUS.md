@@ -73,6 +73,16 @@ _Last updated: 2026-07-24_
   `WaitlistEntry` + `checkedOutAt` (migration `20260725100000_scheduling`).
 - Verified: 68 routes across 13 groups; build 5/5, lint 7/7, test 6/6.
 
+## Phase 8 — Billing (done)
+
+- **Payers** and a **CPT fee schedule** (ServiceCode); **Claims** lifecycle
+  (draft → submit → accept/deny/pay, ERA/EOB posting); **Invoices** with line
+  items and auto-computed totals; **Payments** through a provider abstraction
+  (`PAYMENT_PROVIDER`; manual default, Stripe-swappable) that reconciles invoice
+  balances; **Superbill** generation for a client/date range.
+- Schema: `Payer`, `ServiceCode` (migration `20260725200000_billing`).
+- Verified: 86 routes across 14 groups; build 5/5, lint 7/7.
+
 ## Next recommended phase
 
 **Phase 5 — Authentication & tenancy hardening**: connect web ↔ API auth,

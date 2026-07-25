@@ -123,9 +123,17 @@ with open-slot computation, and a priority waitlist. Recurrence/slot logic lives
 in `@sbos/core` with unit tests. Schema → **34 models** (third migration adds
 availability/time-off/waitlist). API → **68 routes across 13 resource groups**.
 
+## Update — Phase 8 (Billing) delivered
+
+Payers, CPT fee schedule, claims lifecycle (submit + ERA/EOB status posting),
+invoices with line items, payments through a provider abstraction
+(`PAYMENT_PROVIDER`; manual default, Stripe-swappable) that reconciles invoice
+balances, and superbill generation. Schema → **36 models** (fourth migration
+adds Payer + ServiceCode). API → **86 routes across 14 resource groups**.
+
 ## Estimated completion of the overall SBOS platform
 
-**~44%.** Architecture, multi-tenant auth/RBAC, the full clinical data model and
+**~50%.** Architecture, multi-tenant auth/RBAC, the full clinical data model and
 documentation workflow, and 12 Prisma-backed resource groups are in place. The
 remaining work is scheduling depth, the billing/revenue cycle, the broader
 Jessie AI suite, enterprise features (analytics/messaging/notifications), live
