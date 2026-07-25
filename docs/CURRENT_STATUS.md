@@ -60,6 +60,19 @@ _Last updated: 2026-07-24_
   `20260725000000_clinical_versions_templates`).
 - Verified: 55 routes across 12 groups; build 5/5, lint 7/7, test 6/6.
 
+## Phase 7 — Scheduling (done)
+
+- **Recurring appointments** (series generation with conflict skipping),
+  **telehealth session** provisioning, and appointment **lifecycle**
+  (check-in → check-out → complete, cancel with reason).
+- **Clinician availability** (weekly windows) + **time-off**, with an
+  **open-slot computation** endpoint (availability minus booked minus time-off).
+- **Waitlist** with priority and status transitions.
+- Recurrence/overlap/slot logic added to `@sbos/core` with unit tests
+  (10 assertions total). Schema: `ClinicianAvailability`, `ClinicianTimeOff`,
+  `WaitlistEntry` + `checkedOutAt` (migration `20260725100000_scheduling`).
+- Verified: 68 routes across 13 groups; build 5/5, lint 7/7, test 6/6.
+
 ## Next recommended phase
 
 **Phase 5 — Authentication & tenancy hardening**: connect web ↔ API auth,

@@ -120,6 +120,20 @@ enabled.
 | POST | `/api/v1/notes/:id/amend` | CLINICIAN | Amend a signed note (new version) |
 | DELETE | `/api/v1/notes/:id` | CLINICIAN | Delete a draft |
 
+### Scheduling (recurrence, availability, waitlist, lifecycle)
+
+| Method | Path | Description |
+| --- | --- | --- |
+| POST | `/api/v1/appointments/recurring` | Create a recurring series (skips conflicts) |
+| POST | `/api/v1/appointments/:id/telehealth` | Provision/fetch telehealth session URL |
+| POST | `/api/v1/appointments/:id/check-in` | Check a client in |
+| POST | `/api/v1/appointments/:id/check-out` | Check out + complete |
+| POST | `/api/v1/appointments/:id/cancel` | Cancel with reason |
+| GET/POST/DELETE | `/api/v1/scheduling/availability` | Clinician weekly availability |
+| POST | `/api/v1/scheduling/time-off` | Clinician time-off block |
+| GET | `/api/v1/scheduling/slots` | Open slots for a clinician on a date |
+| GET/POST/PATCH/DELETE | `/api/v1/scheduling/waitlist` | Waitlist entries + status |
+
 ### Diagnoses / Medications / Treatment Plans / Documents
 
 | Method | Path | Description |

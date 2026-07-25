@@ -115,9 +115,17 @@ controls. See `docs/ROADMAP.md`.
 - Positioning: SBOS is a multi-tenant SaaS product (SuccessBrand = Tenant #1);
   **Jessie AI** is a provider-abstracted, independently-licensable layer.
 
+## Update — Phase 7 (Scheduling) delivered
+
+Recurring appointment series (conflict-aware), telehealth session provisioning,
+appointment lifecycle (check-in/out/cancel), clinician availability + time-off
+with open-slot computation, and a priority waitlist. Recurrence/slot logic lives
+in `@sbos/core` with unit tests. Schema → **34 models** (third migration adds
+availability/time-off/waitlist). API → **68 routes across 13 resource groups**.
+
 ## Estimated completion of the overall SBOS platform
 
-**~38%.** Architecture, multi-tenant auth/RBAC, the full clinical data model and
+**~44%.** Architecture, multi-tenant auth/RBAC, the full clinical data model and
 documentation workflow, and 12 Prisma-backed resource groups are in place. The
 remaining work is scheduling depth, the billing/revenue cycle, the broader
 Jessie AI suite, enterprise features (analytics/messaging/notifications), live
