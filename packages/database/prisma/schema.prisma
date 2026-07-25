@@ -298,8 +298,49 @@ model Organization {
   admissions     Admission[]
   assessments    Assessment[]
   noteTemplates  NoteTemplate[]
+  payers         Payer[]
+  serviceCodes   ServiceCode[]
 
   @@index([isActive])
+}
+
+/// An insurance company / payer the organization bills. Reference data used to
+/// populate claims and eligibility; org-scoped for multi-tenant isolation.
+model Payer {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  payerId        String?
+  planType       String?
+  claimsAddress  String?
+  phone          String?
+  electronicPayerId String?
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+}
+
+/// A billable service (CPT/HCPCS) on the organization's fee schedule.
+model ServiceCode {
+  id             String   @id @default(cuid())
+  organizationId String
+  code           String
+  description    String
+  defaultFee     Decimal  @db.Decimal(12, 2)
+  defaultUnits   Int      @default(1)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, code])
+  @@index([organizationId])
 }
 
 model User {
