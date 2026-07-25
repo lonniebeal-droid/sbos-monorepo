@@ -53,6 +53,9 @@ async function bootstrap(): Promise<void> {
         'JWT-authenticated, role-based, versioned endpoints.',
     )
     .setVersion('1.0')
+    .setContact('SBOS Engineering', 'https://successbrand.org', 'support@successbrand.org')
+    .setLicense('Proprietary', '')
+    .addServer('/', 'Current host')
     .addBearerAuth()
     .addTag('Authentication')
     .addTag('Users')
@@ -78,7 +81,52 @@ async function bootstrap(): Promise<void> {
     .build();
 
   const document = SwaggerModule.createDocument(app, swaggerConfig);
+
+  // Document the consistent error envelope and attach standard error responses
+  // (401/429) to every operation for OpenAPI completeness.
+  document.components = document.components ?? {};
+  document.components.schemas = {
+    ...document.components.schemas,
+    ErrorResponse: {
+      type: 'object',
+      properties: {
+        statusCode: { type: 'number', example: 400 },
+        error: { type: 'string', example: 'Bad Request' },
+        message: {
+          oneOf: [
+            { type: 'string' },
+            { type: 'array', items: { type: 'string' } },
+          ],
+        },
+        timestamp: { type: 'string', format: 'date-time' },
+        path: { type: 'string', example: '/api/v1/clients' },
+      },
+    },
+  };
+  const errorRef = { $ref: '#/components/schemas/ErrorResponse' };
+  const standardResponses = {
+    '401': {
+      description: 'Missing or invalid authentication',
+      content: { 'application/json': { schema: errorRef } },
+    },
+    '429': {
+      description: 'Rate limit exceeded',
+      content: { 'application/json': { schema: errorRef } },
+    },
+  };
+  for (const pathItem of Object.values(document.paths)) {
+    for (const operation of Object.values(pathItem)) {
+      if (operation && typeof operation === 'object' && 'responses' in operation) {
+        (operation as { responses: Record<string, unknown> }).responses = {
+          ...standardResponses,
+          ...(operation as { responses: Record<string, unknown> }).responses,
+        };
+      }
+    }
+  }
+
   SwaggerModule.setup('docs', app, document, {
+    jsonDocumentUrl: 'docs/json',
     swaggerOptions: { persistAuthorization: true },
   });
 
