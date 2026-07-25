@@ -25,7 +25,7 @@ provider-abstracted module so it can eventually be licensed independently.
   BIRP/DAP/SOAP composer), Billing, Reports, Settings.
 
 ### API (`apps/api`) — NestJS 10 (`/api/v1`, Swagger at `/docs`)
-- **98 routes** across 15 resource groups.
+- **117 routes** across 20 resource groups.
 - Auth (JWT access+refresh), hierarchical RBAC, validation, rate limiting.
 - Prisma-backed, tenant-scoped: Organizations, Locations, Clients,
   Appointments (conflict detection), **Clinical Notes** (BIRP/DAP/SOAP/progress/
@@ -36,11 +36,18 @@ provider-abstracted module so it can eventually be licensed independently.
   (Jessie note-assistant, provider-swappable), **StorageModule** (S3-swappable).
 
 ### Database (`packages/database`) — Prisma + PostgreSQL
-- 40 models, 31 enums; five migrations (initial + note versions/templates +
-  scheduling + billing reference + Jessie AI).
+- 41 models, 31 enums; six migrations (initial + note versions/templates +
+  scheduling + billing reference + Jessie AI + feature flags).
 - Generated client singleton; idempotent dev seed.
 
 ## In progress / next
+- Wire the web app to the live API (remove interim dev credential store); MFA.
+- Apply migrations + seed against a real PostgreSQL (needs `DATABASE_URL`).
+- Activate live providers (LLM/voice/SMS/Stripe) once credentials are supplied.
+- Production infrastructure: Redis/BullMQ, S3, WebSockets, Docker, CI/CD, HIPAA.
+- Surface the new API resources in the web UI.
+
+### Historical phase notes
 - Phase 10 Enterprise (analytics, notifications, messaging, tasks, file mgmt,
   feature flags, system health).
 - Wire web ↔ API auth; remove interim dev credential stores; MFA (TOTP).

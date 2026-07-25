@@ -98,6 +98,17 @@ _Last updated: 2026-07-24_
 - Live AI/voice/SMS providers (OpenAI/Claude/Gemini, Twilio, Resend) plug into
   the existing interfaces once credentials are supplied.
 
+## Phase 10 — Enterprise (done)
+
+- **Task management** (assign, prioritize, complete), **Notifications**
+  (per-user, unread count, mark read/all; global service other modules emit to),
+  **Internal messaging** (threads/participants/messages with read markers),
+  **Analytics** (practice KPI overview + appointment/claim status reporting),
+  **Feature flags** (per-tenant toggles), and an admin **system-health**
+  dashboard (DB probe, counts, uptime, memory).
+- Schema: `FeatureFlag` (migration `20260725400000_feature_flags`).
+- Verified: 117 routes across 20 groups; build 5/5, lint 7/7, test 6/6.
+
 ## Next recommended phase
 
 **Phase 5 — Authentication & tenancy hardening**: connect web ↔ API auth,

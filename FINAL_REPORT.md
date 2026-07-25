@@ -142,9 +142,21 @@ credential-free, with clear seams for hosted providers. Schema → **40 models**
 (fifth migration adds Conversation, ConversationMessage, PromptTemplate,
 KnowledgeArticle). API → **98 routes across 15 resource groups**.
 
+## Update — Phase 10 (Enterprise) delivered
+
+Task management, notifications (per-user + global emit service), internal
+messaging (threads/messages/read markers), analytics (KPI overview +
+appointment/claim reporting), per-tenant feature flags, and an admin
+system-health dashboard. Schema → **41 models** (sixth migration adds
+FeatureFlag). API → **117 routes across 20 resource groups**.
+
+With Phase 10 the core platform (Phases 1–10) is functionally complete on the
+backend. Remaining work is web↔API/live-data wiring, credential-gated provider
+activation, and production infrastructure.
+
 ## Estimated completion of the overall SBOS platform
 
-**~57%.** Architecture, multi-tenant auth/RBAC, the full clinical data model and
+**~68%.** Architecture, multi-tenant auth/RBAC, the full clinical data model and
 documentation workflow, and 12 Prisma-backed resource groups are in place. The
 remaining work is scheduling depth, the billing/revenue cycle, the broader
 Jessie AI suite, enterprise features (analytics/messaging/notifications), live

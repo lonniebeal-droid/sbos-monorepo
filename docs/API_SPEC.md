@@ -145,6 +145,21 @@ enabled.
 | GET/POST/DELETE | `/api/v1/documents` | Metadata + presigned upload/download |
 | POST | `/api/v1/documents/:id/sign` | Electronic signature |
 
+### Enterprise (tasks, notifications, messaging, analytics, platform admin)
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET/POST/PATCH/DELETE | `/api/v1/tasks` | Task management (status/assignee/priority) |
+| GET | `/api/v1/notifications` | Current user's notifications (+ `unread-count`) |
+| POST | `/api/v1/notifications/:id/read`, `/read-all` | Mark read |
+| GET/POST | `/api/v1/messaging/threads` | Internal messaging threads |
+| GET/POST | `/api/v1/messaging/threads/:id[/messages]` | Thread + post message |
+| GET | `/api/v1/analytics/overview` | Practice KPI snapshot |
+| GET | `/api/v1/analytics/appointments-by-status` | Utilization/no-show reporting |
+| GET | `/api/v1/analytics/claims-by-status` | Revenue-cycle reporting |
+| GET/POST | `/api/v1/platform/feature-flags` | Per-tenant feature flags |
+| GET | `/api/v1/platform/system-health` | Admin system-health dashboard |
+
 ### Jessie AI
 
 | Method | Path | Description |
