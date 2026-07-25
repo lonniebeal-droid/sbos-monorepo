@@ -170,9 +170,17 @@ pickers and conflict-checked scheduling), and Save Organization settings —
 React Hook Form + Zod, pending state, success/error toasts. Added
 `GET /clinicians` (118 total routes).
 
+## Update — Docker & CI
+
+Multi-stage Dockerfiles (Turborepo-pruned) for the API and web (Next.js
+standalone), a docker-compose stack (PostgreSQL + Redis + API + web with health
+checks), and GitHub Actions CI that runs build/lint/test and builds both Docker
+images on every push. The web standalone bundle was verified to boot locally;
+image builds are validated in CI (no local Docker daemon in this environment).
+
 ## Estimated completion of the overall SBOS platform
 
-**~76%.** Architecture, multi-tenant auth/RBAC, the full clinical data model and
+**~78%.** Architecture, multi-tenant auth/RBAC, the full clinical data model and
 documentation workflow, and 12 Prisma-backed resource groups are in place. The
 remaining work is scheduling depth, the billing/revenue cycle, the broader
 Jessie AI suite, enterprise features (analytics/messaging/notifications), live

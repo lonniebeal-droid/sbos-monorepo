@@ -39,6 +39,21 @@ pnpm --filter @sbos/database prisma:deploy   # apply migrations (needs DATABASE_
 pnpm --filter @sbos/database db:seed
 ```
 
+### Docker
+
+Run the whole stack (PostgreSQL, Redis, API, web) with Docker Compose:
+
+```bash
+cp .env.docker.example .env   # set JWT/AUTH secrets
+docker compose up --build
+```
+
+- Web: http://localhost:3000 · API: http://localhost:4000 (docs at `/docs`)
+- The API container applies Prisma migrations on start.
+- Images use multi-stage builds with Turborepo pruning; the web image runs the
+  Next.js standalone server. CI (GitHub Actions) builds both images and runs
+  build/lint/test on every push.
+
 ## Development sign-in
 
 Until web auth is wired to the API, local sign-in accepts:

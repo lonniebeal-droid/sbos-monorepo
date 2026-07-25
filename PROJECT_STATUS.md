@@ -44,7 +44,8 @@ provider-abstracted module so it can eventually be licensed independently.
 - Wire the web app to the live API (remove interim dev credential store); MFA.
 - Apply migrations + seed against a real PostgreSQL (needs `DATABASE_URL`).
 - Activate live providers (LLM/voice/SMS/Stripe) once credentials are supplied.
-- Production infrastructure: Redis/BullMQ, S3, WebSockets, Docker, CI/CD, HIPAA.
+- Production infrastructure: Redis/BullMQ, S3, WebSockets, HIPAA controls.
+  (Docker + Compose + GitHub Actions CI are in place.)
 - Surface the new API resources in the web UI.
 
 ### Historical phase notes

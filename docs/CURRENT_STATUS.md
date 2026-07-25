@@ -138,6 +138,19 @@ _Last updated: 2026-07-24_
   (118 total routes). Verified: all write-action pages render 200; actions
   surface API errors gracefully.
 
+## Containerization & CI (done)
+
+- **Multi-stage Dockerfiles** for the API and web, using **Turborepo pruning**
+  for optimal layer caching; the web image runs the **Next.js standalone**
+  server, the API image applies Prisma migrations on start.
+- **docker-compose.yml**: PostgreSQL + Redis + API + web with health checks and
+  a persistent DB volume; `.env.docker.example` for secrets.
+- **GitHub Actions CI** (`.github/workflows/ci.yml`): build/lint/test plus
+  Docker image builds on every push/PR.
+- Verified locally: web **standalone bundle boots** and serves pages (the exact
+  runtime the container executes); full workspace build 5/5, lint 7/7. Docker
+  image builds run in CI (no local Docker daemon in this environment).
+
 ## Next recommended phase
 
 **Phase 5 — Authentication & tenancy hardening**: connect web ↔ API auth,
