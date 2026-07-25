@@ -1,5 +1,8 @@
 import { getSession } from "@/lib/session";
+import { tryApiFetch, type Paginated } from "@/lib/api";
+import { fullName, titleCaseEnum } from "@/lib/format";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ApiErrorBanner } from "@/components/dashboard/api-state";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,15 +19,30 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const metadata = { title: "Settings" };
 
-const team = [
-  { name: "Alex Administrator", email: "admin@sbos.health", role: "Organization Admin" },
-  { name: "Dr. Riley Chen", email: "clinician@sbos.health", role: "Clinician" },
-  { name: "Dr. Sofia Alvarez", email: "s.alvarez@sbos.health", role: "Clinician" },
-  { name: "Morgan Lee", email: "billing@sbos.health", role: "Billing Specialist" },
-];
+interface Organization {
+  name: string;
+  npi: string | null;
+  phone: string | null;
+  timezone: string;
+}
+
+interface TeamMember {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+}
 
 export default async function SettingsPage() {
   const session = await getSession();
+  const [orgRes, teamRes] = await Promise.all([
+    tryApiFetch<Organization>("/organization"),
+    tryApiFetch<Paginated<TeamMember>>("/users?limit=50"),
+  ]);
+
+  const org = orgRes.ok ? orgRes.data : null;
+  const team = teamRes.ok ? teamRes.data.data : [];
 
   return (
     <>
@@ -32,6 +50,8 @@ export default async function SettingsPage() {
         title="Settings"
         description="Manage your organization, team, and preferences."
       />
+
+      {!orgRes.ok && <ApiErrorBanner message={orgRes.error} />}
 
       <Tabs defaultValue="organization">
         <TabsList>
@@ -51,19 +71,19 @@ export default async function SettingsPage() {
             <CardContent className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="org-name">Organization name</Label>
-                <Input id="org-name" defaultValue="Success Brand Behavioral Health" />
+                <Input id="org-name" defaultValue={org?.name ?? ""} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="org-npi">Group NPI</Label>
-                <Input id="org-npi" defaultValue="1093847561" />
+                <Input id="org-npi" defaultValue={org?.npi ?? ""} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="org-phone">Phone</Label>
-                <Input id="org-phone" defaultValue="(555) 018-2200" />
+                <Input id="org-phone" defaultValue={org?.phone ?? ""} />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="org-tz">Time zone</Label>
-                <Input id="org-tz" defaultValue="America/New_York" />
+                <Input id="org-tz" defaultValue={org?.timezone ?? ""} />
               </div>
             </CardContent>
             <CardFooter>
@@ -79,18 +99,26 @@ export default async function SettingsPage() {
               <CardDescription>People with access to this workspace.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2">
-              {team.map((member) => (
-                <div
-                  key={member.email}
-                  className="flex items-center justify-between rounded-lg border p-3"
-                >
-                  <div>
-                    <p className="text-sm font-medium">{member.name}</p>
-                    <p className="text-xs text-muted-foreground">{member.email}</p>
+              {team.length === 0 ? (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No team members to display.
+                </p>
+              ) : (
+                team.map((member) => (
+                  <div
+                    key={member.id}
+                    className="flex items-center justify-between rounded-lg border p-3"
+                  >
+                    <div>
+                      <p className="text-sm font-medium">{fullName(member)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {member.email}
+                      </p>
+                    </div>
+                    <Badge variant="secondary">{titleCaseEnum(member.role)}</Badge>
                   </div>
-                  <Badge variant="secondary">{member.role}</Badge>
-                </div>
-              ))}
+                ))
+              )}
             </CardContent>
             <CardFooter>
               <Button variant="outline">Invite member</Button>

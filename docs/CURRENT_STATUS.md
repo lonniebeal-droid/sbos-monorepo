@@ -117,10 +117,15 @@ _Last updated: 2026-07-24_
 - Interim dev credential store (`dev-users.ts`) **removed** — auth is fully
   API-backed. Added a typed server-side **API client** (`src/lib/api.ts`) with
   error normalization and pagination types.
-- The **Clients** page reads live data from the API with graceful empty/error
-  states. Verified end-to-end (API + web running): login proxies to the API,
-  cookies set, bad creds → 401, protected routes redirect, logout clears
-  cookies, pages degrade gracefully when the API has no database.
+- **All seven dashboard modules now read live data** from the API — Dashboard
+  (analytics KPIs + today's appointments + tasks), Schedule, Calendar, Clients,
+  Clinical Notes, Billing (claims + analytics), Reports (analytics), and
+  Settings (organization + team) — each with graceful empty/error states via a
+  shared `tryApiFetch` wrapper and `ApiErrorBanner`/`EmptyState` components.
+- Verified end-to-end (API + web running): login proxies to the API, cookies
+  set, bad creds → 401, protected routes redirect, logout clears cookies, and
+  all eight authenticated pages render 200 while degrading gracefully when the
+  API has no database.
 
 ## Next recommended phase
 

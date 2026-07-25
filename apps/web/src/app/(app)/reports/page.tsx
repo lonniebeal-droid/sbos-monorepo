@@ -1,7 +1,10 @@
 import { Activity, CalendarCheck, TrendingUp, Users } from "lucide-react";
 
+import { tryApiFetch } from "@/lib/api";
+import { formatCurrency, titleCaseEnum } from "@/lib/format";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { ApiErrorBanner } from "@/components/dashboard/api-state";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -13,23 +16,29 @@ import {
 
 export const metadata = { title: "Reports" };
 
-const utilization = [
-  { clinician: "Dr. Chen", booked: 92 },
-  { clinician: "Dr. Alvarez", booked: 78 },
-  { clinician: "Dr. Patel", booked: 85 },
-  { clinician: "Dr. Nguyen", booked: 64 },
-];
+interface Overview {
+  activeClients: number;
+  clinicians: number;
+  appointmentsThisMonth: number;
+  collectedThisMonth: number;
+}
 
-const reportLinks = [
-  "Revenue by payer",
-  "No-show & cancellation trends",
-  "Clinician productivity",
-  "Outcome measures (PHQ-9 / GAD-7)",
-  "Documentation compliance",
-  "Accounts receivable aging",
-];
+interface StatusRow {
+  status: string;
+  count: number;
+}
 
-export default function ReportsPage() {
+export default async function ReportsPage() {
+  const [overviewRes, apptStatusRes] = await Promise.all([
+    tryApiFetch<Overview>("/analytics/overview"),
+    tryApiFetch<StatusRow[]>("/analytics/appointments-by-status"),
+  ]);
+
+  const overview = overviewRes.ok ? overviewRes.data : null;
+  const apptStatus = apptStatusRes.ok ? apptStatusRes.data : [];
+  const totalAppts = apptStatus.reduce((sum, r) => sum + r.count, 0);
+  const maxCount = Math.max(1, ...apptStatus.map((r) => r.count));
+
   return (
     <>
       <PageHeader
@@ -38,57 +47,63 @@ export default function ReportsPage() {
         actions={<Button variant="outline">Export</Button>}
       />
 
+      {!overviewRes.ok && <ApiErrorBanner message={overviewRes.error} />}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Sessions this month" value="1,284" icon={CalendarCheck} trend={{ value: "+9%", positive: true }} hint="vs. last month" />
-        <StatCard label="New clients" value="37" icon={Users} trend={{ value: "+5", positive: true }} hint="this month" />
-        <StatCard label="Utilization" value="80%" icon={Activity} hint="avg. across clinicians" />
-        <StatCard label="Net revenue" value="$186k" icon={TrendingUp} trend={{ value: "+11%", positive: true }} hint="YTD" />
+        <StatCard
+          label="Appointments this month"
+          value={overview ? String(overview.appointmentsThisMonth) : "—"}
+          icon={CalendarCheck}
+        />
+        <StatCard
+          label="Active clients"
+          value={overview ? String(overview.activeClients) : "—"}
+          icon={Users}
+        />
+        <StatCard
+          label="Clinicians"
+          value={overview ? String(overview.clinicians) : "—"}
+          icon={Activity}
+        />
+        <StatCard
+          label="Collected (MTD)"
+          value={overview ? formatCurrency(overview.collectedThisMonth) : "—"}
+          icon={TrendingUp}
+        />
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Clinician utilization</CardTitle>
-            <CardDescription>Percentage of available hours booked</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {utilization.map((row) => (
-              <div key={row.clinician} className="space-y-1">
+      <Card>
+        <CardHeader>
+          <CardTitle>Appointments by status</CardTitle>
+          <CardDescription>
+            {totalAppts} appointment{totalAppts === 1 ? "" : "s"} across all time
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {apptStatus.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              No appointment data yet.
+            </p>
+          ) : (
+            apptStatus.map((row) => (
+              <div key={row.status} className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">{row.clinician}</span>
+                  <span className="font-medium">{titleCaseEnum(row.status)}</span>
                   <span className="tabular-nums text-muted-foreground">
-                    {row.booked}%
+                    {row.count}
                   </span>
                 </div>
                 <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
                   <div
                     className="h-full rounded-full bg-primary"
-                    style={{ width: `${row.booked}%` }}
+                    style={{ width: `${(row.count / maxCount) * 100}%` }}
                   />
                 </div>
               </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Standard reports</CardTitle>
-            <CardDescription>Generate and export</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-1">
-            {reportLinks.map((link) => (
-              <button
-                key={link}
-                className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
-              >
-                {link}
-                <TrendingUp className="h-4 w-4 text-muted-foreground" />
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
     </>
   );
 }

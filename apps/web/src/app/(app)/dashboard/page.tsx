@@ -6,8 +6,11 @@ import {
 } from "lucide-react";
 
 import { getSession } from "@/lib/session";
+import { tryApiFetch, type Paginated } from "@/lib/api";
+import { formatCurrency, formatTime, fullName, titleCaseEnum } from "@/lib/format";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
+import { ApiErrorBanner } from "@/components/dashboard/api-state";
 import {
   Card,
   CardContent,
@@ -20,24 +23,70 @@ import { Button } from "@/components/ui/button";
 
 export const metadata = { title: "Dashboard" };
 
-const todaysSchedule = [
-  { time: "9:00 AM", client: "Jordan M.", type: "Individual · 50 min", status: "Confirmed" },
-  { time: "10:00 AM", client: "Priya S.", type: "Intake · 60 min", status: "Confirmed" },
-  { time: "11:30 AM", client: "Marcus T.", type: "Telehealth · 45 min", status: "Checked in" },
-  { time: "1:00 PM", client: "Group A", type: "Group · 90 min", status: "Confirmed" },
-  { time: "3:00 PM", client: "Elena R.", type: "Individual · 50 min", status: "Pending" },
-];
+interface Overview {
+  activeClients: number;
+  clinicians: number;
+  appointmentsThisMonth: number;
+  notesToCosign: number;
+  openTasks: number;
+  collectedThisMonth: number;
+  outstandingReceivables: number;
+}
 
-const tasks = [
-  { label: "Co-sign 3 progress notes", due: "Today" },
-  { label: "Submit 2 insurance claims", due: "Today" },
-  { label: "Review updated treatment plan — Jordan M.", due: "Tomorrow" },
-  { label: "Complete credentialing renewal", due: "In 5 days" },
-];
+interface AppointmentRow {
+  id: string;
+  startTime: string;
+  type: string;
+  status: string;
+  isTelehealth: boolean;
+  client: { firstName: string; lastName: string } | null;
+}
+
+interface TaskRow {
+  id: string;
+  title: string;
+  priority: string;
+  dueDate: string | null;
+}
+
+function dayRange() {
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 1);
+  return { from: start.toISOString(), to: end.toISOString() };
+}
+
+function statusVariant(status: string) {
+  switch (status) {
+    case "PENDING":
+    case "SCHEDULED":
+      return "secondary" as const;
+    case "CHECKED_IN":
+    case "IN_SESSION":
+      return "success" as const;
+    default:
+      return "secondary" as const;
+  }
+}
 
 export default async function DashboardPage() {
   const session = await getSession();
   const firstName = session?.name.split(" ")[0] ?? "there";
+  const { from, to } = dayRange();
+
+  const [overviewRes, apptRes, taskRes] = await Promise.all([
+    tryApiFetch<Overview>("/analytics/overview"),
+    tryApiFetch<Paginated<AppointmentRow>>(
+      `/appointments?from=${from}&to=${to}&limit=8`,
+    ),
+    tryApiFetch<Paginated<TaskRow>>("/tasks?status=OPEN&limit=6"),
+  ]);
+
+  const overview = overviewRes.ok ? overviewRes.data : null;
+  const appointments = apptRes.ok ? apptRes.data.data : [];
+  const tasks = taskRes.ok ? taskRes.data.data : [];
+  const unreachable = !overviewRes.ok ? overviewRes.error : null;
 
   return (
     <>
@@ -47,33 +96,28 @@ export default async function DashboardPage() {
         actions={<Button>New appointment</Button>}
       />
 
+      {unreachable && <ApiErrorBanner message={unreachable} />}
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Today's appointments"
-          value="12"
+          value={String(appointments.length)}
           icon={CalendarCheck}
-          trend={{ value: "+3", positive: true }}
-          hint="vs. yesterday"
         />
         <StatCard
           label="Active clients"
-          value="248"
+          value={overview ? String(overview.activeClients) : "—"}
           icon={Users}
-          trend={{ value: "+8", positive: true }}
-          hint="this month"
         />
         <StatCard
           label="Notes to co-sign"
-          value="7"
+          value={overview ? String(overview.notesToCosign) : "—"}
           icon={ClipboardList}
-          hint="3 overdue"
         />
         <StatCard
           label="Outstanding A/R"
-          value="$18,420"
+          value={overview ? formatCurrency(overview.outstandingReceivables) : "—"}
           icon={DollarSign}
-          trend={{ value: "-6%", positive: true }}
-          hint="past 30 days"
         />
       </div>
 
@@ -82,71 +126,75 @@ export default async function DashboardPage() {
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <div>
               <CardTitle>Today's schedule</CardTitle>
-              <CardDescription>Wednesday, {formattedDate()}</CardDescription>
+              <CardDescription>
+                {appointments.length} appointment
+                {appointments.length === 1 ? "" : "s"}
+              </CardDescription>
             </div>
             <Button variant="outline" size="sm">
               View calendar
             </Button>
           </CardHeader>
           <CardContent className="space-y-2">
-            {todaysSchedule.map((slot) => (
-              <div
-                key={`${slot.time}-${slot.client}`}
-                className="flex items-center justify-between rounded-lg border p-3"
-              >
-                <div className="flex items-center gap-4">
-                  <span className="w-20 text-sm font-medium tabular-nums text-muted-foreground">
-                    {slot.time}
-                  </span>
-                  <div>
-                    <p className="text-sm font-medium">{slot.client}</p>
-                    <p className="text-xs text-muted-foreground">{slot.type}</p>
-                  </div>
-                </div>
-                <Badge
-                  variant={
-                    slot.status === "Pending"
-                      ? "warning"
-                      : slot.status === "Checked in"
-                        ? "success"
-                        : "secondary"
-                  }
+            {appointments.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No appointments scheduled for today.
+              </p>
+            ) : (
+              appointments.map((slot) => (
+                <div
+                  key={slot.id}
+                  className="flex items-center justify-between rounded-lg border p-3"
                 >
-                  {slot.status}
-                </Badge>
-              </div>
-            ))}
+                  <div className="flex items-center gap-4">
+                    <span className="w-20 text-sm font-medium tabular-nums text-muted-foreground">
+                      {formatTime(slot.startTime)}
+                    </span>
+                    <div>
+                      <p className="text-sm font-medium">
+                        {slot.client ? fullName(slot.client) : "—"}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {titleCaseEnum(slot.type)}
+                        {slot.isTelehealth ? " · Telehealth" : ""}
+                      </p>
+                    </div>
+                  </div>
+                  <Badge variant={statusVariant(slot.status)}>
+                    {titleCaseEnum(slot.status)}
+                  </Badge>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
             <CardTitle>Your tasks</CardTitle>
-            <CardDescription>Action items awaiting you</CardDescription>
+            <CardDescription>Open action items</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            {tasks.map((task) => (
-              <div
-                key={task.label}
-                className="flex items-start justify-between gap-3 rounded-lg border p-3"
-              >
-                <p className="text-sm">{task.label}</p>
-                <Badge variant="outline" className="shrink-0">
-                  {task.due}
-                </Badge>
-              </div>
-            ))}
+            {tasks.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No open tasks.
+              </p>
+            ) : (
+              tasks.map((task) => (
+                <div
+                  key={task.id}
+                  className="flex items-start justify-between gap-3 rounded-lg border p-3"
+                >
+                  <p className="text-sm">{task.title}</p>
+                  <Badge variant="outline" className="shrink-0">
+                    {titleCaseEnum(task.priority)}
+                  </Badge>
+                </div>
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
     </>
   );
-}
-
-function formattedDate() {
-  return new Date().toLocaleDateString("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  });
 }

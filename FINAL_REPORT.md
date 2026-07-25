@@ -151,12 +151,20 @@ system-health dashboard. Schema → **41 models** (sixth migration adds
 FeatureFlag). API → **117 routes across 20 resource groups**.
 
 With Phase 10 the core platform (Phases 1–10) is functionally complete on the
-backend. Remaining work is web↔API/live-data wiring, credential-gated provider
-activation, and production infrastructure.
+backend. Remaining work is credential-gated provider activation and production
+infrastructure.
+
+## Update — Web ↔ API integration + live-data UI
+
+The web app now authenticates against the live NestJS API (dev credential store
+removed) and **all seven dashboard modules read live data** through a typed
+server-side API client, each with graceful empty/error states. Verified
+end-to-end with both servers running: auth flow, RBAC, route protection, and all
+eight pages rendering 200 with graceful degradation when the API has no database.
 
 ## Estimated completion of the overall SBOS platform
 
-**~68%.** Architecture, multi-tenant auth/RBAC, the full clinical data model and
+**~74%.** Architecture, multi-tenant auth/RBAC, the full clinical data model and
 documentation workflow, and 12 Prisma-backed resource groups are in place. The
 remaining work is scheduling depth, the billing/revenue cycle, the broader
 Jessie AI suite, enterprise features (analytics/messaging/notifications), live

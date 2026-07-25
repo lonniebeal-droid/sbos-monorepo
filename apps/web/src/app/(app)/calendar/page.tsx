@@ -1,7 +1,9 @@
 import { ChevronLeft, ChevronRight, Plus } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { tryApiFetch, type Paginated } from "@/lib/api";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ApiErrorBanner } from "@/components/dashboard/api-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
@@ -9,19 +11,10 @@ export const metadata = { title: "Calendar" };
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-// Appointment counts keyed by day-of-month for the current view.
-const appointmentsByDay: Record<number, number> = {
-  3: 4,
-  7: 6,
-  8: 2,
-  12: 5,
-  14: 3,
-  18: 7,
-  21: 4,
-  24: 12,
-  25: 8,
-  28: 5,
-};
+interface AppointmentRow {
+  id: string;
+  startTime: string;
+}
 
 function buildMonthGrid(year: number, month: number) {
   const firstDay = new Date(year, month, 1).getDay();
@@ -33,11 +26,26 @@ function buildMonthGrid(year: number, month: number) {
   return cells;
 }
 
-export default function CalendarPage() {
+export default async function CalendarPage() {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
   const today = now.getDate();
+
+  const from = new Date(year, month, 1).toISOString();
+  const to = new Date(year, month + 1, 1).toISOString();
+  const res = await tryApiFetch<Paginated<AppointmentRow>>(
+    `/appointments?from=${from}&to=${to}&limit=1000`,
+  );
+
+  const appointmentsByDay: Record<number, number> = {};
+  if (res.ok) {
+    for (const appt of res.data.data) {
+      const day = new Date(appt.startTime).getDate();
+      appointmentsByDay[day] = (appointmentsByDay[day] ?? 0) + 1;
+    }
+  }
+
   const cells = buildMonthGrid(year, month);
   const monthLabel = now.toLocaleDateString("en-US", {
     month: "long",
@@ -55,6 +63,8 @@ export default function CalendarPage() {
           </Button>
         }
       />
+
+      {!res.ok && <ApiErrorBanner message={res.error} />}
 
       <Card>
         <CardContent className="p-4 md:p-6">
@@ -107,7 +117,7 @@ export default function CalendarPage() {
                       </span>
                       {count ? (
                         <div className="mt-1 rounded bg-primary/10 px-1.5 py-0.5 text-xs font-medium text-primary">
-                          {count} appts
+                          {count} appt{count === 1 ? "" : "s"}
                         </div>
                       ) : null}
                     </>

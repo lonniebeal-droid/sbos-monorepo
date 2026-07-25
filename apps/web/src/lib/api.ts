@@ -88,3 +88,32 @@ export interface Paginated<T> {
     hasPreviousPage: boolean;
   };
 }
+
+export type ApiResult<T> =
+  | { ok: true; data: T }
+  | { ok: false; error: string };
+
+/**
+ * Non-throwing wrapper around {@link apiFetch}. Returns a discriminated union so
+ * server components can render live data or a graceful fallback without a
+ * try/catch in every page.
+ */
+export async function tryApiFetch<T>(
+  path: string,
+  options?: RequestInit & { auth?: boolean },
+): Promise<ApiResult<T>> {
+  try {
+    return { ok: true, data: await apiFetch<T>(path, options) };
+  } catch (error) {
+    if (error instanceof ApiError) {
+      const message =
+        error.status === 503
+          ? "The SBOS API is not reachable. Start the API to see live data."
+          : error.status === 403
+            ? "You don't have permission to view this data."
+            : error.message;
+      return { ok: false, error: message };
+    }
+    return { ok: false, error: "Request failed." };
+  }
+}

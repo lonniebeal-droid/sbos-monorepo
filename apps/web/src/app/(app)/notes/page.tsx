@@ -1,6 +1,9 @@
 import { FileText } from "lucide-react";
 
+import { tryApiFetch, type Paginated } from "@/lib/api";
+import { formatDate, fullName, titleCaseEnum } from "@/lib/format";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ApiErrorBanner } from "@/components/dashboard/api-state";
 import { NoteComposer } from "@/components/notes/note-composer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,13 +20,14 @@ import {
 
 export const metadata = { title: "Clinical Notes" };
 
-const notes = [
-  { client: "Jordan Mitchell", type: "BIRP", date: "Jul 22, 2026", clinician: "Dr. Chen", status: "Signed" },
-  { client: "Priya Shah", type: "Intake", date: "Jul 22, 2026", clinician: "Dr. Chen", status: "Draft" },
-  { client: "Marcus Turner", type: "DAP", date: "Jul 21, 2026", clinician: "Dr. Alvarez", status: "Awaiting co-sign" },
-  { client: "DBT Skills Group", type: "Group", date: "Jul 21, 2026", clinician: "Dr. Patel", status: "Signed" },
-  { client: "Elena Rodriguez", type: "SOAP", date: "Jul 20, 2026", clinician: "Dr. Chen", status: "Signed" },
-];
+interface NoteRow {
+  id: string;
+  type: string;
+  status: string;
+  title: string | null;
+  createdAt: string;
+  client: { firstName: string; lastName: string } | null;
+}
 
 const noteTypes = [
   { key: "BIRP", name: "BIRP Note", desc: "Behavior · Intervention · Response · Plan" },
@@ -34,16 +38,19 @@ const noteTypes = [
 
 function statusVariant(status: string) {
   switch (status) {
-    case "Signed":
+    case "SIGNED":
       return "success" as const;
-    case "Draft":
+    case "DRAFT":
       return "secondary" as const;
     default:
       return "warning" as const;
   }
 }
 
-export default function NotesPage() {
+export default async function NotesPage() {
+  const res = await tryApiFetch<Paginated<NoteRow>>("/notes?limit=50");
+  const notes = res.ok ? res.data.data : [];
+
   return (
     <>
       <PageHeader
@@ -51,6 +58,8 @@ export default function NotesPage() {
         description="BIRP, DAP, SOAP, group notes, and treatment plans."
         actions={<NoteComposer />}
       />
+
+      {!res.ok && <ApiErrorBanner message={res.error} />}
 
       <Tabs defaultValue="recent">
         <TabsList>
@@ -61,36 +70,42 @@ export default function NotesPage() {
         <TabsContent value="recent">
           <Card>
             <CardContent className="p-0">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Clinician</TableHead>
-                    <TableHead>Status</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {notes.map((note, i) => (
-                    <TableRow key={`${note.client}-${i}`}>
-                      <TableCell className="font-medium">{note.client}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{note.type}</Badge>
-                      </TableCell>
-                      <TableCell className="text-muted-foreground">
-                        {note.date}
-                      </TableCell>
-                      <TableCell>{note.clinician}</TableCell>
-                      <TableCell>
-                        <Badge variant={statusVariant(note.status)}>
-                          {note.status}
-                        </Badge>
-                      </TableCell>
+              {notes.length === 0 ? (
+                <p className="py-16 text-center text-sm text-muted-foreground">
+                  No notes yet. Create your first note to get started.
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Client</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Date</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHeader>
+                  <TableBody>
+                    {notes.map((note) => (
+                      <TableRow key={note.id}>
+                        <TableCell className="font-medium">
+                          {note.client ? fullName(note.client) : "—"}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline">{note.type}</Badge>
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          {formatDate(note.createdAt)}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={statusVariant(note.status)}>
+                            {titleCaseEnum(note.status)}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
