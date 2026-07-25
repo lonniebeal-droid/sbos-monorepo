@@ -98,9 +98,28 @@ management; scheduling engine; clinical-notes API + co-sign; AI layer
 ("Jessie"); billing/Stripe; Redis/BullMQ, S3, WebSockets; CI/Docker; HIPAA
 controls. See `docs/ROADMAP.md`.
 
+## Update — Phases 5 & 6 delivered
+
+- **Phase 5**: Prisma wired into the API; Organizations, Locations, Clients, and
+  Appointments (with double-booking conflict detection) — all tenant-scoped,
+  RBAC-guarded, paginated, Swagger-documented.
+- **Phase 6 (Clinical Platform)**: Clinical Notes (BIRP/DAP/SOAP/progress/group)
+  with draft→sign→co-sign→amend, version history, and audit trail; Diagnoses,
+  Medications, Treatment Plans (goals/objectives), Documents (presigned
+  upload/download + e-sign). Cross-cutting **AuditModule**, **AiModule** (Jessie
+  note-assistant, provider-swappable), and **StorageModule** (S3-swappable).
+- Shared domain logic extracted to `@sbos/core` with **unit tests** (5 passing);
+  API RBAC guard and notes service consume it (no duplicated logic).
+- Schema grew to **31 models**; second migration adds `NoteVersion` +
+  `NoteTemplate`. API now exposes **55 routes across 12 resource groups**.
+- Positioning: SBOS is a multi-tenant SaaS product (SuccessBrand = Tenant #1);
+  **Jessie AI** is a provider-abstracted, independently-licensable layer.
+
 ## Estimated completion of the overall SBOS platform
 
-**~22–25%.** The architecture, auth/RBAC, complete data model, API scaffold, and
-a full responsive UI shell with seven modules are in place. The bulk of remaining
-work is domain APIs, live data wiring, the AI layer, billing/revenue cycle, and
-production infrastructure.
+**~38%.** Architecture, multi-tenant auth/RBAC, the full clinical data model and
+documentation workflow, and 12 Prisma-backed resource groups are in place. The
+remaining work is scheduling depth, the billing/revenue cycle, the broader
+Jessie AI suite, enterprise features (analytics/messaging/notifications), live
+data wiring, and production infrastructure (Redis/BullMQ, S3, WebSockets,
+CI/CD, HIPAA controls).

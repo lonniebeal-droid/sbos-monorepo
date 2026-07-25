@@ -95,10 +95,46 @@ enabled.
 | PATCH | `/api/v1/clients/:id` | CLINICIAN | Update a client |
 | DELETE | `/api/v1/clients/:id` | ORG_ADMIN | Delete a client |
 
-> Organizations, Locations, and Clients are **Prisma-backed** (via the global
-> `PrismaModule`) and require a live PostgreSQL connection. The API boots
-> without a database (connection is non-fatal); these endpoints return a
-> connection error until `DATABASE_URL` points at a reachable instance.
+### Appointments
+
+| Method | Path | Auth (min role) | Description |
+| --- | --- | --- | --- |
+| GET | `/api/v1/appointments` | any | List (filter by clinician/client/date range) |
+| GET | `/api/v1/appointments/:id` | any | Get an appointment |
+| POST | `/api/v1/appointments` | FRONT_DESK | Schedule (conflict-checked) |
+| PATCH | `/api/v1/appointments/:id` | FRONT_DESK | Update / reschedule |
+| DELETE | `/api/v1/appointments/:id` | ORG_ADMIN | Delete |
+
+### Clinical Notes
+
+| Method | Path | Auth (min role) | Description |
+| --- | --- | --- | --- |
+| GET | `/api/v1/notes` | any | List (filter by client/clinician/type/status) |
+| GET | `/api/v1/notes/:id` | any | Get a note with structured detail |
+| GET | `/api/v1/notes/:id/versions` | any | Version history (audit trail) |
+| POST | `/api/v1/notes` | CLINICIAN | Create a draft (BIRP/DAP/SOAP/progress/group) |
+| POST | `/api/v1/notes/generate` | CLINICIAN | AI-assisted draft (Jessie; not persisted) |
+| PATCH | `/api/v1/notes/:id` | CLINICIAN | Edit a draft (new version) |
+| POST | `/api/v1/notes/:id/sign` | CLINICIAN | Sign (author) |
+| POST | `/api/v1/notes/:id/cosign` | SUPERVISOR | Co-sign |
+| POST | `/api/v1/notes/:id/amend` | CLINICIAN | Amend a signed note (new version) |
+| DELETE | `/api/v1/notes/:id` | CLINICIAN | Delete a draft |
+
+### Diagnoses / Medications / Treatment Plans / Documents
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET/POST/PATCH/DELETE | `/api/v1/diagnoses` | ICD-10 diagnoses per client |
+| GET/POST/PATCH/DELETE | `/api/v1/medications` | Medication records per client |
+| GET/POST/PATCH/DELETE | `/api/v1/treatment-plans` | Plans + goals/objectives |
+| PATCH | `/api/v1/treatment-plans/:id/goals/:goalId` | Goal status/progress |
+| GET/POST/DELETE | `/api/v1/documents` | Metadata + presigned upload/download |
+| POST | `/api/v1/documents/:id/sign` | Electronic signature |
+
+> All resource endpoints are **Prisma-backed** (via the global `PrismaModule`),
+> tenant-scoped by `organizationId`, and require a live PostgreSQL connection.
+> The API boots without a database (connection is non-fatal); these endpoints
+> return a connection error until `DATABASE_URL` points at a reachable instance.
 
 ## Status codes
 

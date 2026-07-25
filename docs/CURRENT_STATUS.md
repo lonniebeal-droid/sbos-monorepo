@@ -41,14 +41,24 @@ _Last updated: 2026-07-24_
   payments (Stripe), email/SMS, and the AI layer ("Jessie").
 - CI (GitHub Actions), Docker, HIPAA controls.
 
-## Phase 5 progress (in flight)
+## Phase 5 — Auth & tenant management (done)
 
-- Global `PrismaModule`/`PrismaService` wired into the API from `@sbos/database`
-  (non-fatal startup so the API boots without a database).
-- **Organizations** API (get/update/stats), **Locations** CRUD, and **Clients**
-  CRUD — all tenant-scoped, RBAC-guarded, paginated, and documented in Swagger.
-- Verified: API boots without a DB; new routes are registered and return
-  connection errors (not 404) until PostgreSQL is available.
+- Global `PrismaModule`/`PrismaService` wired into the API (non-fatal startup).
+- **Organizations** (get/update/stats), **Locations** CRUD, **Clients** CRUD,
+  **Appointments** CRUD with conflict detection — tenant-scoped, RBAC-guarded.
+
+## Phase 6 — Clinical platform (done)
+
+- **Clinical Notes**: BIRP/DAP/SOAP/progress/group; draft→sign→co-sign→amend
+  workflow; **version history**; **audit trail** (AuditModule); AI-assisted
+  drafts via the **Jessie** note-assistant (AiModule, provider-swappable).
+- **Diagnoses**, **Medications**, **Treatment Plans** (goals/objectives),
+  **Documents** (StorageModule with presigned upload/download + e-sign).
+- Shared domain rules moved to `@sbos/core` (RBAC + note transitions) with
+  passing unit tests; API guards/services consume them (no duplication).
+- Schema: added `NoteVersion` + `NoteTemplate` (migration
+  `20260725000000_clinical_versions_templates`).
+- Verified: 55 routes across 12 groups; build 5/5, lint 7/7, test 6/6.
 
 ## Next recommended phase
 
