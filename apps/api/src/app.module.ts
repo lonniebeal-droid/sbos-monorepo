@@ -10,6 +10,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './audit/audit.module';
 import { AiModule } from './ai/ai.module';
 import { StorageModule } from './storage/storage.module';
+import { PaymentsModule } from './payments/payments.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
@@ -22,6 +23,7 @@ import { DiagnosesModule } from './modules/diagnoses/diagnoses.module';
 import { MedicationsModule } from './modules/medications/medications.module';
 import { TreatmentPlansModule } from './modules/treatment-plans/treatment-plans.module';
 import { DocumentsModule } from './modules/documents/documents.module';
+import { BillingModule } from './modules/billing/billing.module';
 import { HealthController } from './modules/health/health.controller';
 
 @Module({
@@ -41,6 +43,7 @@ import { HealthController } from './modules/health/health.controller';
     AuditModule,
     AiModule,
     StorageModule,
+    PaymentsModule,
     AuthModule,
     UsersModule,
     OrganizationsModule,
@@ -53,6 +56,7 @@ import { HealthController } from './modules/health/health.controller';
     MedicationsModule,
     TreatmentPlansModule,
     DocumentsModule,
+    BillingModule,
   ],
   controllers: [HealthController],
   providers: [
