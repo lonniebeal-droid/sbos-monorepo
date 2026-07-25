@@ -1,10 +1,13 @@
-import { Clock, Plus, Video } from "lucide-react";
+import { Clock, Video } from "lucide-react";
 
 import { tryApiFetch, type Paginated } from "@/lib/api";
 import { formatTime, fullName, titleCaseEnum } from "@/lib/format";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ApiErrorBanner } from "@/components/dashboard/api-state";
-import { Button } from "@/components/ui/button";
+import {
+  NewAppointmentDialog,
+  type PickerOption,
+} from "@/components/appointments/new-appointment-dialog";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -49,13 +52,31 @@ function statusVariant(status: string) {
   }
 }
 
+interface ClientPick {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
 export default async function SchedulePage() {
   const { from, to } = dayRange();
-  const res = await tryApiFetch<Paginated<AppointmentRow>>(
-    `/appointments?from=${from}&to=${to}&limit=50`,
-  );
+  const [res, clientsRes, cliniciansRes] = await Promise.all([
+    tryApiFetch<Paginated<AppointmentRow>>(
+      `/appointments?from=${from}&to=${to}&limit=50`,
+    ),
+    tryApiFetch<Paginated<ClientPick>>("/clients?limit=100"),
+    tryApiFetch<PickerOption[]>("/clinicians"),
+  ]);
   const agenda = res.ok ? res.data.data : [];
   const telehealthCount = agenda.filter((a) => a.isTelehealth).length;
+
+  const clients: PickerOption[] = clientsRes.ok
+    ? clientsRes.data.data.map((c) => ({
+        id: c.id,
+        name: `${c.firstName} ${c.lastName}`,
+      }))
+    : [];
+  const clinicians: PickerOption[] = cliniciansRes.ok ? cliniciansRes.data : [];
 
   return (
     <>
@@ -63,9 +84,7 @@ export default async function SchedulePage() {
         title="Schedule"
         description="Appointments and clinician availability for the day."
         actions={
-          <Button>
-            <Plus className="h-4 w-4" /> New appointment
-          </Button>
+          <NewAppointmentDialog clients={clients} clinicians={clinicians} />
         }
       />
 

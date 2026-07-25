@@ -127,6 +127,17 @@ _Last updated: 2026-07-24_
   all eight authenticated pages render 200 while degrading gracefully when the
   API has no database.
 
+## Write actions (done)
+
+- **Create/update flows** via Next.js **Server Actions** that call the API and
+  revalidate the affected routes: **New Client** (dialog form), **New
+  Appointment** (dialog with client/clinician pickers + conflict-checked
+  scheduling), and **Save Organization** settings. Forms use React Hook Form +
+  Zod with pending state and success/error toasts.
+- Added `GET /api/v1/clinicians` (list) to populate the appointment picker
+  (118 total routes). Verified: all write-action pages render 200; actions
+  surface API errors gracefully.
+
 ## Next recommended phase
 
 **Phase 5 — Authentication & tenancy hardening**: connect web ↔ API auth,

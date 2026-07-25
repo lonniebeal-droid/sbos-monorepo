@@ -42,6 +42,7 @@ async function bootstrap(): Promise<void> {
     .addTag('Organizations')
     .addTag('Locations')
     .addTag('Clients')
+    .addTag('Clinicians')
     .addTag('Appointments')
     .addTag('Scheduling')
     .addTag('Clinical Notes')

@@ -3,6 +3,7 @@ import { tryApiFetch, type Paginated } from "@/lib/api";
 import { fullName, titleCaseEnum } from "@/lib/format";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ApiErrorBanner } from "@/components/dashboard/api-state";
+import { OrganizationForm } from "@/components/settings/organization-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,27 +69,15 @@ export default async function SettingsPage() {
                 These details appear on client-facing documents and claims.
               </CardDescription>
             </CardHeader>
-            <CardContent className="grid gap-4 sm:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="org-name">Organization name</Label>
-                <Input id="org-name" defaultValue={org?.name ?? ""} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="org-npi">Group NPI</Label>
-                <Input id="org-npi" defaultValue={org?.npi ?? ""} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="org-phone">Phone</Label>
-                <Input id="org-phone" defaultValue={org?.phone ?? ""} />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="org-tz">Time zone</Label>
-                <Input id="org-tz" defaultValue={org?.timezone ?? ""} />
-              </div>
-            </CardContent>
-            <CardFooter>
-              <Button>Save changes</Button>
-            </CardFooter>
+            <OrganizationForm
+              disabled={!orgRes.ok}
+              initial={{
+                name: org?.name ?? "",
+                npi: org?.npi ?? "",
+                phone: org?.phone ?? "",
+                timezone: org?.timezone ?? "",
+              }}
+            />
           </Card>
         </TabsContent>
 

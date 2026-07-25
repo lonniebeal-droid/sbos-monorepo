@@ -16,6 +16,7 @@ import { UsersModule } from './modules/users/users.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { LocationsModule } from './modules/locations/locations.module';
 import { ClientsModule } from './modules/clients/clients.module';
+import { CliniciansModule } from './modules/clinicians/clinicians.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { SchedulingModule } from './modules/scheduling/scheduling.module';
 import { NotesModule } from './modules/notes/notes.module';
@@ -55,6 +56,7 @@ import { HealthController } from './modules/health/health.controller';
     OrganizationsModule,
     LocationsModule,
     ClientsModule,
+    CliniciansModule,
     AppointmentsModule,
     SchedulingModule,
     NotesModule,

@@ -1,8 +1,8 @@
-import { AlertCircle, Plus, Users } from "lucide-react";
+import { AlertCircle, Users } from "lucide-react";
 
 import { apiFetch, ApiError, type Paginated } from "@/lib/api";
 import { PageHeader } from "@/components/dashboard/page-header";
-import { Button } from "@/components/ui/button";
+import { NewClientDialog } from "@/components/clients/new-client-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -77,11 +77,7 @@ export default async function ClientsPage() {
       <PageHeader
         title="Clients"
         description="Manage your client roster, charts, and admissions."
-        actions={
-          <Button>
-            <Plus className="h-4 w-4" /> Add client
-          </Button>
-        }
+        actions={<NewClientDialog />}
       />
 
       {hasError && (

@@ -162,9 +162,17 @@ server-side API client, each with graceful empty/error states. Verified
 end-to-end with both servers running: auth flow, RBAC, route protection, and all
 eight pages rendering 200 with graceful degradation when the API has no database.
 
+## Update — Write actions
+
+Create/update flows are wired via Next.js Server Actions (POST/PATCH to the API
+with route revalidation): New Client, New Appointment (with client/clinician
+pickers and conflict-checked scheduling), and Save Organization settings —
+React Hook Form + Zod, pending state, success/error toasts. Added
+`GET /clinicians` (118 total routes).
+
 ## Estimated completion of the overall SBOS platform
 
-**~74%.** Architecture, multi-tenant auth/RBAC, the full clinical data model and
+**~76%.** Architecture, multi-tenant auth/RBAC, the full clinical data model and
 documentation workflow, and 12 Prisma-backed resource groups are in place. The
 remaining work is scheduling depth, the billing/revenue cycle, the broader
 Jessie AI suite, enterprise features (analytics/messaging/notifications), live
