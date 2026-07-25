@@ -17,6 +17,8 @@ import type { AuthenticatedUser } from '../../common/interfaces/authenticated-us
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { QueryAppointmentsDto } from './dto/query-appointments.dto';
+import { CreateRecurringDto } from './dto/create-recurring.dto';
+import { CancelAppointmentDto } from './dto/cancel-appointment.dto';
 import { AppointmentsService } from './appointments.service';
 
 @ApiTags('Appointments')
@@ -48,6 +50,48 @@ export class AppointmentsController {
     @Body() dto: CreateAppointmentDto,
   ) {
     return this.appointmentsService.create(user.organizationId, dto);
+  }
+
+  @Post('recurring')
+  @Roles(Role.FRONT_DESK)
+  @ApiOperation({ summary: 'Create a recurring appointment series (skips conflicts)' })
+  createRecurring(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateRecurringDto,
+  ) {
+    return this.appointmentsService.createRecurring(user.organizationId, dto);
+  }
+
+  @Post(':id/telehealth')
+  @Roles(Role.CLINICIAN)
+  @ApiOperation({ summary: 'Provision or fetch the telehealth session URL' })
+  telehealth(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.appointmentsService.startTelehealth(user.organizationId, id);
+  }
+
+  @Post(':id/check-in')
+  @Roles(Role.FRONT_DESK)
+  @ApiOperation({ summary: 'Check a client in for their appointment' })
+  checkIn(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.appointmentsService.checkIn(user.organizationId, id);
+  }
+
+  @Post(':id/check-out')
+  @Roles(Role.FRONT_DESK)
+  @ApiOperation({ summary: 'Check a client out and complete the appointment' })
+  checkOut(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.appointmentsService.checkOut(user.organizationId, id);
+  }
+
+  @Post(':id/cancel')
+  @Roles(Role.FRONT_DESK)
+  @ApiOperation({ summary: 'Cancel an appointment' })
+  cancel(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Body() dto: CancelAppointmentDto,
+  ) {
+    return this.appointmentsService.cancel(user.organizationId, id, dto.reason);
   }
 
   @Patch(':id')
