@@ -670,6 +670,8 @@ model Client {
   @@index([status])
   @@index([primaryClinicianId])
   @@index([lastName, firstName])
+  // Hot path: roster filtered by status within a tenant.
+  @@index([organizationId, status])
 }
 
 model Admission {
@@ -752,6 +754,9 @@ model Appointment {
   @@index([locationId])
   @@index([status])
   @@index([startTime])
+  // Hot paths: clinician conflict checks and calendar/date-range queries.
+  @@index([organizationId, clinicianId, startTime])
+  @@index([organizationId, startTime])
 }
 
 // ---------------------------------------------------------------------------
@@ -794,6 +799,9 @@ model Note {
   @@index([type])
   @@index([status])
   @@index([appointmentId])
+  // Hot paths: client chart notes and the co-sign queue.
+  @@index([organizationId, clientId])
+  @@index([organizationId, status])
 }
 
 /// Immutable snapshot of a note's content at a point in time. A new version is
@@ -1039,6 +1047,8 @@ model Claim {
   @@index([clientId])
   @@index([status])
   @@index([serviceDate])
+  // Hot path: claims worklist filtered by status within a tenant.
+  @@index([organizationId, status])
 }
 
 model Invoice {
@@ -1163,6 +1173,8 @@ model Task {
   @@index([assigneeId])
   @@index([status])
   @@index([priority])
+  // Hot path: task worklists filtered by status/assignee within a tenant.
+  @@index([organizationId, status])
 }
 
 model MessageThread {
