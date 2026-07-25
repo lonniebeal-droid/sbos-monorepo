@@ -14,7 +14,7 @@ credentials that only you can provide.
 - ✅ `pnpm lint` green (7/7 typecheck)
 - ✅ `pnpm test` green (unit tests in `@sbos/core`)
 - ✅ GitHub Actions CI runs build/lint/test + builds both Docker images on push
-- 🔶 Expand unit/integration test coverage (services, guards, e2e happy paths)
+- 🔶 Test coverage: unit tests for @sbos/core + API services/guards/filter (Vitest); e2e happy paths still to add
 - ⬜ Add dependency vulnerability scanning (e.g. `pnpm audit` / Dependabot) to CI
 - ⬜ Add SAST (CodeQL) to CI
 

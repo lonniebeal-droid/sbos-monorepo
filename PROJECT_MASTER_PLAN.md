@@ -127,7 +127,7 @@ Tracked honestly. Resolved during the RC1 review are struck through.
   concrete enums; revisit if it becomes a maintenance burden.
 - **Minor helper duplication:** `titleCase` exists privately in two AI/notes
   files; low value to unify.
-- **Test coverage is thin** — unit tests cover `@sbos/core`; services/guards and
+- **Test coverage growing** — unit tests cover `@sbos/core` + API services/guards/filter (Vitest); e2e happy-path
   e2e flows need coverage (biggest real debt).
 - **No shared API client types** between web and api — the web redeclares
   response shapes inline. A generated client (from OpenAPI) or a shared types

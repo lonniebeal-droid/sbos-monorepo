@@ -7,7 +7,7 @@
     "dev": "nest start --watch",
     "start": "node dist/main.js",
     "lint": "tsc --noEmit",
-    "test": "node --test"
+    "test": "vitest run"
   },
   "dependencies": {
     "@sbos/core": "workspace:*",
@@ -39,6 +39,7 @@
     "@types/node": "^22.10.5",
     "@types/passport-jwt": "^4.0.1",
     "@types/qrcode": "^1.5.5",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
   }
 }
