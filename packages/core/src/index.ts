@@ -1,6 +1,8 @@
 /**
- * @sbos/core — shared primitives for the Service Brand Operating System.
+ * @sbos/core — shared primitives for the Success Brand Operating System.
  */
+
+export * from "./clinical.js";
 
 export interface ServiceRecord {
   id: string;
