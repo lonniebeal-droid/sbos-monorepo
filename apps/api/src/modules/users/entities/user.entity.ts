@@ -10,6 +10,12 @@ export class UserEntity {
   @ApiProperty({ example: 'clinician@sbos.health' })
   email!: string;
 
+  @ApiProperty({ example: 'Riley' })
+  firstName!: string;
+
+  @ApiProperty({ example: 'Chen' })
+  lastName!: string;
+
   @ApiProperty({ example: 'Dr. Riley Chen' })
   name!: string;
 

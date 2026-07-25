@@ -49,7 +49,7 @@ async function main(): Promise<void> {
       email: "admin@sbos.health",
       // bcrypt hash of "Sbos!2026"
       passwordHash:
-        "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+        "$2a$10$W4hn0DhgeMwR19li6xaO3e.nvl9pfQ7cYzJEje2ZhRjFMyUB0oZIS",
       firstName: "Alex",
       lastName: "Administrator",
       role: Role.ORG_ADMIN,
@@ -68,7 +68,7 @@ async function main(): Promise<void> {
       organizationId: org.id,
       email: "clinician@sbos.health",
       passwordHash:
-        "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy",
+        "$2a$10$W4hn0DhgeMwR19li6xaO3e.nvl9pfQ7cYzJEje2ZhRjFMyUB0oZIS",
       firstName: "Riley",
       lastName: "Chen",
       role: Role.CLINICIAN,
