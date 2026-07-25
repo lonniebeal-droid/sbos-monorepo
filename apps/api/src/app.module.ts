@@ -7,12 +7,20 @@ import configuration from './config/configuration';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { PrismaModule } from './prisma/prisma.module';
+import { AuditModule } from './audit/audit.module';
+import { AiModule } from './ai/ai.module';
+import { StorageModule } from './storage/storage.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { LocationsModule } from './modules/locations/locations.module';
 import { ClientsModule } from './modules/clients/clients.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
+import { NotesModule } from './modules/notes/notes.module';
+import { DiagnosesModule } from './modules/diagnoses/diagnoses.module';
+import { MedicationsModule } from './modules/medications/medications.module';
+import { TreatmentPlansModule } from './modules/treatment-plans/treatment-plans.module';
+import { DocumentsModule } from './modules/documents/documents.module';
 import { HealthController } from './modules/health/health.controller';
 
 @Module({
@@ -29,12 +37,20 @@ import { HealthController } from './modules/health/health.controller';
       },
     ]),
     PrismaModule,
+    AuditModule,
+    AiModule,
+    StorageModule,
     AuthModule,
     UsersModule,
     OrganizationsModule,
     LocationsModule,
     ClientsModule,
     AppointmentsModule,
+    NotesModule,
+    DiagnosesModule,
+    MedicationsModule,
+    TreatmentPlansModule,
+    DocumentsModule,
   ],
   controllers: [HealthController],
   providers: [

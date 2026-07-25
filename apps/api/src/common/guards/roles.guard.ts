@@ -6,8 +6,10 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 
+import { roleSatisfiesAny, type RoleName } from '@sbos/core';
+
 import { ROLES_KEY } from '../decorators/roles.decorator';
-import { Role, ROLE_HIERARCHY } from '../enums/role.enum';
+import { Role } from '../enums/role.enum';
 import type { AuthenticatedUser } from '../interfaces/authenticated-user.interface';
 
 /**
@@ -36,11 +38,10 @@ export class RolesGuard implements CanActivate {
       throw new ForbiddenException('Authentication required');
     }
 
-    const userRank = ROLE_HIERARCHY.indexOf(user.role);
-    const allowed = requiredRoles.some((role) => {
-      const requiredRank = ROLE_HIERARCHY.indexOf(role);
-      return userRank !== -1 && userRank <= requiredRank;
-    });
+    const allowed = roleSatisfiesAny(
+      user.role as RoleName,
+      requiredRoles as RoleName[],
+    );
 
     if (!allowed) {
       throw new ForbiddenException(
