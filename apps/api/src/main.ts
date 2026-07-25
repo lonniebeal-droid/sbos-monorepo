@@ -50,6 +50,7 @@ async function bootstrap(): Promise<void> {
     .addTag('Treatment Plans')
     .addTag('Documents')
     .addTag('Billing')
+    .addTag('Jessie AI')
     .addTag('Health')
     .build();
 

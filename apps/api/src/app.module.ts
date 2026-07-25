@@ -24,6 +24,7 @@ import { MedicationsModule } from './modules/medications/medications.module';
 import { TreatmentPlansModule } from './modules/treatment-plans/treatment-plans.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { JessieModule } from './modules/jessie/jessie.module';
 import { HealthController } from './modules/health/health.controller';
 
 @Module({
@@ -57,6 +58,7 @@ import { HealthController } from './modules/health/health.controller';
     TreatmentPlansModule,
     DocumentsModule,
     BillingModule,
+    JessieModule,
   ],
   controllers: [HealthController],
   providers: [
