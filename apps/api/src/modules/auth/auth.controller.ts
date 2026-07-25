@@ -15,6 +15,12 @@ import { AuthService } from './auth.service';
 import { AuthResponseDto, AuthTokensDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import {
+  MfaChallengeDto,
+  MfaCodeDto,
+  MfaLoginDto,
+  MfaSetupResponseDto,
+} from './dto/mfa.dto';
 
 @ApiTags('Authentication')
 @Controller({ path: 'auth', version: '1' })
@@ -25,10 +31,57 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Authenticate with email and password' })
+  @ApiOperation({
+    summary: 'Authenticate with email and password',
+    description:
+      'Returns tokens, or an MFA challenge ({ mfaRequired, mfaToken }) when the account has MFA enabled.',
+  })
   @ApiOkResponse({ type: AuthResponseDto })
-  login(@Body() dto: LoginDto): Promise<AuthResponseDto> {
+  login(@Body() dto: LoginDto): Promise<AuthResponseDto | MfaChallengeDto> {
     return this.authService.login(dto);
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  @Post('login/mfa')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Complete login by verifying an MFA code' })
+  @ApiOkResponse({ type: AuthResponseDto })
+  loginMfa(@Body() dto: MfaLoginDto): Promise<AuthResponseDto> {
+    return this.authService.loginMfa(dto.mfaToken, dto.code);
+  }
+
+  @Post('mfa/setup')
+  @ApiBearerAuth()
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Begin MFA enrollment (returns a QR code)' })
+  @ApiOkResponse({ type: MfaSetupResponseDto })
+  mfaSetup(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<MfaSetupResponseDto> {
+    return this.authService.mfaSetup(user.id);
+  }
+
+  @Post('mfa/enable')
+  @ApiBearerAuth()
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Confirm and enable MFA with a TOTP code' })
+  mfaEnable(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: MfaCodeDto,
+  ): Promise<{ enabled: true }> {
+    return this.authService.mfaEnable(user.id, dto.code);
+  }
+
+  @Post('mfa/disable')
+  @ApiBearerAuth()
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Disable MFA with a current TOTP code' })
+  mfaDisable(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: MfaCodeDto,
+  ): Promise<{ enabled: false }> {
+    return this.authService.mfaDisable(user.id, dto.code);
   }
 
   @Public()

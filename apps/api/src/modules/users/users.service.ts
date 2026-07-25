@@ -58,6 +58,36 @@ export class UsersService {
     return this.toEntity(record);
   }
 
+  /** Read a user's MFA state (used by the auth flow). */
+  async getMfaState(
+    userId: string,
+  ): Promise<{ mfaEnabled: boolean; mfaSecret: string | null }> {
+    const record = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { mfaEnabled: true, mfaSecret: true },
+    });
+    if (!record) {
+      throw new NotFoundException(`User ${userId} not found`);
+    }
+    return record;
+  }
+
+  /** Store a pending TOTP secret (enrollment step; not yet enabled). */
+  async setMfaSecret(userId: string, secret: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaSecret: secret, mfaEnabled: false },
+    });
+  }
+
+  /** Enable or disable MFA. Disabling clears the stored secret. */
+  async setMfaEnabled(userId: string, enabled: boolean): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaEnabled: enabled, ...(enabled ? {} : { mfaSecret: null }) },
+    });
+  }
+
   async create(dto: CreateUserDto): Promise<UserEntity> {
     const existing = await this.prisma.user.findFirst({
       where: {

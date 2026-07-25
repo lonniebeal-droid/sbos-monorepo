@@ -1,14 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import {
-  ACCESS_TOKEN_COOKIE,
-  REFRESH_TOKEN_COOKIE,
-  SESSION_COOKIE,
-  createSessionToken,
-  type UserRole,
-} from "@/lib/auth";
+import type { UserRole } from "@/lib/auth";
 import { apiV1 } from "@/lib/api";
+import { issueSessionCookies } from "@/lib/set-auth-cookies";
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -16,9 +11,11 @@ const loginSchema = z.object({
 });
 
 interface ApiLoginResponse {
-  accessToken: string;
-  refreshToken: string;
-  user: {
+  accessToken?: string;
+  refreshToken?: string;
+  mfaRequired?: boolean;
+  mfaToken?: string;
+  user?: {
     id: string;
     email: string;
     name: string;
@@ -26,8 +23,6 @@ interface ApiLoginResponse {
     organizationId: string;
   };
 }
-
-const secure = process.env.NODE_ENV === "production";
 
 export async function POST(request: Request) {
   const parsed = loginSchema.safeParse(
@@ -66,37 +61,27 @@ export async function POST(request: Request) {
 
   const data = (await apiResponse.json()) as ApiLoginResponse;
 
-  // Web session cookie (source of truth for middleware/UI).
-  const sessionToken = await createSessionToken({
-    sub: data.user.id,
-    email: data.user.email,
-    name: data.user.name,
-    role: data.user.role,
-    organizationId: data.user.organizationId,
-  });
+  // MFA-enabled account: relay the challenge; the client completes it at
+  // /api/auth/mfa. No cookies are set yet.
+  if (data.mfaRequired && data.mfaToken) {
+    return NextResponse.json({
+      mfaRequired: true,
+      mfaToken: data.mfaToken,
+    });
+  }
+
+  if (!data.accessToken || !data.refreshToken || !data.user) {
+    return NextResponse.json(
+      { error: "Unexpected authentication response" },
+      { status: 502 },
+    );
+  }
 
   const response = NextResponse.json({ user: data.user });
-  response.cookies.set(SESSION_COOKIE, sessionToken, {
-    httpOnly: true,
-    secure,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 8,
+  await issueSessionCookies(response, {
+    accessToken: data.accessToken,
+    refreshToken: data.refreshToken,
+    user: data.user,
   });
-  response.cookies.set(ACCESS_TOKEN_COOKIE, data.accessToken, {
-    httpOnly: true,
-    secure,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 8,
-  });
-  response.cookies.set(REFRESH_TOKEN_COOKIE, data.refreshToken, {
-    httpOnly: true,
-    secure,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  });
-
   return response;
 }

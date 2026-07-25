@@ -40,9 +40,13 @@ enabled.
 
 | Method | Path | Auth | Description |
 | --- | --- | --- | --- |
-| POST | `/api/v1/auth/login` | Public | Authenticate; returns tokens + user |
+| POST | `/api/v1/auth/login` | Public | Authenticate; returns tokens+user, or an MFA challenge |
+| POST | `/api/v1/auth/login/mfa` | Public | Complete login with a TOTP code |
 | POST | `/api/v1/auth/refresh` | Public | Exchange refresh token for new tokens |
 | GET | `/api/v1/auth/profile` | Bearer | Current authenticated user |
+| POST | `/api/v1/auth/mfa/setup` | Bearer | Begin MFA enrollment (returns QR) |
+| POST | `/api/v1/auth/mfa/enable` | Bearer | Confirm + enable MFA with a code |
+| POST | `/api/v1/auth/mfa/disable` | Bearer | Disable MFA with a code |
 
 **`POST /auth/login`**
 ```json

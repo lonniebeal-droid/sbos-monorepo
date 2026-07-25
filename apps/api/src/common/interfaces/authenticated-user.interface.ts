@@ -18,3 +18,9 @@ export interface JwtPayload {
   organizationId: string;
   type: 'access' | 'refresh';
 }
+
+/** Short-lived token issued between password success and MFA verification. */
+export interface MfaChallengePayload {
+  sub: string;
+  type: 'mfa';
+}

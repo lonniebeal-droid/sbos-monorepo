@@ -16,6 +16,11 @@ the operator's responsibility.
   120/minute.
 - The API **fails fast** in production if JWT secrets are missing, equal, or left
   at development defaults, or if `DATABASE_URL` is unset.
+- **MFA (TOTP)** is supported: enrollment (`/auth/mfa/setup` → QR),
+  confirmation (`/auth/mfa/enable`), and a two-step login — a password success
+  on an MFA account returns a short-lived challenge that must be completed at
+  `/auth/login/mfa` with a 6-digit code. Secrets/codes are generated and
+  verified locally (otplib); no third-party MFA service is used.
 
 ## Authorization (RBAC)
 
@@ -78,8 +83,8 @@ the operator's responsibility.
 
 ## Known gaps / roadmap (tracked in RELEASE_1_CHECKLIST.md)
 
-- **MFA (TOTP)** — schema fields (`mfaEnabled`, `mfaSecret`) exist; enrollment/
-  verification flow is not yet implemented.
+- **MFA (TOTP)** — ✅ implemented (enrollment + two-step login). Recovery codes
+  and org-level enforcement policies are the remaining enhancement.
 - **Refresh-token rotation/revocation** store (deny-list) — planned.
 - **Encryption at rest** for PHI columns and backups — deploy-time control.
 - **Dependency scanning / SAST** in CI — planned.

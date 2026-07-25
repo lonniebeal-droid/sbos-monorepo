@@ -31,7 +31,7 @@ credentials that only you can provide.
 - ✅ Fail-fast config validation (no default/missing secrets in prod)
 - ✅ Consistent error envelope; no internal leakage
 - ✅ Immutable audit log
-- 🔶 **MFA (TOTP)** — schema fields present; enrollment/verify flow not built
+- ✅ **MFA (TOTP)** — enrollment, enable/disable, and two-step login
 - ⬜ Refresh-token rotation + revocation (deny-list) store
 - ⬜ Encryption at rest for PHI + backups (deploy-time)
 - ⬜ Secrets stored in a managed secret store (not `.env` on disk)

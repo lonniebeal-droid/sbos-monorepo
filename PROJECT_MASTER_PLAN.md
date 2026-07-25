@@ -73,7 +73,7 @@ See `docs/SYSTEM_ARCHITECTURE.md` and `docs/DATABASE_REVIEW.md` for detail.
 | --- | --- | --- |
 | Platform | Multi-tenancy, org isolation | ✅ |
 | Auth | JWT access+refresh, bcrypt, RBAC (6 roles) | ✅ |
-| Auth | MFA (TOTP) | 🔶 (schema only) |
+| Auth | MFA (TOTP) enrollment + two-step login | ✅ |
 | Auth | SSO/SAML | ⬜ |
 | Orgs | Organization + Location management | ✅ |
 | Staff | Users/roles; clinician profiles | ✅ |
@@ -100,7 +100,7 @@ See `docs/SYSTEM_ARCHITECTURE.md` and `docs/DATABASE_REVIEW.md` for detail.
 
 Prioritized, credential-free first:
 
-1. **MFA (TOTP)** enrollment + verification (schema exists).
+1. ✅ **MFA (TOTP)** enrollment + two-step login — _done_.
 2. **Refresh-token rotation & revocation** (deny-list).
 3. **Client detail write flows** — edit demographics, add diagnosis/med inline.
 4. **Calendar interactions** — drag-to-reschedule, availability overlay.
