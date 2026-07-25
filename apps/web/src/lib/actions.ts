@@ -80,6 +80,58 @@ export async function createAppointmentAction(
   }
 }
 
+export interface GenerateNoteInput {
+  type: "BIRP" | "DAP" | "SOAP";
+  prompt: string;
+  clientId?: string;
+}
+
+export type GenerateNoteResult =
+  | { ok: true; sections: Record<string, string>; narrative: string }
+  | { ok: false; error: string };
+
+export async function generateNoteDraftAction(
+  input: GenerateNoteInput,
+): Promise<GenerateNoteResult> {
+  try {
+    const data = await apiFetch<{
+      sections: Record<string, string>;
+      narrative: string;
+    }>("/notes/generate", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    return { ok: true, sections: data.sections, narrative: data.narrative };
+  } catch (error) {
+    const result = toError(error);
+    return { ok: false, error: result.ok ? "Failed" : result.error };
+  }
+}
+
+export interface NewNoteInput {
+  clientId: string;
+  clinicianId: string;
+  type: string;
+  title?: string;
+  sections?: Record<string, string>;
+  requiresCosign?: boolean;
+}
+
+export async function createNoteAction(
+  input: NewNoteInput,
+): Promise<ActionResult> {
+  try {
+    await apiFetch("/notes", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    revalidatePath("/notes");
+    return { ok: true };
+  } catch (error) {
+    return toError(error);
+  }
+}
+
 export async function signNoteAction(noteId: string): Promise<ActionResult> {
   try {
     await apiFetch(`/notes/${noteId}/sign`, { method: "POST" });

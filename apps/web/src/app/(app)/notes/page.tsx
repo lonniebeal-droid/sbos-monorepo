@@ -5,6 +5,7 @@ import { formatDate, fullName, titleCaseEnum } from "@/lib/format";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { ApiErrorBanner } from "@/components/dashboard/api-state";
 import { NoteComposer } from "@/components/notes/note-composer";
+import type { PickerOption } from "@/components/appointments/new-appointment-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,16 +48,33 @@ function statusVariant(status: string) {
   }
 }
 
+interface ClientPick {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
 export default async function NotesPage() {
-  const res = await tryApiFetch<Paginated<NoteRow>>("/notes?limit=50");
+  const [res, clientsRes, cliniciansRes] = await Promise.all([
+    tryApiFetch<Paginated<NoteRow>>("/notes?limit=50"),
+    tryApiFetch<Paginated<ClientPick>>("/clients?limit=100"),
+    tryApiFetch<PickerOption[]>("/clinicians"),
+  ]);
   const notes = res.ok ? res.data.data : [];
+  const clients: PickerOption[] = clientsRes.ok
+    ? clientsRes.data.data.map((c) => ({
+        id: c.id,
+        name: `${c.firstName} ${c.lastName}`,
+      }))
+    : [];
+  const clinicians: PickerOption[] = cliniciansRes.ok ? cliniciansRes.data : [];
 
   return (
     <>
       <PageHeader
         title="Clinical Notes"
         description="BIRP, DAP, SOAP, group notes, and treatment plans."
-        actions={<NoteComposer />}
+        actions={<NoteComposer clients={clients} clinicians={clinicians} />}
       />
 
       {!res.ok && <ApiErrorBanner message={res.error} />}
