@@ -297,6 +297,7 @@ model Organization {
   notifications  Notification[]
   admissions     Admission[]
   assessments    Assessment[]
+  noteTemplates  NoteTemplate[]
 
   @@index([isActive])
 }
@@ -330,6 +331,7 @@ model User {
   notifications     Notification[]
   sentMessages      Message[]           @relation("MessageSender")
   threadMemberships ThreadParticipant[]
+  noteVersions      NoteVersion[]       @relation("NoteVersionEditor")
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -550,9 +552,10 @@ model Note {
   cosigner     User?        @relation("NoteCosigner", fields: [cosignerId], references: [id], onDelete: SetNull)
   appointment  Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
 
-  birp BirpNote?
-  dap  DapNote?
-  soap SoapNote?
+  birp     BirpNote?
+  dap      DapNote?
+  soap     SoapNote?
+  versions NoteVersion[]
 
   @@index([organizationId])
   @@index([clientId])
@@ -560,6 +563,48 @@ model Note {
   @@index([type])
   @@index([status])
   @@index([appointmentId])
+}
+
+/// Immutable snapshot of a note's content at a point in time. A new version is
+/// written on every meaningful edit and on sign/amend, forming the audit trail
+/// for clinical documentation.
+model NoteVersion {
+  id         String     @id @default(cuid())
+  noteId     String
+  version    Int
+  status     NoteStatus
+  title      String?
+  content    String?
+  structured Json?
+  editedById String
+  createdAt  DateTime   @default(now())
+
+  note     Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  editedBy User @relation("NoteVersionEditor", fields: [editedById], references: [id], onDelete: Cascade)
+
+  @@unique([noteId, version])
+  @@index([noteId])
+}
+
+/// Reusable note template scoped to an organization. `structure` holds the
+/// ordered sections/fields the composer renders for a given note type.
+model NoteTemplate {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  type           NoteType @default(PROGRESS)
+  description    String?
+  structure      Json
+  isDefault      Boolean  @default(false)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, name])
+  @@index([organizationId])
+  @@index([type])
 }
 
 model BirpNote {
