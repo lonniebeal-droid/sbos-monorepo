@@ -1,8 +1,8 @@
-import { Plus, Search } from "lucide-react";
+import { AlertCircle, Plus, Users } from "lucide-react";
 
+import { apiFetch, ApiError, type Paginated } from "@/lib/api";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -16,29 +16,62 @@ import {
 
 export const metadata = { title: "Clients" };
 
-const clients = [
-  { name: "Jordan Mitchell", mrn: "SB-10241", clinician: "Dr. Chen", status: "Active", next: "Jul 24, 9:00 AM" },
-  { name: "Priya Shah", mrn: "SB-10242", clinician: "Dr. Chen", status: "Intake", next: "Jul 24, 10:00 AM" },
-  { name: "Marcus Turner", mrn: "SB-10243", clinician: "Dr. Alvarez", status: "Active", next: "Jul 24, 11:30 AM" },
-  { name: "Elena Rodriguez", mrn: "SB-10244", clinician: "Dr. Chen", status: "Active", next: "Jul 24, 3:00 PM" },
-  { name: "David Okafor", mrn: "SB-10245", clinician: "Dr. Patel", status: "On hold", next: "—" },
-  { name: "Sarah Lindqvist", mrn: "SB-10246", clinician: "Dr. Alvarez", status: "Discharged", next: "—" },
-];
+interface ClientRow {
+  id: string;
+  mrn: string;
+  firstName: string;
+  lastName: string;
+  status: string;
+  primaryClinician: {
+    id: string;
+    title: string | null;
+    user: { firstName: string; lastName: string };
+  } | null;
+}
 
 function statusVariant(status: string) {
   switch (status) {
-    case "Active":
+    case "ACTIVE":
       return "success" as const;
-    case "Intake":
+    case "INTAKE":
+    case "PROSPECT":
       return "default" as const;
-    case "On hold":
+    case "ON_HOLD":
       return "warning" as const;
     default:
       return "secondary" as const;
   }
 }
 
-export default function ClientsPage() {
+function titleCase(status: string) {
+  return status
+    .toLowerCase()
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+async function loadClients(): Promise<
+  { clients: ClientRow[]; total: number } | { error: string }
+> {
+  try {
+    const result = await apiFetch<Paginated<ClientRow>>("/clients?limit=50");
+    return { clients: result.data, total: result.meta.total };
+  } catch (error) {
+    const message =
+      error instanceof ApiError
+        ? error.status === 503
+          ? "The SBOS API is not reachable. Start the API to see live clients."
+          : error.message
+        : "Failed to load clients.";
+    return { error: message };
+  }
+}
+
+export default async function ClientsPage() {
+  const result = await loadClients();
+  const hasError = "error" in result;
+  const clients = hasError ? [] : result.clients;
+
   return (
     <>
       <PageHeader
@@ -51,44 +84,61 @@ export default function ClientsPage() {
         }
       />
 
+      {hasError && (
+        <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {result.error}
+        </div>
+      )}
+
       <Card>
         <CardContent className="p-0">
-          <div className="flex items-center gap-2 border-b p-4">
-            <div className="relative max-w-sm flex-1">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input placeholder="Search by name or MRN…" className="pl-9" />
+          {clients.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-2 py-16 text-center">
+              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
+                <Users className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <p className="text-sm font-medium">No clients yet</p>
+              <p className="max-w-sm text-sm text-muted-foreground">
+                {hasError
+                  ? "Once the API and database are connected, your client roster will appear here."
+                  : "Add your first client to get started."}
+              </p>
             </div>
-          </div>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Client</TableHead>
-                <TableHead>MRN</TableHead>
-                <TableHead>Primary clinician</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Next appointment</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {clients.map((client) => (
-                <TableRow key={client.mrn}>
-                  <TableCell className="font-medium">{client.name}</TableCell>
-                  <TableCell className="tabular-nums text-muted-foreground">
-                    {client.mrn}
-                  </TableCell>
-                  <TableCell>{client.clinician}</TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant(client.status)}>
-                      {client.status}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">
-                    {client.next}
-                  </TableCell>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Client</TableHead>
+                  <TableHead>MRN</TableHead>
+                  <TableHead>Primary clinician</TableHead>
+                  <TableHead>Status</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {clients.map((client) => (
+                  <TableRow key={client.id}>
+                    <TableCell className="font-medium">
+                      {client.firstName} {client.lastName}
+                    </TableCell>
+                    <TableCell className="tabular-nums text-muted-foreground">
+                      {client.mrn}
+                    </TableCell>
+                    <TableCell>
+                      {client.primaryClinician
+                        ? `${client.primaryClinician.title ?? ""} ${client.primaryClinician.user.firstName} ${client.primaryClinician.user.lastName}`.trim()
+                        : "—"}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={statusVariant(client.status)}>
+                        {titleCase(client.status)}
+                      </Badge>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </>

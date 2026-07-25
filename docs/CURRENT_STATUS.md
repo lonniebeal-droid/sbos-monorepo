@@ -109,6 +109,19 @@ _Last updated: 2026-07-24_
 - Schema: `FeatureFlag` (migration `20260725400000_feature_flags`).
 - Verified: 117 routes across 20 groups; build 5/5, lint 7/7, test 6/6.
 
+## Web ↔ API integration (done)
+
+- The web app now authenticates against the **live NestJS API** (`/auth/login`),
+  storing a web session cookie plus API access/refresh tokens; **middleware
+  refreshes** the access token as it nears expiry.
+- Interim dev credential store (`dev-users.ts`) **removed** — auth is fully
+  API-backed. Added a typed server-side **API client** (`src/lib/api.ts`) with
+  error normalization and pagination types.
+- The **Clients** page reads live data from the API with graceful empty/error
+  states. Verified end-to-end (API + web running): login proxies to the API,
+  cookies set, bad creds → 401, protected routes redirect, logout clears
+  cookies, pages degrade gracefully when the API has no database.
+
 ## Next recommended phase
 
 **Phase 5 — Authentication & tenancy hardening**: connect web ↔ API auth,

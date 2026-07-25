@@ -13,6 +13,9 @@ function getSecret(): Uint8Array {
 }
 
 export const SESSION_COOKIE = "sbos_session";
+/** API access/refresh tokens issued by the NestJS API, stored httpOnly. */
+export const ACCESS_TOKEN_COOKIE = "sbos_at";
+export const REFRESH_TOKEN_COOKIE = "sbos_rt";
 
 export type UserRole =
   | "SUPER_ADMIN"
