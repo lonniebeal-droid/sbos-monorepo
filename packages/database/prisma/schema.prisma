@@ -377,16 +377,86 @@ model Clinician {
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 
-  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
-  clients        Client[]        @relation("PrimaryClinician")
+  organization   Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clients        Client[]             @relation("PrimaryClinician")
   appointments   Appointment[]
   notes          Note[]
   treatmentPlans TreatmentPlan[]
   medications    Medication[]
+  availability   ClinicianAvailability[]
+  timeOff        ClinicianTimeOff[]
+  waitlistEntries WaitlistEntry[]
 
   @@index([organizationId])
   @@index([npi])
+}
+
+/// Recurring weekly availability window for a clinician, optionally at a
+/// specific location. dayOfWeek: 0 = Sunday .. 6 = Saturday; times are local
+/// "HH:mm" strings interpreted in the location/organization timezone.
+model ClinicianAvailability {
+  id             String   @id @default(cuid())
+  organizationId String
+  clinicianId    String
+  locationId     String?
+  dayOfWeek      Int
+  startTime      String
+  endTime        String
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  clinician Clinician @relation(fields: [clinicianId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([clinicianId])
+  @@index([dayOfWeek])
+}
+
+/// A block of time a clinician is unavailable (PTO, holiday, conference).
+model ClinicianTimeOff {
+  id             String   @id @default(cuid())
+  organizationId String
+  clinicianId    String
+  reason         String?
+  startsAt       DateTime
+  endsAt         DateTime
+  createdAt      DateTime @default(now())
+
+  clinician Clinician @relation(fields: [clinicianId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([clinicianId])
+  @@index([startsAt])
+}
+
+enum WaitlistStatus {
+  WAITING
+  OFFERED
+  SCHEDULED
+  CANCELLED
+}
+
+/// A client awaiting an appointment slot, optionally with a preferred clinician.
+model WaitlistEntry {
+  id             String         @id @default(cuid())
+  organizationId String
+  clientId       String
+  clinicianId    String?
+  appointmentType AppointmentType @default(INDIVIDUAL)
+  status         WaitlistStatus @default(WAITING)
+  priority       Int            @default(0)
+  preferredNotes String?
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  client    Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clinician Clinician? @relation(fields: [clinicianId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([clientId])
 }
 
 // ---------------------------------------------------------------------------
@@ -434,6 +504,7 @@ model Client {
   tasks             Task[]
   admissions        Admission[]
   assessments       Assessment[]
+  waitlistEntries   WaitlistEntry[]
 
   @@unique([organizationId, mrn])
   @@index([organizationId])
@@ -503,6 +574,7 @@ model Appointment {
   cptCode             String?
   cancelReason        String?
   checkedInAt         DateTime?
+  checkedOutAt        DateTime?
   createdAt           DateTime            @default(now())
   updatedAt           DateTime            @updatedAt
 

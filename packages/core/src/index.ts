@@ -3,6 +3,7 @@
  */
 
 export * from "./clinical.js";
+export * from "./scheduling.js";
 
 export interface ServiceRecord {
   id: string;
