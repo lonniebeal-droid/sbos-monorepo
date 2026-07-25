@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { roundCurrency } from '@sbos/core';
 
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -67,7 +68,7 @@ export class SuperbillsService {
       },
       period: { from, to },
       lineItems,
-      total: Math.round(total * 100) / 100,
+      total: roundCurrency(total),
       generatedAt: new Date(),
     };
   }

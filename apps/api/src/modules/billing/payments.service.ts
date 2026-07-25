@@ -5,6 +5,7 @@ import {
   PaymentMethod,
   PaymentStatus,
 } from '@sbos/database';
+import { roundCurrency } from '@sbos/core';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
@@ -21,10 +22,6 @@ export class PaymentsService {
     private readonly audit: AuditService,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
   ) {}
-
-  private round(value: number): number {
-    return Math.round(value * 100) / 100;
-  }
 
   /**
    * Record a payment: charge via the configured provider, persist the payment,
@@ -87,8 +84,8 @@ export class PaymentsService {
     });
     if (!invoice) throw new NotFoundException(`Invoice ${invoiceId} not found`);
 
-    const amountPaid = this.round(Number(invoice.amountPaid) + amount);
-    const balanceDue = this.round(Number(invoice.total) - amountPaid);
+    const amountPaid = roundCurrency(Number(invoice.amountPaid) + amount);
+    const balanceDue = roundCurrency(Number(invoice.total) - amountPaid);
     const status =
       balanceDue <= 0
         ? InvoiceStatus.PAID

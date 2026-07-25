@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InvoiceStatus } from '@sbos/database';
+import { roundCurrency } from '@sbos/core';
 
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateInvoiceDto } from './dto/invoice.dto';
@@ -14,14 +15,10 @@ export class InvoicesService {
     return `INV-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
-  private round(value: number): number {
-    return Math.round(value * 100) / 100;
-  }
-
   create(organizationId: string, dto: CreateInvoiceDto) {
     const lineItems = dto.lineItems.map((item) => {
       const quantity = item.quantity ?? 1;
-      const amount = this.round(quantity * item.unitPrice);
+      const amount = roundCurrency(quantity * item.unitPrice);
       return {
         description: item.description,
         cptCode: item.cptCode,
@@ -31,11 +28,11 @@ export class InvoicesService {
       };
     });
 
-    const subtotal = this.round(
+    const subtotal = roundCurrency(
       lineItems.reduce((sum, item) => sum + item.amount, 0),
     );
-    const tax = this.round(dto.tax ?? 0);
-    const total = this.round(subtotal + tax);
+    const tax = roundCurrency(dto.tax ?? 0);
+    const total = roundCurrency(subtotal + tax);
 
     return this.prisma.invoice.create({
       data: {

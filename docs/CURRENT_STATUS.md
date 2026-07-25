@@ -178,6 +178,15 @@ _Last updated: 2026-07-24_
 - **Docs:** INSTALL, DEPLOYMENT, ADMIN_GUIDE, API_GUIDE, AI_CONFIGURATION,
   SECURITY, plus `RELEASE_1_CHECKLIST.md`.
 
+## RC1 review & master plan (done)
+
+- Added **PROJECT_MASTER_PLAN.md** as the canonical roadmap (architecture,
+  feature matrix, roadmaps, technical debt, compliance).
+- **Repository review + cleanups:** removed dead `ROLE_HIERARCHY`, removed the
+  leftover `apps/service-operations` scaffolding (and its example primitives),
+  and unified duplicated money rounding into `@sbos/core#roundCurrency` (tested).
+  Confirmed **zero real TODO/FIXME comments** in the codebase.
+
 ## Next recommended phase
 
 **Phase 5 — Authentication & tenancy hardening**: connect web ↔ API auth,
