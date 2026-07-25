@@ -67,6 +67,39 @@ enabled.
 | GET | `/api/v1/users/:id` | SUPERVISOR | Get a user by id |
 | POST | `/api/v1/users` | ORG_ADMIN | Create a user |
 
+### Organizations (tenant-scoped)
+
+| Method | Path | Auth (min role) | Description |
+| --- | --- | --- | --- |
+| GET | `/api/v1/organization` | any | Current user's organization |
+| GET | `/api/v1/organization/stats` | any | Org-wide counts (clients, clinicians, appts, users) |
+| PATCH | `/api/v1/organization` | ORG_ADMIN | Update organization profile |
+
+### Locations
+
+| Method | Path | Auth (min role) | Description |
+| --- | --- | --- | --- |
+| GET | `/api/v1/locations` | any | List locations (paginated, searchable) |
+| GET | `/api/v1/locations/:id` | any | Get a location |
+| POST | `/api/v1/locations` | ORG_ADMIN | Create a location |
+| PATCH | `/api/v1/locations/:id` | ORG_ADMIN | Update a location |
+| DELETE | `/api/v1/locations/:id` | ORG_ADMIN | Delete a location |
+
+### Clients
+
+| Method | Path | Auth (min role) | Description |
+| --- | --- | --- | --- |
+| GET | `/api/v1/clients` | any | List clients (paginated, searchable) |
+| GET | `/api/v1/clients/:id` | any | Client chart (diagnoses, insurance, treatment plans) |
+| POST | `/api/v1/clients` | FRONT_DESK | Create a client |
+| PATCH | `/api/v1/clients/:id` | CLINICIAN | Update a client |
+| DELETE | `/api/v1/clients/:id` | ORG_ADMIN | Delete a client |
+
+> Organizations, Locations, and Clients are **Prisma-backed** (via the global
+> `PrismaModule`) and require a live PostgreSQL connection. The API boots
+> without a database (connection is non-fatal); these endpoints return a
+> connection error until `DATABASE_URL` points at a reachable instance.
+
 ## Status codes
 
 | Code | Meaning |

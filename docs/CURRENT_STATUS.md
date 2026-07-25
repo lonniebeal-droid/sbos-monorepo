@@ -41,6 +41,15 @@ _Last updated: 2026-07-24_
   payments (Stripe), email/SMS, and the AI layer ("Jessie").
 - CI (GitHub Actions), Docker, HIPAA controls.
 
+## Phase 5 progress (in flight)
+
+- Global `PrismaModule`/`PrismaService` wired into the API from `@sbos/database`
+  (non-fatal startup so the API boots without a database).
+- **Organizations** API (get/update/stats), **Locations** CRUD, and **Clients**
+  CRUD — all tenant-scoped, RBAC-guarded, paginated, and documented in Swagger.
+- Verified: API boots without a DB; new routes are registered and return
+  connection errors (not 404) until PostgreSQL is available.
+
 ## Next recommended phase
 
 **Phase 5 — Authentication & tenancy hardening**: connect web ↔ API auth,

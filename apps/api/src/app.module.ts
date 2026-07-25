@@ -11,6 +11,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { LocationsModule } from './modules/locations/locations.module';
+import { ClientsModule } from './modules/clients/clients.module';
 import { HealthController } from './modules/health/health.controller';
 
 @Module({
@@ -31,6 +32,7 @@ import { HealthController } from './modules/health/health.controller';
     UsersModule,
     OrganizationsModule,
     LocationsModule,
+    ClientsModule,
   ],
   controllers: [HealthController],
   providers: [
