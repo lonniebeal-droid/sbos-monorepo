@@ -63,8 +63,14 @@ Until web auth is wired to the API, local sign-in accepts:
 
 ## Documentation
 
-See [`docs/`](docs/): system architecture, database schema, API spec, feature
-requirements, roadmap, decisions (ADR), and current status.
+See [`docs/`](docs/):
+
+- **Getting started:** [INSTALL](docs/INSTALL.md) · [DEPLOYMENT](docs/DEPLOYMENT.md)
+- **Guides:** [ADMIN_GUIDE](docs/ADMIN_GUIDE.md) · [API_GUIDE](docs/API_GUIDE.md) · [AI_CONFIGURATION](docs/AI_CONFIGURATION.md)
+- **Reference:** [SYSTEM_ARCHITECTURE](docs/SYSTEM_ARCHITECTURE.md) · [DATABASE_SCHEMA](docs/DATABASE_SCHEMA.md) · [API_SPEC](docs/API_SPEC.md)
+- **Reviews:** [SECURITY](docs/SECURITY.md) · [DATABASE_REVIEW](docs/DATABASE_REVIEW.md) · [DECISIONS](docs/DECISIONS.md)
+- **Status:** [CURRENT_STATUS](docs/CURRENT_STATUS.md) · [ROADMAP](docs/ROADMAP.md) · [FEATURE_REQUIREMENTS](docs/FEATURE_REQUIREMENTS.md)
+- **Release:** [RELEASE_1_CHECKLIST](RELEASE_1_CHECKLIST.md)
 
 ## License
 
