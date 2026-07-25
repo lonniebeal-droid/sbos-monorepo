@@ -25,6 +25,11 @@ import { TreatmentPlansModule } from './modules/treatment-plans/treatment-plans.
 import { DocumentsModule } from './modules/documents/documents.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { JessieModule } from './modules/jessie/jessie.module';
+import { TasksModule } from './modules/tasks/tasks.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { MessagingModule } from './modules/messaging/messaging.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { PlatformModule } from './modules/platform/platform.module';
 import { HealthController } from './modules/health/health.controller';
 
 @Module({
@@ -59,6 +64,11 @@ import { HealthController } from './modules/health/health.controller';
     DocumentsModule,
     BillingModule,
     JessieModule,
+    TasksModule,
+    NotificationsModule,
+    MessagingModule,
+    AnalyticsModule,
+    PlatformModule,
   ],
   controllers: [HealthController],
   providers: [

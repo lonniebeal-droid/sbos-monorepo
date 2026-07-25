@@ -51,6 +51,11 @@ async function bootstrap(): Promise<void> {
     .addTag('Documents')
     .addTag('Billing')
     .addTag('Jessie AI')
+    .addTag('Tasks')
+    .addTag('Notifications')
+    .addTag('Messaging')
+    .addTag('Analytics')
+    .addTag('Platform Admin')
     .addTag('Health')
     .build();
 
