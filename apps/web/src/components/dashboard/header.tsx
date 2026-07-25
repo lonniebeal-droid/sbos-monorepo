@@ -10,8 +10,12 @@ export function Header({ user }: { user: UserNavProps }) {
     <header className="sticky top-0 z-30 flex h-16 items-center gap-4 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/60 md:px-6">
       <MobileNav />
       <div className="relative hidden max-w-md flex-1 md:block">
+        <label htmlFor="global-search" className="sr-only">
+          Search clients, appointments, and notes
+        </label>
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
         <Input
+          id="global-search"
           type="search"
           placeholder="Search clients, appointments, notes…"
           className="pl-9"

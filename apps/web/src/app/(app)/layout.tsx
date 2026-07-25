@@ -25,6 +25,12 @@ export default async function AppLayout({
 
   return (
     <div className="flex h-screen overflow-hidden">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-primary focus:px-4 focus:py-2 focus:text-primary-foreground"
+      >
+        Skip to content
+      </a>
       <Sidebar className="hidden md:flex" />
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header
@@ -34,7 +40,11 @@ export default async function AppLayout({
             role: roleLabels[session.role] ?? session.role,
           }}
         />
-        <main className="flex-1 overflow-y-auto bg-muted/30">
+        <main
+          id="main-content"
+          className="flex-1 overflow-y-auto bg-muted/30"
+          tabIndex={-1}
+        >
           <div className="mx-auto w-full max-w-7xl space-y-6 p-4 md:p-6 lg:p-8">
             {children}
           </div>

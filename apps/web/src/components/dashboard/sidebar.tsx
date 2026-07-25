@@ -29,7 +29,10 @@ export function Sidebar({ className }: { className?: string }) {
         </div>
       </div>
 
-      <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+      <nav
+        aria-label="Primary"
+        className="flex-1 space-y-1 overflow-y-auto p-3"
+      >
         {primaryNav.map((item) => {
           const active =
             pathname === item.href || pathname.startsWith(`${item.href}/`);
@@ -38,6 +41,7 @@ export function Sidebar({ className }: { className?: string }) {
             <Link
               key={item.href}
               href={item.href}
+              aria-current={active ? "page" : undefined}
               className={cn(
                 "group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                 active
