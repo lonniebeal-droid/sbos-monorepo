@@ -8,7 +8,12 @@ import {
   verifySessionToken,
 } from "@/lib/auth";
 
-const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/auth/logout"];
+const PUBLIC_PATHS = [
+  "/login",
+  "/api/auth/login",
+  "/api/auth/logout",
+  "/api/health",
+];
 
 const secure = process.env.NODE_ENV === "production";
 

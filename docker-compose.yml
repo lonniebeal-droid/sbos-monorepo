@@ -41,13 +41,33 @@ services:
         condition: service_healthy
     environment:
       PORT: 4000
+      NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-sbos}?schema=public
       REDIS_URL: redis://redis:6379
-      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change-me-access}
-      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-refresh}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      # Optional live providers — activate when set (offline defaults otherwise).
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      AI_MODEL: ${AI_MODEL:-gpt-4o-mini}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-no-reply@sbos.health}
+      TWILIO_ACCOUNT_SID: ${TWILIO_ACCOUNT_SID:-}
+      TWILIO_AUTH_TOKEN: ${TWILIO_AUTH_TOKEN:-}
+      TWILIO_FROM_NUMBER: ${TWILIO_FROM_NUMBER:-}
     ports:
       - "4000:4000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:4000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 40s
 
   web:
     build:
@@ -55,10 +75,11 @@ services:
       dockerfile: apps/web/Dockerfile
     restart: unless-stopped
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     environment:
       SBOS_API_URL: http://api:4000
-      AUTH_SECRET: ${AUTH_SECRET:-change-me-web-session}
+      AUTH_SECRET: ${AUTH_SECRET:?set AUTH_SECRET in .env}
       NODE_ENV: production
     ports:
       - "3000:3000"
