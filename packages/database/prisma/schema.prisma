@@ -491,6 +491,7 @@ model User {
   sentMessages      Message[]           @relation("MessageSender")
   threadMemberships ThreadParticipant[]
   noteVersions      NoteVersion[]       @relation("NoteVersionEditor")
+  refreshTokens     RefreshToken[]
 
   @@unique([organizationId, email])
   @@index([organizationId])
@@ -823,6 +824,23 @@ model NoteVersion {
 
   @@unique([noteId, version])
   @@index([noteId])
+}
+
+/// Issued refresh tokens for rotation + revocation. One row per issued token
+/// (identified by its `jti`); rotation revokes the old row and inserts a new
+/// one, and reuse of a revoked token triggers revocation of the whole family.
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  jti       String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 /// Reusable note template scoped to an organization. `structure` holds the

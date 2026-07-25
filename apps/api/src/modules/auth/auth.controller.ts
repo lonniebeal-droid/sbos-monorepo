@@ -87,10 +87,22 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @HttpCode(200)
-  @ApiOperation({ summary: 'Exchange a refresh token for a new access token' })
+  @ApiOperation({
+    summary: 'Rotate a refresh token for a new token pair',
+    description:
+      'Rotates the refresh token (the presented one is revoked). Reuse of a revoked token revokes the whole family.',
+  })
   @ApiOkResponse({ type: AuthTokensDto })
   refresh(@Body() dto: RefreshDto): Promise<AuthTokensDto> {
     return this.authService.refresh(dto.refreshToken);
+  }
+
+  @Public()
+  @Post('logout')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Revoke a refresh token (logout)' })
+  logout(@Body() dto: RefreshDto): Promise<{ success: true }> {
+    return this.authService.logout(dto.refreshToken);
   }
 
   @Get('profile')

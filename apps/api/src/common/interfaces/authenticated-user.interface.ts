@@ -17,6 +17,8 @@ export interface JwtPayload {
   role: Role;
   organizationId: string;
   type: 'access' | 'refresh';
+  /** Unique id for refresh tokens, used for rotation/revocation. */
+  jti?: string;
 }
 
 /** Short-lived token issued between password success and MFA verification. */

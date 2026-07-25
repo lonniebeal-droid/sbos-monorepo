@@ -101,7 +101,7 @@ See `docs/SYSTEM_ARCHITECTURE.md` and `docs/DATABASE_REVIEW.md` for detail.
 Prioritized, credential-free first:
 
 1. ✅ **MFA (TOTP)** enrollment + two-step login — _done_.
-2. **Refresh-token rotation & revocation** (deny-list).
+2. ✅ **Refresh-token rotation & revocation** (reuse detection) — _done_.
 3. **Client detail write flows** — edit demographics, add diagnosis/med inline.
 4. **Calendar interactions** — drag-to-reschedule, availability overlay.
 5. **AI note generation in the composer** (wire the existing `/notes/generate`).

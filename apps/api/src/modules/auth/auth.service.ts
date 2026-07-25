@@ -1,12 +1,16 @@
+import { randomUUID } from 'node:crypto';
+
 import {
   BadRequestException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 
 import type { AppConfig } from '../../config/configuration';
+import { PrismaService } from '../../prisma/prisma.service';
 import { Role } from '../../common/enums/role.enum';
 import type {
   JwtPayload,
@@ -21,11 +25,14 @@ import { MfaChallengeDto, MfaSetupResponseDto } from './dto/mfa.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService<AppConfig, true>,
     private readonly mfaService: MfaService,
+    private readonly prisma: PrismaService,
   ) {}
 
   private ttlToSeconds(ttl: string): number {
@@ -60,13 +67,25 @@ export class AuthService {
       },
     );
 
+    // Each refresh token gets a unique jti tracked in the database so it can be
+    // rotated on use and revoked on logout.
+    const jti = randomUUID();
     const refreshToken = await this.jwtService.signAsync(
-      { ...basePayload, type: 'refresh' } satisfies JwtPayload,
+      { ...basePayload, type: 'refresh', jti } satisfies JwtPayload,
       {
         secret: jwtConfig.refreshSecret,
         expiresIn: jwtConfig.refreshExpiresIn,
       },
     );
+    await this.prisma.refreshToken.create({
+      data: {
+        userId: user.id,
+        jti,
+        expiresAt: new Date(
+          Date.now() + this.ttlToSeconds(jwtConfig.refreshExpiresIn) * 1000,
+        ),
+      },
+    });
 
     return {
       accessToken,
@@ -174,12 +193,59 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    if (payload.type !== 'refresh') {
+    if (payload.type !== 'refresh' || !payload.jti) {
       throw new UnauthorizedException('Invalid token type');
     }
 
+    const stored = await this.prisma.refreshToken.findUnique({
+      where: { jti: payload.jti },
+    });
+
+    // Reuse detection: a syntactically valid token whose jti is unknown or
+    // already revoked indicates theft — revoke the whole family.
+    if (!stored || stored.revokedAt) {
+      await this.prisma.refreshToken.updateMany({
+        where: { userId: payload.sub, revokedAt: null },
+        data: { revokedAt: new Date() },
+      });
+      this.logger.warn(
+        `Refresh token reuse detected for user ${payload.sub}; family revoked`,
+      );
+      throw new UnauthorizedException('Refresh token has been revoked');
+    }
+
+    if (stored.expiresAt < new Date()) {
+      throw new UnauthorizedException('Refresh token has expired');
+    }
+
+    // Rotate: revoke the presented token, then issue a fresh pair.
+    await this.prisma.refreshToken.update({
+      where: { jti: payload.jti },
+      data: { revokedAt: new Date() },
+    });
+
     const user = await this.usersService.findById(payload.sub);
     return this.issueTokens(user);
+  }
+
+  /** Revoke a refresh token on logout (idempotent, best-effort). */
+  async logout(refreshToken: string): Promise<{ success: true }> {
+    const jwtConfig = this.configService.get('jwt', { infer: true });
+    try {
+      const payload = await this.jwtService.verifyAsync<JwtPayload>(
+        refreshToken,
+        { secret: jwtConfig.refreshSecret },
+      );
+      if (payload.jti) {
+        await this.prisma.refreshToken.updateMany({
+          where: { jti: payload.jti, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+    } catch {
+      // Already invalid/expired — nothing to revoke.
+    }
+    return { success: true };
   }
 
   async profile(userId: string): Promise<UserEntity> {

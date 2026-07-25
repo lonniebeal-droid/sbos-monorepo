@@ -32,7 +32,7 @@ credentials that only you can provide.
 - ✅ Consistent error envelope; no internal leakage
 - ✅ Immutable audit log
 - ✅ **MFA (TOTP)** — enrollment, enable/disable, and two-step login
-- ⬜ Refresh-token rotation + revocation (deny-list) store
+- ✅ Refresh-token rotation + revocation + reuse detection (DB-tracked)
 - ⬜ Encryption at rest for PHI + backups (deploy-time)
 - ⬜ Secrets stored in a managed secret store (not `.env` on disk)
 - ⬜ Penetration test before handling real PHI

@@ -76,7 +76,7 @@ the operator's responsibility.
 | A04 | Insecure Design | Layered modules, provider abstractions, least-privilege roles, audit trail |
 | A05 | Security Misconfiguration | Helmet; fail-fast config validation; non-root containers; CORS allowlist |
 | A06 | Vulnerable Components | pnpm lockfile + CI; dependencies pinned; `minimumReleaseAge` policy on installs |
-| A07 | Identification & Auth Failures | Short-lived tokens, refresh rotation-ready, login throttling, typed token validation |
+| A07 | Identification & Auth Failures | Short-lived tokens; refresh rotation + reuse detection + revocation; MFA (TOTP); login throttling |
 | A08 | Software & Data Integrity | Signed images via CI, additive migrations, immutable note versions/audit log |
 | A09 | Logging & Monitoring | Structured logs, audit trail, health/system-health endpoints |
 | A10 | SSRF | No user-controlled outbound URLs; provider endpoints are config-fixed |
@@ -85,7 +85,7 @@ the operator's responsibility.
 
 - **MFA (TOTP)** — ✅ implemented (enrollment + two-step login). Recovery codes
   and org-level enforcement policies are the remaining enhancement.
-- **Refresh-token rotation/revocation** store (deny-list) — planned.
+- **Refresh-token rotation/revocation** — ✅ implemented (DB-tracked jti, rotate on refresh, revoke on logout, reuse detection revokes the family).
 - **Encryption at rest** for PHI columns and backups — deploy-time control.
 - **Dependency scanning / SAST** in CI — planned.
 - **Penetration test** before go-live with real PHI.
