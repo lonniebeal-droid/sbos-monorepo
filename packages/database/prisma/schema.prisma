@@ -300,8 +300,108 @@ model Organization {
   noteTemplates  NoteTemplate[]
   payers         Payer[]
   serviceCodes   ServiceCode[]
+  conversations     Conversation[]
+  promptTemplates   PromptTemplate[]
+  knowledgeArticles KnowledgeArticle[]
 
   @@index([isActive])
+}
+
+// ---------------------------------------------------------------------------
+// Jessie AI platform
+// ---------------------------------------------------------------------------
+
+enum AssistantKind {
+  RECEPTIONIST
+  SCHEDULING
+  INTAKE
+  CLINICAL
+  KNOWLEDGE
+  GENERAL
+}
+
+enum ConversationStatus {
+  ACTIVE
+  CLOSED
+}
+
+enum MessageRole {
+  SYSTEM
+  USER
+  ASSISTANT
+}
+
+/// Admin-editable system prompt for a Jessie assistant. Versioned per
+/// organization so tenants can tune assistant behavior without code changes.
+model PromptTemplate {
+  id             String        @id @default(cuid())
+  organizationId String
+  kind           AssistantKind
+  name           String
+  systemPrompt   String
+  version        Int           @default(1)
+  isActive       Boolean       @default(true)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, kind, name])
+  @@index([organizationId])
+  @@index([kind])
+}
+
+/// A Jessie conversation (the unit of conversation memory). Messages accumulate
+/// as the memory the assistant reasons over.
+model Conversation {
+  id             String             @id @default(cuid())
+  organizationId String
+  kind           AssistantKind      @default(GENERAL)
+  status         ConversationStatus @default(ACTIVE)
+  subject        String?
+  clientId       String?
+  userId         String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  messages     ConversationMessage[]
+
+  @@index([organizationId])
+  @@index([kind])
+  @@index([status])
+  @@index([clientId])
+}
+
+model ConversationMessage {
+  id             String      @id @default(cuid())
+  conversationId String
+  role           MessageRole
+  content        String
+  provider       String?
+  createdAt      DateTime    @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@index([createdAt])
+}
+
+/// Organization knowledge-base article used to ground Jessie's answers.
+model KnowledgeArticle {
+  id             String   @id @default(cuid())
+  organizationId String
+  title          String
+  body           String
+  tags           String[] @default([])
+  isPublished    Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([isPublished])
 }
 
 /// An insurance company / payer the organization bills. Reference data used to
