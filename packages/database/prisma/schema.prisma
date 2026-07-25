@@ -1,0 +1,976 @@
+// SBOS — Success Brand Operating System
+// Production behavioral-health data model.
+//
+// Conventions:
+//  - All tenant-scoped tables carry `organizationId` for multi-tenant isolation.
+//  - Soft-reference money as Decimal(12,2); timestamps are UTC.
+//  - Every foreign key is indexed; natural keys use @@unique.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  SUPER_ADMIN
+  ORG_ADMIN
+  SUPERVISOR
+  CLINICIAN
+  BILLING
+  FRONT_DESK
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  NON_BINARY
+  TRANSGENDER
+  OTHER
+  UNKNOWN
+  DECLINED
+}
+
+enum ClientStatus {
+  PROSPECT
+  INTAKE
+  ACTIVE
+  ON_HOLD
+  DISCHARGED
+  INACTIVE
+}
+
+enum LocationType {
+  OFFICE
+  TELEHEALTH
+  COMMUNITY
+  RESIDENTIAL
+}
+
+enum AppointmentType {
+  INTAKE
+  INDIVIDUAL
+  GROUP
+  FAMILY
+  COUPLES
+  MEDICATION_MANAGEMENT
+  ASSESSMENT
+  TELEHEALTH
+  CONSULTATION
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CHECKED_IN
+  IN_SESSION
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum RecurrenceFrequency {
+  NONE
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum NoteType {
+  INTAKE
+  PROGRESS
+  BIRP
+  DAP
+  SOAP
+  GROUP
+  PSYCHIATRIC
+  DISCHARGE
+  CONTACT
+}
+
+enum NoteStatus {
+  DRAFT
+  PENDING_COSIGN
+  SIGNED
+  AMENDED
+  LOCKED
+}
+
+enum DiagnosisStatus {
+  ACTIVE
+  RESOLVED
+  RULED_OUT
+  PROVISIONAL
+}
+
+enum DiagnosisType {
+  PRIMARY
+  SECONDARY
+  PROVISIONAL
+  RULE_OUT
+}
+
+enum MedicationStatus {
+  ACTIVE
+  DISCONTINUED
+  COMPLETED
+  ON_HOLD
+}
+
+enum TreatmentPlanStatus {
+  DRAFT
+  ACTIVE
+  UNDER_REVIEW
+  COMPLETED
+  DISCONTINUED
+}
+
+enum GoalStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  ACHIEVED
+  DISCONTINUED
+}
+
+enum InsuranceType {
+  PRIMARY
+  SECONDARY
+  TERTIARY
+  SELF_PAY
+}
+
+enum ClaimStatus {
+  DRAFT
+  READY
+  SUBMITTED
+  ACCEPTED
+  DENIED
+  PARTIALLY_PAID
+  PAID
+  APPEALED
+  VOID
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  VOID
+}
+
+enum PaymentMethod {
+  CARD
+  CASH
+  CHECK
+  ACH
+  INSURANCE
+  HSA_FSA
+  ADJUSTMENT
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum DocumentType {
+  INTAKE_FORM
+  CONSENT
+  ASSESSMENT
+  INSURANCE_CARD
+  IDENTIFICATION
+  CLINICAL
+  BILLING
+  CORRESPONDENCE
+  OTHER
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum MessageThreadType {
+  DIRECT
+  GROUP
+  CLIENT_PORTAL
+  CARE_TEAM
+}
+
+enum NotificationType {
+  APPOINTMENT
+  NOTE_COSIGN
+  TASK
+  BILLING
+  MESSAGE
+  SYSTEM
+}
+
+enum AdmissionStatus {
+  ADMITTED
+  DISCHARGED
+  TRANSFERRED
+}
+
+enum AuditAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+  SIGN
+  SUBMIT
+}
+
+// ---------------------------------------------------------------------------
+// Tenancy & identity
+// ---------------------------------------------------------------------------
+
+model Organization {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  npi          String?
+  taxId        String?
+  email        String?
+  phone        String?
+  addressLine1 String?
+  addressLine2 String?
+  city         String?
+  state        String?
+  postalCode   String?
+  timezone     String   @default("America/New_York")
+  logoUrl      String?
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  users          User[]
+  locations      Location[]
+  clinicians     Clinician[]
+  clients        Client[]
+  appointments   Appointment[]
+  notes          Note[]
+  treatmentPlans TreatmentPlan[]
+  diagnoses      Diagnosis[]
+  medications    Medication[]
+  insurances     InsurancePolicy[]
+  claims         Claim[]
+  invoices       Invoice[]
+  payments       Payment[]
+  documents      Document[]
+  tasks          Task[]
+  messageThreads MessageThread[]
+  auditLogs      AuditLog[]
+  notifications  Notification[]
+  admissions     Admission[]
+  assessments    Assessment[]
+
+  @@index([isActive])
+}
+
+model User {
+  id             String     @id @default(cuid())
+  organizationId String
+  email          String
+  passwordHash   String
+  firstName      String
+  lastName       String
+  role           Role       @default(CLINICIAN)
+  status         UserStatus @default(ACTIVE)
+  phone          String?
+  avatarUrl      String?
+  mfaEnabled     Boolean    @default(false)
+  mfaSecret      String?
+  lastLoginAt    DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clinician    Clinician?
+
+  createdNotes      Note[]              @relation("NoteAuthor")
+  cosignedNotes     Note[]              @relation("NoteCosigner")
+  assignedTasks     Task[]              @relation("TaskAssignee")
+  createdTasks      Task[]              @relation("TaskCreator")
+  uploadedDocuments Document[]          @relation("DocumentUploader")
+  auditLogs         AuditLog[]
+  notifications     Notification[]
+  sentMessages      Message[]           @relation("MessageSender")
+  threadMemberships ThreadParticipant[]
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@index([role])
+  @@index([status])
+}
+
+model Location {
+  id             String       @id @default(cuid())
+  organizationId String
+  name           String
+  type           LocationType @default(OFFICE)
+  addressLine1   String?
+  addressLine2   String?
+  city           String?
+  state          String?
+  postalCode     String?
+  phone          String?
+  timezone       String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@index([organizationId])
+  @@index([type])
+}
+
+model Clinician {
+  id                    String   @id @default(cuid())
+  organizationId        String
+  userId                String   @unique
+  title                 String?
+  credentials           String?
+  npi                   String?
+  licenseNumber         String?
+  licenseState          String?
+  specialties           String[] @default([])
+  bio                   String?
+  isAcceptingNewClients Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  clients        Client[]        @relation("PrimaryClinician")
+  appointments   Appointment[]
+  notes          Note[]
+  treatmentPlans TreatmentPlan[]
+  medications    Medication[]
+
+  @@index([organizationId])
+  @@index([npi])
+}
+
+// ---------------------------------------------------------------------------
+// Clients & clinical record
+// ---------------------------------------------------------------------------
+
+model Client {
+  id                    String       @id @default(cuid())
+  organizationId        String
+  mrn                   String
+  firstName             String
+  lastName              String
+  preferredName         String?
+  dateOfBirth           DateTime
+  gender                Gender       @default(UNKNOWN)
+  pronouns              String?
+  email                 String?
+  phone                 String?
+  addressLine1          String?
+  addressLine2          String?
+  city                  String?
+  state                 String?
+  postalCode            String?
+  status                ClientStatus @default(INTAKE)
+  primaryClinicianId    String?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+  notes                 String?
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  primaryClinician Clinician?   @relation("PrimaryClinician", fields: [primaryClinicianId], references: [id], onDelete: SetNull)
+
+  appointments      Appointment[]
+  clinicalNotes     Note[]
+  treatmentPlans    TreatmentPlan[]
+  diagnoses         Diagnosis[]
+  medications       Medication[]
+  insurancePolicies InsurancePolicy[]
+  claims            Claim[]
+  invoices          Invoice[]
+  payments          Payment[]
+  documents         Document[]
+  tasks             Task[]
+  admissions        Admission[]
+  assessments       Assessment[]
+
+  @@unique([organizationId, mrn])
+  @@index([organizationId])
+  @@index([status])
+  @@index([primaryClinicianId])
+  @@index([lastName, firstName])
+}
+
+model Admission {
+  id              String          @id @default(cuid())
+  organizationId  String
+  clientId        String
+  program         String
+  levelOfCare     String?
+  status          AdmissionStatus @default(ADMITTED)
+  admittedAt      DateTime        @default(now())
+  dischargedAt    DateTime?
+  dischargeReason String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([status])
+}
+
+model Assessment {
+  id             String   @id @default(cuid())
+  organizationId String
+  clientId       String
+  instrument     String // e.g. PHQ-9, GAD-7, C-SSRS
+  score          Int?
+  severity       String?
+  responses      Json?
+  administeredAt DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([instrument])
+}
+
+model Appointment {
+  id                  String              @id @default(cuid())
+  organizationId      String
+  clientId            String
+  clinicianId         String
+  locationId          String?
+  type                AppointmentType     @default(INDIVIDUAL)
+  status              AppointmentStatus   @default(SCHEDULED)
+  title               String?
+  startTime           DateTime
+  endTime             DateTime
+  durationMinutes     Int
+  isTelehealth        Boolean             @default(false)
+  telehealthUrl       String?
+  recurrenceFrequency RecurrenceFrequency @default(NONE)
+  recurrenceUntil     DateTime?
+  parentAppointmentId String?
+  cptCode             String?
+  cancelReason        String?
+  checkedInAt         DateTime?
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client        @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clinician    Clinician     @relation(fields: [clinicianId], references: [id], onDelete: Cascade)
+  location     Location?     @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  parent       Appointment?  @relation("AppointmentRecurrence", fields: [parentAppointmentId], references: [id], onDelete: SetNull)
+  occurrences  Appointment[] @relation("AppointmentRecurrence")
+  notes        Note[]
+  claims       Claim[]
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([clinicianId])
+  @@index([locationId])
+  @@index([status])
+  @@index([startTime])
+}
+
+// ---------------------------------------------------------------------------
+// Clinical documentation
+// ---------------------------------------------------------------------------
+
+model Note {
+  id             String     @id @default(cuid())
+  organizationId String
+  clientId       String
+  clinicianId    String
+  authorId       String
+  appointmentId  String?
+  type           NoteType   @default(PROGRESS)
+  status         NoteStatus @default(DRAFT)
+  title          String?
+  content        String?
+  requiresCosign Boolean    @default(false)
+  cosignerId     String?
+  signedAt       DateTime?
+  cosignedAt     DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clinician    Clinician    @relation(fields: [clinicianId], references: [id], onDelete: Cascade)
+  author       User         @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  cosigner     User?        @relation("NoteCosigner", fields: [cosignerId], references: [id], onDelete: SetNull)
+  appointment  Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  birp BirpNote?
+  dap  DapNote?
+  soap SoapNote?
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([clinicianId])
+  @@index([type])
+  @@index([status])
+  @@index([appointmentId])
+}
+
+model BirpNote {
+  id           String @id @default(cuid())
+  noteId       String @unique
+  behavior     String
+  intervention String
+  response     String
+  plan         String
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+}
+
+model DapNote {
+  id         String @id @default(cuid())
+  noteId     String @unique
+  data       String
+  assessment String
+  plan       String
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+}
+
+model SoapNote {
+  id         String @id @default(cuid())
+  noteId     String @unique
+  subjective String
+  objective  String
+  assessment String
+  plan       String
+
+  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
+}
+
+model TreatmentPlan {
+  id                String              @id @default(cuid())
+  organizationId    String
+  clientId          String
+  clinicianId       String
+  title             String
+  status            TreatmentPlanStatus @default(DRAFT)
+  presentingProblem String?
+  startDate         DateTime            @default(now())
+  reviewDate        DateTime?
+  endDate           DateTime?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clinician    Clinician    @relation(fields: [clinicianId], references: [id], onDelete: Cascade)
+  goals        Goal[]
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([status])
+}
+
+model Goal {
+  id              String     @id @default(cuid())
+  treatmentPlanId String
+  description     String
+  status          GoalStatus @default(NOT_STARTED)
+  targetDate      DateTime?
+  progressPercent Int        @default(0)
+  orderIndex      Int        @default(0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  treatmentPlan TreatmentPlan @relation(fields: [treatmentPlanId], references: [id], onDelete: Cascade)
+  objectives    Objective[]
+
+  @@index([treatmentPlanId])
+  @@index([status])
+}
+
+model Objective {
+  id          String     @id @default(cuid())
+  goalId      String
+  description String
+  status      GoalStatus @default(NOT_STARTED)
+  targetDate  DateTime?
+  orderIndex  Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  goal Goal @relation(fields: [goalId], references: [id], onDelete: Cascade)
+
+  @@index([goalId])
+}
+
+model Diagnosis {
+  id             String          @id @default(cuid())
+  organizationId String
+  clientId       String
+  icd10Code      String
+  description    String
+  type           DiagnosisType   @default(PRIMARY)
+  status         DiagnosisStatus @default(ACTIVE)
+  diagnosedAt    DateTime        @default(now())
+  resolvedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([icd10Code])
+  @@index([status])
+}
+
+model Medication {
+  id             String           @id @default(cuid())
+  organizationId String
+  clientId       String
+  prescriberId   String?
+  name           String
+  dosage         String?
+  frequency      String?
+  route          String?
+  status         MedicationStatus @default(ACTIVE)
+  startDate      DateTime?
+  endDate        DateTime?
+  notes          String?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  prescriber   Clinician?   @relation(fields: [prescriberId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// Insurance, billing & payments
+// ---------------------------------------------------------------------------
+
+model InsurancePolicy {
+  id              String        @id @default(cuid())
+  organizationId  String
+  clientId        String
+  type            InsuranceType @default(PRIMARY)
+  payerName       String
+  payerId         String?
+  memberId        String
+  groupNumber     String?
+  planName        String?
+  subscriberName  String?
+  subscriberDob   DateTime?
+  relationship    String?
+  effectiveDate   DateTime?
+  terminationDate DateTime?
+  copayAmount     Decimal?      @db.Decimal(12, 2)
+  isActive        Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  claims       Claim[]
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([type])
+}
+
+model Claim {
+  id                    String      @id @default(cuid())
+  organizationId        String
+  clientId              String
+  insurancePolicyId     String?
+  appointmentId         String?
+  claimNumber           String
+  status                ClaimStatus @default(DRAFT)
+  cptCode               String?
+  icd10Codes            String[]    @default([])
+  billedAmount          Decimal     @db.Decimal(12, 2)
+  allowedAmount         Decimal?    @db.Decimal(12, 2)
+  paidAmount            Decimal     @default(0) @db.Decimal(12, 2)
+  patientResponsibility Decimal?    @db.Decimal(12, 2)
+  denialReason          String?
+  serviceDate           DateTime
+  submittedAt           DateTime?
+  paidAt                DateTime?
+  createdAt             DateTime    @default(now())
+  updatedAt             DateTime    @updatedAt
+
+  organization    Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client          Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  insurancePolicy InsurancePolicy? @relation(fields: [insurancePolicyId], references: [id], onDelete: SetNull)
+  appointment     Appointment?     @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  payments        Payment[]
+
+  @@unique([organizationId, claimNumber])
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([status])
+  @@index([serviceDate])
+}
+
+model Invoice {
+  id             String        @id @default(cuid())
+  organizationId String
+  clientId       String
+  invoiceNumber  String
+  status         InvoiceStatus @default(DRAFT)
+  subtotal       Decimal       @default(0) @db.Decimal(12, 2)
+  tax            Decimal       @default(0) @db.Decimal(12, 2)
+  total          Decimal       @default(0) @db.Decimal(12, 2)
+  amountPaid     Decimal       @default(0) @db.Decimal(12, 2)
+  balanceDue     Decimal       @default(0) @db.Decimal(12, 2)
+  issuedAt       DateTime      @default(now())
+  dueDate        DateTime?
+  paidAt         DateTime?
+  notes          String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  lineItems    InvoiceLineItem[]
+  payments     Payment[]
+
+  @@unique([organizationId, invoiceNumber])
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([status])
+}
+
+model InvoiceLineItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  description String
+  cptCode     String?
+  quantity    Int     @default(1)
+  unitPrice   Decimal @db.Decimal(12, 2)
+  amount      Decimal @db.Decimal(12, 2)
+
+  invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+}
+
+model Payment {
+  id             String        @id @default(cuid())
+  organizationId String
+  clientId       String
+  invoiceId      String?
+  claimId        String?
+  method         PaymentMethod @default(CARD)
+  status         PaymentStatus @default(PENDING)
+  amount         Decimal       @db.Decimal(12, 2)
+  processorRef   String?
+  reference      String?
+  processedAt    DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  invoice      Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
+  claim        Claim?       @relation(fields: [claimId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([status])
+  @@index([invoiceId])
+  @@index([claimId])
+}
+
+// ---------------------------------------------------------------------------
+// Documents, tasks, messaging, audit, notifications
+// ---------------------------------------------------------------------------
+
+model Document {
+  id             String       @id @default(cuid())
+  organizationId String
+  clientId       String?
+  uploadedById   String
+  type           DocumentType @default(OTHER)
+  name           String
+  storageKey     String
+  mimeType       String?
+  sizeBytes      Int?
+  isSigned       Boolean      @default(false)
+  signedAt       DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  uploadedBy   User         @relation("DocumentUploader", fields: [uploadedById], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([type])
+}
+
+model Task {
+  id             String       @id @default(cuid())
+  organizationId String
+  createdById    String
+  assigneeId     String?
+  clientId       String?
+  title          String
+  description    String?
+  status         TaskStatus   @default(OPEN)
+  priority       TaskPriority @default(MEDIUM)
+  dueDate        DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  assignee     User?        @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  client       Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([assigneeId])
+  @@index([status])
+  @@index([priority])
+}
+
+model MessageThread {
+  id             String            @id @default(cuid())
+  organizationId String
+  type           MessageThreadType @default(DIRECT)
+  subject        String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  participants ThreadParticipant[]
+  messages     Message[]
+
+  @@index([organizationId])
+  @@index([type])
+}
+
+model ThreadParticipant {
+  id         String    @id @default(cuid())
+  threadId   String
+  userId     String
+  lastReadAt DateTime?
+  joinedAt   DateTime  @default(now())
+
+  thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([threadId, userId])
+  @@index([userId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  threadId  String
+  senderId  String
+  body      String
+  createdAt DateTime @default(now())
+
+  thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender User          @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([threadId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id             String           @id @default(cuid())
+  organizationId String
+  userId         String
+  type           NotificationType @default(SYSTEM)
+  title          String
+  body           String?
+  linkUrl        String?
+  isRead         Boolean          @default(false)
+  readAt         DateTime?
+  createdAt      DateTime         @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([userId])
+  @@index([isRead])
+}
+
+model AuditLog {
+  id             String      @id @default(cuid())
+  organizationId String
+  actorId        String?
+  action         AuditAction
+  entityType     String
+  entityId       String?
+  ipAddress      String?
+  userAgent      String?
+  metadata       Json?
+  createdAt      DateTime    @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  actor        User?        @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([actorId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
