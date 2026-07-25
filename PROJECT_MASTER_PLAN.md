@@ -31,7 +31,7 @@ containers, CI, and a full documentation set.
 activation, compliance (HIPAA), and the growth roadmap (SaaS self-serve, mobile,
 deeper AI, integrations).
 
-**Completion:** application ~**86%**; remaining work is largely
+**Completion:** application ~**88%**; remaining work is largely
 infrastructure/compliance/credentials (see §8–11).
 
 ---
@@ -45,7 +45,7 @@ infrastructure/compliance/credentials (see §8–11).
 Browser ─► apps/web (Next.js 15 / React 19 / RSC)
              │  server-side, HttpOnly cookies + middleware refresh
              ▼
-           apps/api (NestJS 10, /api/v1, 118 routes, Swagger /docs)
+           apps/api (NestJS 10, /api/v1, ~125 routes, Swagger /docs)
              │  Prisma
              ▼
            PostgreSQL   (Redis provisioned for the planned queue/cache layer)
@@ -56,7 +56,7 @@ Browser ─► apps/web (Next.js 15 / React 19 / RSC)
 - **API:** NestJS, URI-versioned, global JWT + hierarchical RBAC guards,
   validation, rate limiting, Helmet, consistent error envelope, provider
   abstractions (Jessie chat, payments, storage, email, SMS).
-- **Data:** Prisma + PostgreSQL, **41 models**, 7 additive migrations, composite
+- **Data:** Prisma + PostgreSQL, **42 models**, 8 additive migrations, composite
   indexes, per-tenant isolation via `organizationId`.
 - **Shared logic:** `@sbos/core` (RBAC, note-status, scheduling, money) — unit
   tested, consumed by the API so business rules live once.

@@ -187,6 +187,19 @@ _Last updated: 2026-07-24_
   and unified duplicated money rounding into `@sbos/core#roundCurrency` (tested).
   Confirmed **zero real TODO/FIXME comments** in the codebase.
 
+## Autonomous hardening session (done)
+
+- **MFA (TOTP):** enrollment (QR), enable/disable, two-step login (API + web),
+  verified end-to-end.
+- **Refresh-token rotation + revocation + reuse detection** (new `RefreshToken`
+  table); logout revokes; verified.
+- **API unit tests (Vitest):** MfaService, RolesGuard, AllExceptionsFilter,
+  NotesService, pagination — 17 tests (plus 12 in `@sbos/core`).
+- **Clinical note composer** wired to the API: client/clinician pickers, "Generate
+  with Jessie" AI drafting, and persistence via `POST /notes`.
+- **Structured request-logging interceptor** (method/path/status/duration/user).
+- RC1 cleanups: removed dead code + leftover app, unified money rounding.
+
 ## Next recommended phase
 
 **Phase 5 — Authentication & tenancy hardening**: connect web ↔ API auth,
