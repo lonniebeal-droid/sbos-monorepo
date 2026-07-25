@@ -145,6 +145,23 @@ enabled.
 | GET/POST/DELETE | `/api/v1/documents` | Metadata + presigned upload/download |
 | POST | `/api/v1/documents/:id/sign` | Electronic signature |
 
+### Jessie AI
+
+| Method | Path | Description |
+| --- | --- | --- |
+| GET/POST | `/api/v1/jessie/conversations` | List / start conversations |
+| GET | `/api/v1/jessie/conversations/:id` | Conversation + message history (memory) |
+| POST | `/api/v1/jessie/conversations/:id/messages` | Send a message, get Jessie's reply |
+| POST | `/api/v1/jessie/conversations/:id/close` | Close a conversation |
+| GET/POST/PATCH | `/api/v1/jessie/prompts` | Admin prompt management (per assistant kind) |
+| GET/POST/PATCH/DELETE | `/api/v1/jessie/knowledge` | Knowledge base (grounding) |
+
+Jessie routes to specialized assistants (receptionist, scheduling, intake,
+clinical, knowledge, general) via a `CHAT_PROVIDER` abstraction. The default is
+an offline, deterministic provider (no credentials); a hosted LLM
+(OpenAI/Claude/Gemini) implements the same interface. Conversation messages are
+the persisted memory; grounded kinds retrieve knowledge-base articles.
+
 ### Billing (revenue cycle)
 
 | Method | Path | Description |

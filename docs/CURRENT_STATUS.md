@@ -83,6 +83,21 @@ _Last updated: 2026-07-24_
 - Schema: `Payer`, `ServiceCode` (migration `20260725200000_billing`).
 - Verified: 86 routes across 14 groups; build 5/5, lint 7/7.
 
+## Phase 9 — Jessie AI platform (done, credential-free)
+
+- Provider-abstracted assistant layer (`CHAT_PROVIDER`) with an offline
+  deterministic default and an LLM-swappable seam — architected to be licensed
+  independently of SBOS.
+- **Conversations** with persisted **memory**, a multi-assistant **router**
+  (receptionist / scheduling / intake / clinical / knowledge / general),
+  **admin prompt management** (per-kind, versioned), and a **knowledge base**
+  with grounding retrieval. AI actions written to the audit trail.
+- Schema: `Conversation`, `ConversationMessage`, `PromptTemplate`,
+  `KnowledgeArticle` (migration `20260725300000_jessie_ai`).
+- Verified: 98 routes across 15 groups; build 5/5, lint 7/7, test 6/6.
+- Live AI/voice/SMS providers (OpenAI/Claude/Gemini, Twilio, Resend) plug into
+  the existing interfaces once credentials are supplied.
+
 ## Next recommended phase
 
 **Phase 5 — Authentication & tenancy hardening**: connect web ↔ API auth,

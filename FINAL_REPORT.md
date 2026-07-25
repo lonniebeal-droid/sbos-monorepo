@@ -131,9 +131,20 @@ invoices with line items, payments through a provider abstraction
 balances, and superbill generation. Schema → **36 models** (fourth migration
 adds Payer + ServiceCode). API → **86 routes across 14 resource groups**.
 
+## Update — Phase 9 (Jessie AI) delivered
+
+The proprietary, independently-licensable Jessie AI platform: a `CHAT_PROVIDER`
+abstraction (offline deterministic default, LLM-swappable) driving a
+multi-assistant router (receptionist, scheduling, intake, clinical, knowledge,
+general); persisted conversation memory; admin-editable, versioned prompt
+management; and a knowledge base with grounding retrieval — all offline and
+credential-free, with clear seams for hosted providers. Schema → **40 models**
+(fifth migration adds Conversation, ConversationMessage, PromptTemplate,
+KnowledgeArticle). API → **98 routes across 15 resource groups**.
+
 ## Estimated completion of the overall SBOS platform
 
-**~50%.** Architecture, multi-tenant auth/RBAC, the full clinical data model and
+**~57%.** Architecture, multi-tenant auth/RBAC, the full clinical data model and
 documentation workflow, and 12 Prisma-backed resource groups are in place. The
 remaining work is scheduling depth, the billing/revenue cycle, the broader
 Jessie AI suite, enterprise features (analytics/messaging/notifications), live
