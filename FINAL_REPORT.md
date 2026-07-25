@@ -189,10 +189,23 @@ Jessie chat, Stripe payments, Resend email, Twilio SMS) that activate on key and
 fall back to offline defaults; wired welcome email on client creation and
 confirmation SMS on appointment creation.
 
+## Update — Production readiness pass
+
+Hardened for a first production release across seven areas: security (Helmet,
+consistent error filter, fail-fast config validation, login throttle, OWASP
+review), database (composite indexes + full audit), API (complete OpenAPI),
+frontend (loading skeletons + accessibility), deployment (non-root containers,
+healthchecks, secret enforcement, env templates), a full documentation set
+(INSTALL/DEPLOYMENT/ADMIN/API/AI_CONFIGURATION/SECURITY), and a
+`RELEASE_1_CHECKLIST.md` enumerating everything required before go-live.
+
 ## Estimated completion of the overall SBOS platform
 
-**~82%.** The remaining work is production hardening (Redis/BullMQ, WebSockets,
-HIPAA controls, AI voice), and supplying provider keys to run integrations live. Architecture, multi-tenant auth/RBAC, the full clinical data model and
+**~86%.** Application code, security controls, database, API, UI, containers, and
+CI are production-ready. The remaining work is infrastructure provisioning
+(managed DB + backups, secrets store, TLS), credentials for live providers, and
+organizational/compliance steps (MFA, encryption at rest, BAAs, pen test) —
+all enumerated in `RELEASE_1_CHECKLIST.md`. Architecture, multi-tenant auth/RBAC, the full clinical data model and
 documentation workflow, and 12 Prisma-backed resource groups are in place. The
 remaining work is scheduling depth, the billing/revenue cycle, the broader
 Jessie AI suite, enterprise features (analytics/messaging/notifications), live

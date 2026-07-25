@@ -164,6 +164,20 @@ _Last updated: 2026-07-24_
   Verified the selection switches correctly with/without keys. Wired real uses:
   welcome email on client creation, confirmation SMS on appointment creation.
 
+## Production readiness pass (done)
+
+- **Security:** Helmet headers, global consistent-error filter, fail-fast config
+  validation, login rate-limit (5/min), CORS methods; OWASP Top 10 review.
+- **Database:** composite indexes for hot paths; full FK/cascade/migration audit
+  (`docs/DATABASE_REVIEW.md`).
+- **API:** complete OpenAPI (error schema, standard 401/429, metadata, `/docs/json`).
+- **Frontend:** route-group loading skeletons; a11y (skip link, landmarks,
+  aria-current, labeled controls).
+- **Deployment:** non-root containers + HEALTHCHECKs, web health endpoint,
+  compose secret enforcement + provider passthrough, `.env.production.example`.
+- **Docs:** INSTALL, DEPLOYMENT, ADMIN_GUIDE, API_GUIDE, AI_CONFIGURATION,
+  SECURITY, plus `RELEASE_1_CHECKLIST.md`.
+
 ## Next recommended phase
 
 **Phase 5 — Authentication & tenancy hardening**: connect web ↔ API auth,
