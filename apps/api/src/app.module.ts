@@ -11,6 +11,7 @@ import { AuditModule } from './audit/audit.module';
 import { AiModule } from './ai/ai.module';
 import { StorageModule } from './storage/storage.module';
 import { PaymentsModule } from './payments/payments.module';
+import { ChannelsModule } from './channels/channels.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
@@ -51,6 +52,7 @@ import { HealthController } from './modules/health/health.controller';
     AiModule,
     StorageModule,
     PaymentsModule,
+    ChannelsModule,
     AuthModule,
     UsersModule,
     OrganizationsModule,

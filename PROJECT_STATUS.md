@@ -43,7 +43,9 @@ provider-abstracted module so it can eventually be licensed independently.
 ## In progress / next
 - Wire the web app to the live API (remove interim dev credential store); MFA.
 - Apply migrations + seed against a real PostgreSQL (needs `DATABASE_URL`).
-- Activate live providers (LLM/voice/SMS/Stripe) once credentials are supplied.
+- Live provider adapters are built and config-selected (OpenAI chat, Stripe
+  payments, Resend email, Twilio SMS); they activate automatically when keys are
+  supplied — voice remains to be added.
 - Production infrastructure: Redis/BullMQ, S3, WebSockets, HIPAA controls.
   (Docker + Compose + GitHub Actions CI are in place.)
 - Surface the new API resources in the web UI.

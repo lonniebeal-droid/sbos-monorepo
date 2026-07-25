@@ -7,6 +7,24 @@ export interface AppConfig {
     accessExpiresIn: string;
     refreshExpiresIn: string;
   };
+  ai: {
+    /** OpenAI-compatible base URL (works for OpenAI, Azure, or local gateways). */
+    baseUrl: string;
+    apiKey?: string;
+    model: string;
+  };
+  stripe: {
+    secretKey?: string;
+  };
+  email: {
+    resendApiKey?: string;
+    fromAddress: string;
+  };
+  sms: {
+    twilioAccountSid?: string;
+    twilioAuthToken?: string;
+    twilioFromNumber?: string;
+  };
 }
 
 export default (): AppConfig => ({
@@ -22,5 +40,22 @@ export default (): AppConfig => ({
       process.env.JWT_REFRESH_SECRET ?? 'sbos-dev-refresh-secret-change-me',
     accessExpiresIn: process.env.JWT_ACCESS_TTL ?? '15m',
     refreshExpiresIn: process.env.JWT_REFRESH_TTL ?? '7d',
+  },
+  ai: {
+    baseUrl: process.env.AI_BASE_URL ?? 'https://api.openai.com/v1',
+    apiKey: process.env.OPENAI_API_KEY ?? process.env.AI_API_KEY,
+    model: process.env.AI_MODEL ?? 'gpt-4o-mini',
+  },
+  stripe: {
+    secretKey: process.env.STRIPE_SECRET_KEY,
+  },
+  email: {
+    resendApiKey: process.env.RESEND_API_KEY,
+    fromAddress: process.env.EMAIL_FROM ?? 'no-reply@sbos.health',
+  },
+  sms: {
+    twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
+    twilioAuthToken: process.env.TWILIO_AUTH_TOKEN,
+    twilioFromNumber: process.env.TWILIO_FROM_NUMBER,
   },
 });

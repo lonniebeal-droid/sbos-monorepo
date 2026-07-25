@@ -1,6 +1,8 @@
 import {
   BadRequestException,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { AppointmentStatus, type Prisma } from '@sbos/database';
@@ -11,6 +13,7 @@ import {
 
 import { paginate } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { SMS_PROVIDER, type SmsProvider } from '../../channels/sms.provider';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
 import { QueryAppointmentsDto } from './dto/query-appointments.dto';
@@ -18,7 +21,29 @@ import { CreateRecurringDto } from './dto/create-recurring.dto';
 
 @Injectable()
 export class AppointmentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(AppointmentsService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    @Inject(SMS_PROVIDER) private readonly sms: SmsProvider,
+  ) {}
+
+  /** Best-effort appointment confirmation SMS (no-op with the console provider). */
+  private async sendConfirmation(clientId: string, start: Date): Promise<void> {
+    const client = await this.prisma.client.findUnique({
+      where: { id: clientId },
+      select: { phone: true, firstName: true },
+    });
+    if (!client?.phone) return;
+    await this.sms
+      .send({
+        to: client.phone,
+        body: `Hi ${client.firstName}, your appointment is confirmed for ${start.toLocaleString()}. Reply STOP to opt out.`,
+      })
+      .catch((error) =>
+        this.logger.warn(`Confirmation SMS failed: ${String(error)}`),
+      );
+  }
 
   async create(organizationId: string, dto: CreateAppointmentDto) {
     const start = new Date(dto.startTime);
@@ -35,7 +60,7 @@ export class AppointmentsService {
     }
 
     const { startTime, endTime, ...rest } = dto;
-    return this.prisma.appointment.create({
+    const appointment = await this.prisma.appointment.create({
       data: {
         ...rest,
         startTime: start,
@@ -43,6 +68,9 @@ export class AppointmentsService {
         organizationId,
       },
     });
+
+    void this.sendConfirmation(dto.clientId, start);
+    return appointment;
   }
 
   /** True when the clinician has an overlapping non-cancelled appointment. */

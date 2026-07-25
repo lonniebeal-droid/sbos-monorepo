@@ -151,6 +151,19 @@ _Last updated: 2026-07-24_
   runtime the container executes); full workspace build 5/5, lint 7/7. Docker
   image builds run in CI (no local Docker daemon in this environment).
 
+## Live data & provider integrations (done)
+
+- **Full stack verified against a real PostgreSQL** (via an embedded Postgres in
+  this environment): all 6 migrations applied, database seeded, and the web app
+  rendering live data end-to-end — login → API auth (now Prisma-backed) → live
+  clients, dashboard KPIs, and client chart; note create → sign → version
+  history; client create — all persisted.
+- **Live provider adapters, config-selected** (activate on key, offline default
+  otherwise): **Jessie chat** (OpenAI-compatible LLM ↔ heuristic), **payments**
+  (Stripe ↔ manual), **email** (Resend ↔ console), **SMS** (Twilio ↔ console).
+  Verified the selection switches correctly with/without keys. Wired real uses:
+  welcome email on client creation, confirmation SMS on appointment creation.
+
 ## Next recommended phase
 
 **Phase 5 — Authentication & tenancy hardening**: connect web ↔ API auth,

@@ -178,9 +178,21 @@ checks), and GitHub Actions CI that runs build/lint/test and builds both Docker
 images on every push. The web standalone bundle was verified to boot locally;
 image builds are validated in CI (no local Docker daemon in this environment).
 
+## Update — Live data verified + provider adapters
+
+Verified the entire stack against a real PostgreSQL (embedded): 6 migrations
+applied, seeded, Prisma-backed auth, and the web UI rendering live clients,
+dashboard KPIs, client charts, and the note create→sign→version-history flow —
+all persisted. Added a client chart page, note detail with sign/co-sign, and a
+Tasks module. Built config-selected live provider adapters (OpenAI-compatible
+Jessie chat, Stripe payments, Resend email, Twilio SMS) that activate on key and
+fall back to offline defaults; wired welcome email on client creation and
+confirmation SMS on appointment creation.
+
 ## Estimated completion of the overall SBOS platform
 
-**~78%.** Architecture, multi-tenant auth/RBAC, the full clinical data model and
+**~82%.** The remaining work is production hardening (Redis/BullMQ, WebSockets,
+HIPAA controls, AI voice), and supplying provider keys to run integrations live. Architecture, multi-tenant auth/RBAC, the full clinical data model and
 documentation workflow, and 12 Prisma-backed resource groups are in place. The
 remaining work is scheduling depth, the billing/revenue cycle, the broader
 Jessie AI suite, enterprise features (analytics/messaging/notifications), live
