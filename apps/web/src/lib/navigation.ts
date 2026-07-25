@@ -4,6 +4,7 @@ import {
   ClipboardList,
   CreditCard,
   LayoutDashboard,
+  ListChecks,
   Settings,
   Users,
   type LucideIcon,
@@ -52,6 +53,12 @@ export const primaryNav: NavItem[] = [
     href: "/billing",
     icon: CreditCard,
     description: "Claims, invoices, and payments",
+  },
+  {
+    title: "Tasks",
+    href: "/tasks",
+    icon: ListChecks,
+    description: "Team action items and follow-ups",
   },
   {
     title: "Reports",

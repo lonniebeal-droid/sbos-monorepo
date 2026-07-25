@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AlertCircle, Users } from "lucide-react";
 
 import { apiFetch, ApiError, type Paginated } from "@/lib/api";
@@ -115,7 +116,12 @@ export default async function ClientsPage() {
                 {clients.map((client) => (
                   <TableRow key={client.id}>
                     <TableCell className="font-medium">
-                      {client.firstName} {client.lastName}
+                      <Link
+                        href={`/clients/${client.id}`}
+                        className="hover:text-primary hover:underline"
+                      >
+                        {client.firstName} {client.lastName}
+                      </Link>
                     </TableCell>
                     <TableCell className="tabular-nums text-muted-foreground">
                       {client.mrn}

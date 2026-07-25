@@ -80,6 +80,68 @@ export async function createAppointmentAction(
   }
 }
 
+export async function signNoteAction(noteId: string): Promise<ActionResult> {
+  try {
+    await apiFetch(`/notes/${noteId}/sign`, { method: "POST" });
+    revalidatePath(`/notes/${noteId}`);
+    revalidatePath("/notes");
+    return { ok: true };
+  } catch (error) {
+    return toError(error);
+  }
+}
+
+export async function cosignNoteAction(noteId: string): Promise<ActionResult> {
+  try {
+    await apiFetch(`/notes/${noteId}/cosign`, { method: "POST" });
+    revalidatePath(`/notes/${noteId}`);
+    revalidatePath("/notes");
+    return { ok: true };
+  } catch (error) {
+    return toError(error);
+  }
+}
+
+export interface NewTaskInput {
+  title: string;
+  description?: string;
+  priority?: string;
+  dueDate?: string;
+}
+
+export async function createTaskAction(
+  input: NewTaskInput,
+): Promise<ActionResult> {
+  try {
+    await apiFetch("/tasks", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    revalidatePath("/tasks");
+    revalidatePath("/dashboard");
+    return { ok: true };
+  } catch (error) {
+    return toError(error);
+  }
+}
+
+export async function updateTaskStatusAction(
+  taskId: string,
+  status: string,
+): Promise<ActionResult> {
+  try {
+    await apiFetch(`/tasks/${taskId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    });
+    revalidatePath("/tasks");
+    revalidatePath("/dashboard");
+    return { ok: true };
+  } catch (error) {
+    return toError(error);
+  }
+}
+
 export interface UpdateOrganizationInput {
   name?: string;
   npi?: string;
