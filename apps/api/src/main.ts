@@ -4,13 +4,27 @@ import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import helmet from 'helmet';
 
 import { AppModule } from './app.module';
-import type { AppConfig } from './config/configuration';
+import configuration, { type AppConfig } from './config/configuration';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { validateRuntimeConfig } from './config/validate-config';
 
 async function bootstrap(): Promise<void> {
+  // Fail fast on insecure/missing configuration in production.
+  validateRuntimeConfig(configuration());
+
   const app = await NestFactory.create(AppModule, { cors: false });
   const configService = app.get<ConfigService<AppConfig, true>>(ConfigService);
+
+  // Security headers (CSP is relaxed here because the API serves JSON + Swagger).
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginResourcePolicy: { policy: 'cross-origin' },
+    }),
+  );
 
   app.setGlobalPrefix('api');
   app.enableVersioning({ type: VersioningType.URI, defaultVersion: '1' });
@@ -18,6 +32,7 @@ async function bootstrap(): Promise<void> {
   app.enableCors({
     origin: configService.get('corsOrigins', { infer: true }),
     credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
   });
 
   app.useGlobalPipes(
@@ -28,6 +43,8 @@ async function bootstrap(): Promise<void> {
       transformOptions: { enableImplicitConversion: true },
     }),
   );
+
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   const swaggerConfig = new DocumentBuilder()
     .setTitle('SBOS API')
