@@ -54,7 +54,7 @@ export class BillingController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreatePayerDto,
   ) {
-    return this.reference.createPayer(user.organizationId, dto);
+    return this.reference.createPayer(user.organizationId, user.id, dto);
   }
 
   @Patch('payers/:id')
@@ -65,7 +65,7 @@ export class BillingController {
     @Param('id') id: string,
     @Body() dto: UpdatePayerDto,
   ) {
-    return this.reference.updatePayer(user.organizationId, id, dto);
+    return this.reference.updatePayer(user.organizationId, user.id, id, dto);
   }
 
   // ----- Service codes / fee schedule -----
@@ -82,7 +82,7 @@ export class BillingController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateServiceCodeDto,
   ) {
-    return this.reference.createServiceCode(user.organizationId, dto);
+    return this.reference.createServiceCode(user.organizationId, user.id, dto);
   }
 
   @Patch('service-codes/:id')
@@ -93,7 +93,7 @@ export class BillingController {
     @Param('id') id: string,
     @Body() dto: UpdateServiceCodeDto,
   ) {
-    return this.reference.updateServiceCode(user.organizationId, id, dto);
+    return this.reference.updateServiceCode(user.organizationId, user.id, id, dto);
   }
 
   // ----- Claims -----

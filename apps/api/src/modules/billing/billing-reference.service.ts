@@ -1,6 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { AuditAction } from '@sbos/database';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../audit/audit.service';
 import {
   CreatePayerDto,
   CreateServiceCodeDto,
@@ -11,12 +13,24 @@ import {
 /** Reference/config data for billing: payers and the CPT fee schedule. */
 @Injectable()
 export class BillingReferenceService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   // ----- Payers -----
 
-  createPayer(organizationId: string, dto: CreatePayerDto) {
-    return this.prisma.payer.create({ data: { ...dto, organizationId } });
+  async createPayer(organizationId: string, actorId: string, dto: CreatePayerDto) {
+    const payer = await this.prisma.payer.create({ data: { ...dto, organizationId } });
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.CREATE,
+      entityType: 'Payer',
+      entityId: payer.id,
+      metadata: { name: payer.name },
+    });
+    return payer;
   }
 
   listPayers(organizationId: string) {
@@ -26,9 +40,23 @@ export class BillingReferenceService {
     });
   }
 
-  async updatePayer(organizationId: string, id: string, dto: UpdatePayerDto) {
+  async updatePayer(
+    organizationId: string,
+    actorId: string,
+    id: string,
+    dto: UpdatePayerDto,
+  ) {
     await this.ensurePayer(organizationId, id);
-    return this.prisma.payer.update({ where: { id }, data: dto });
+    const updated = await this.prisma.payer.update({ where: { id }, data: dto });
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.UPDATE,
+      entityType: 'Payer',
+      entityId: id,
+      metadata: { changedFields: Object.keys(dto) },
+    });
+    return updated;
   }
 
   private async ensurePayer(organizationId: string, id: string) {
@@ -41,10 +69,23 @@ export class BillingReferenceService {
 
   // ----- Service codes (fee schedule) -----
 
-  createServiceCode(organizationId: string, dto: CreateServiceCodeDto) {
-    return this.prisma.serviceCode.create({
+  async createServiceCode(
+    organizationId: string,
+    actorId: string,
+    dto: CreateServiceCodeDto,
+  ) {
+    const code = await this.prisma.serviceCode.create({
       data: { ...dto, organizationId },
     });
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.CREATE,
+      entityType: 'ServiceCode',
+      entityId: code.id,
+      metadata: { code: code.code },
+    });
+    return code;
   }
 
   listServiceCodes(organizationId: string) {
@@ -56,6 +97,7 @@ export class BillingReferenceService {
 
   async updateServiceCode(
     organizationId: string,
+    actorId: string,
     id: string,
     dto: UpdateServiceCodeDto,
   ) {
@@ -64,6 +106,15 @@ export class BillingReferenceService {
       select: { id: true },
     });
     if (!existing) throw new NotFoundException(`Service code ${id} not found`);
-    return this.prisma.serviceCode.update({ where: { id }, data: dto });
+    const updated = await this.prisma.serviceCode.update({ where: { id }, data: dto });
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.UPDATE,
+      entityType: 'ServiceCode',
+      entityId: id,
+      metadata: { changedFields: Object.keys(dto) },
+    });
+    return updated;
   }
 }
