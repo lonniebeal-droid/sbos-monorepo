@@ -88,3 +88,18 @@ calls) matches the established low-risk audit-logging pattern but was left
 unfixed as out of this task's scope. **Status:** proposed — no action taken;
 billing, messaging, organizations, and users modules confirmed to have zero
 delete endpoints (safe by omission).
+
+## ADR-013 — Retention implementation package (Client, TreatmentPlan, Document)
+**Context:** consolidates ADR-011 and ADR-012 into one implementation-ready
+package — see `docs/RETENTION_IMPLEMENTATION_PACKAGE.md` for the full detail.
+**Decision:** Client's soft-delete plan is finalized (two previously-open
+questions resolved: direct `GET /clients/:id` 404s for non-admins on a
+soft-deleted record; MRN uniqueness stays enforced against soft-deleted rows
+for v1). `TreatmentPlan` and `Document` are each presented with three options
+(A: soft-delete: B: restrict/rely on existing lifecycle; C: narrow guard) and
+not yet decided — awaiting approval. Also corrects ADR-012 finding 2: the
+currently-bound `LocalStorageProvider.remove()` is a documented no-op, so
+Document hard-delete today only removes the DB row, not file bytes — no
+production storage provider exists in the repo yet. **Status:** proposed;
+Client sub-decision final, TreatmentPlan/Document sub-decisions pending. No
+code or schema changes made.
