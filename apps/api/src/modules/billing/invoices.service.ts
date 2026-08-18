@@ -1,21 +1,25 @@
 import { randomUUID } from 'node:crypto';
 
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { InvoiceStatus } from '@sbos/database';
+import { AuditAction, InvoiceStatus } from '@sbos/database';
 import { roundCurrency } from '@sbos/core';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../audit/audit.service';
 import { CreateInvoiceDto } from './dto/invoice.dto';
 
 @Injectable()
 export class InvoicesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   private invoiceNumber(): string {
     return `INV-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
-  create(organizationId: string, dto: CreateInvoiceDto) {
+  async create(organizationId: string, actorId: string, dto: CreateInvoiceDto) {
     const lineItems = dto.lineItems.map((item) => {
       const quantity = item.quantity ?? 1;
       const amount = roundCurrency(quantity * item.unitPrice);
@@ -34,7 +38,7 @@ export class InvoicesService {
     const tax = roundCurrency(dto.tax ?? 0);
     const total = roundCurrency(subtotal + tax);
 
-    return this.prisma.invoice.create({
+    const invoice = await this.prisma.invoice.create({
       data: {
         organizationId,
         clientId: dto.clientId,
@@ -50,6 +54,17 @@ export class InvoicesService {
       },
       include: { lineItems: true },
     });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.CREATE,
+      entityType: 'Invoice',
+      entityId: invoice.id,
+      metadata: { invoiceNumber: invoice.invoiceNumber, total },
+    });
+
+    return invoice;
   }
 
   findForClient(organizationId: string, clientId: string) {

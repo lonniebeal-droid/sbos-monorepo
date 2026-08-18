@@ -119,14 +119,14 @@ export class BillingController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateClaimDto,
   ) {
-    return this.claims.create(user.organizationId, dto);
+    return this.claims.create(user.organizationId, user.id, dto);
   }
 
   @Post('claims/:id/submit')
   @Roles(Role.BILLING)
   @ApiOperation({ summary: 'Submit a claim to the payer' })
   submitClaim(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.claims.submit(user.organizationId, id);
+    return this.claims.submit(user.organizationId, user.id, id);
   }
 
   @Patch('claims/:id/status')
@@ -137,7 +137,7 @@ export class BillingController {
     @Param('id') id: string,
     @Body() dto: UpdateClaimStatusDto,
   ) {
-    return this.claims.updateStatus(user.organizationId, id, dto);
+    return this.claims.updateStatus(user.organizationId, user.id, id, dto);
   }
 
   // ----- Invoices -----
@@ -163,7 +163,7 @@ export class BillingController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateInvoiceDto,
   ) {
-    return this.invoices.create(user.organizationId, dto);
+    return this.invoices.create(user.organizationId, user.id, dto);
   }
 
   // ----- Payments -----

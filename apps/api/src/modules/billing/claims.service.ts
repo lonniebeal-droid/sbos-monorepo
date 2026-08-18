@@ -1,22 +1,26 @@
 import { randomUUID } from 'node:crypto';
 
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { ClaimStatus, type Prisma } from '@sbos/database';
+import { AuditAction, ClaimStatus, type Prisma } from '@sbos/database';
 
 import { paginate, type PaginationQueryDto } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../audit/audit.service';
 import { CreateClaimDto, UpdateClaimStatusDto } from './dto/claim.dto';
 
 @Injectable()
 export class ClaimsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   private claimNumber(): string {
     return `CLM-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
-  create(organizationId: string, dto: CreateClaimDto) {
-    return this.prisma.claim.create({
+  async create(organizationId: string, actorId: string, dto: CreateClaimDto) {
+    const claim = await this.prisma.claim.create({
       data: {
         organizationId,
         clientId: dto.clientId,
@@ -30,6 +34,21 @@ export class ClaimsService {
         status: ClaimStatus.DRAFT,
       },
     });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.CREATE,
+      entityType: 'Claim',
+      entityId: claim.id,
+      metadata: {
+        claimNumber: claim.claimNumber,
+        cptCode: claim.cptCode,
+        billedAmount: dto.billedAmount,
+      },
+    });
+
+    return claim;
   }
 
   async findAll(organizationId: string, query: PaginationQueryDto) {
@@ -66,20 +85,32 @@ export class ClaimsService {
     return this.ensure(organizationId, id);
   }
 
-  async submit(organizationId: string, id: string) {
-    await this.ensure(organizationId, id);
-    return this.prisma.claim.update({
+  async submit(organizationId: string, actorId: string, id: string) {
+    const claim = await this.ensure(organizationId, id);
+    const submitted = await this.prisma.claim.update({
       where: { id },
       data: { status: ClaimStatus.SUBMITTED, submittedAt: new Date() },
     });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.SUBMIT,
+      entityType: 'Claim',
+      entityId: id,
+      metadata: { claimNumber: claim.claimNumber, previousStatus: claim.status },
+    });
+
+    return submitted;
   }
 
   async updateStatus(
     organizationId: string,
+    actorId: string,
     id: string,
     dto: UpdateClaimStatusDto,
   ) {
-    await this.ensure(organizationId, id);
+    const claim = await this.ensure(organizationId, id);
     const data: Prisma.ClaimUpdateInput = {
       status: dto.status as ClaimStatus,
       denialReason: dto.denialReason,
@@ -90,6 +121,25 @@ export class ClaimsService {
     if (dto.status === 'PAID') {
       data.paidAt = new Date();
     }
-    return this.prisma.claim.update({ where: { id }, data });
+    const updated = await this.prisma.claim.update({ where: { id }, data });
+
+    // Claim status transitions (accept/deny/pay/appeal) are financially and
+    // clinically material — always audited with the prior and new status.
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.UPDATE,
+      entityType: 'Claim',
+      entityId: id,
+      metadata: {
+        claimNumber: claim.claimNumber,
+        previousStatus: claim.status,
+        newStatus: dto.status,
+        denialReason: dto.denialReason,
+        paidAmount: dto.paidAmount,
+      },
+    });
+
+    return updated;
   }
 }
