@@ -33,7 +33,13 @@ tenant-scoped reads index-only where possible.
 - **Cascade policy:**
   - Deleting an **Organization** cascades to all tenant-scoped rows
     (`onDelete: Cascade`) — clean tenant offboarding.
-  - Deleting a **Client** cascades to that client's clinical/billing records.
+  - Deleting a **Client** cascades to that client's clinical/billing records
+    at the schema/FK level (`onDelete: Cascade`, unchanged) -- but as of the
+    2026-08-18 hardening session, `ClientsService.remove()` no longer issues
+    a real `DELETE` at all; it soft-deletes (`deletedAt`), so this cascade is
+    no longer reachable through the normal API. Same applies to **Document**
+    (soft-deleted, no cascade children). See `docs/DECISIONS.md` ADR-011/
+    ADR-013 and `docs/CURRENT_STATUS.md` for the full retention rationale.
   - Deleting a **Note** cascades to its structured detail (BIRP/DAP/SOAP) and
     versions.
   - **Optional** references use `onDelete: SetNull` (e.g. a client's primary
