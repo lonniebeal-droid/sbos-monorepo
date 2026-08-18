@@ -10,6 +10,8 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { roleSatisfies } from '@sbos/core';
+
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Role } from '../../common/enums/role.enum';
@@ -19,6 +21,12 @@ import { CreateClientDto } from './dto/create-client.dto';
 import { UpdateClientDto } from './dto/update-client.dto';
 import { ClientsService } from './clients.service';
 
+/** Only ORG_ADMIN/SUPER_ADMIN may request soft-deleted clients -- enforced
+ * here server-side, not just hidden by the query param's default. */
+function canSeeDeleted(user: AuthenticatedUser): boolean {
+  return roleSatisfies(user.role, Role.ORG_ADMIN);
+}
+
 @ApiTags('Clients')
 @ApiBearerAuth()
 @Controller({ path: 'clients', version: '1' })
@@ -26,18 +34,30 @@ export class ClientsController {
   constructor(private readonly clientsService: ClientsService) {}
 
   @Get()
-  @ApiOperation({ summary: 'List clients (paginated, searchable)' })
+  @ApiOperation({
+    summary:
+      'List clients (paginated, searchable). ?includeDeleted=true is ORG_ADMIN/SUPER_ADMIN only.',
+  })
   findAll(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: PaginationQueryDto,
+    @Query('includeDeleted') includeDeleted?: string,
   ) {
-    return this.clientsService.findAll(user.organizationId, query);
+    return this.clientsService.findAll(
+      user.organizationId,
+      query,
+      includeDeleted === 'true' && canSeeDeleted(user),
+    );
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get a client chart by id' })
   findOne(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.clientsService.findOne(user.organizationId, id);
+    return this.clientsService.findOne(
+      user.organizationId,
+      id,
+      canSeeDeleted(user),
+    );
   }
 
   @Post()

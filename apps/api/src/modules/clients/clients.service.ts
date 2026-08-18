@@ -73,9 +73,14 @@ export class ClientsService {
     return client;
   }
 
-  async findAll(organizationId: string, query: PaginationQueryDto) {
+  async findAll(
+    organizationId: string,
+    query: PaginationQueryDto,
+    includeDeleted = false,
+  ) {
     const where: Prisma.ClientWhereInput = {
       organizationId,
+      ...(includeDeleted ? {} : { deletedAt: null }),
       ...(query.search
         ? {
             OR: [
@@ -105,9 +110,13 @@ export class ClientsService {
     return paginate(data, total, query.page, query.limit);
   }
 
-  async findOne(organizationId: string, id: string) {
+  async findOne(organizationId: string, id: string, includeDeleted = false) {
     const client = await this.prisma.client.findFirst({
-      where: { id, organizationId },
+      where: {
+        id,
+        organizationId,
+        ...(includeDeleted ? {} : { deletedAt: null }),
+      },
       include: {
         diagnoses: true,
         insurancePolicies: true,
@@ -150,7 +159,10 @@ export class ClientsService {
 
   async remove(organizationId: string, actorId: string, id: string) {
     const existing = await this.findOne(organizationId, id);
-    await this.prisma.client.delete({ where: { id } });
+    await this.prisma.client.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
 
     await this.audit.record({
       organizationId,
@@ -158,7 +170,7 @@ export class ClientsService {
       action: AuditAction.DELETE,
       entityType: 'Client',
       entityId: id,
-      metadata: { mrn: existing.mrn },
+      metadata: { mrn: existing.mrn, softDelete: true },
     });
 
     return { success: true };

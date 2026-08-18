@@ -651,6 +651,7 @@ model Client {
   emergencyContactName  String?
   emergencyContactPhone String?
   notes                 String?
+  deletedAt             DateTime?
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
 
@@ -679,6 +680,8 @@ model Client {
   @@index([lastName, firstName])
   // Hot path: roster filtered by status within a tenant.
   @@index([organizationId, status])
+  // Hot path: excluding soft-deleted clients within a tenant.
+  @@index([organizationId, deletedAt])
 }
 
 model Admission {
