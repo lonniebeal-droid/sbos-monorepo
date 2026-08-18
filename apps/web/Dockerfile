@@ -3,7 +3,7 @@
 
 FROM node:24-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm
-ENV PATH="$PNPM_HOME:$PATH"
+ENV PATH="$PNPM_HOME:$PNPM_HOME/bin:$PATH"
 RUN corepack enable
 WORKDIR /app
 

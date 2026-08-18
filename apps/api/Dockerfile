@@ -3,7 +3,7 @@
 
 FROM node:24-bookworm-slim AS base
 ENV PNPM_HOME=/pnpm
-ENV PATH="$PNPM_HOME:$PATH"
+ENV PATH="$PNPM_HOME:$PNPM_HOME/bin:$PATH"
 # OpenSSL + CA certs are required by the Prisma query engine at runtime.
 RUN apt-get update \
   && apt-get install -y --no-install-recommends openssl ca-certificates \
