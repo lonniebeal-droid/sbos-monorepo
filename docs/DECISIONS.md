@@ -62,3 +62,14 @@ migration without a live database; applied later with `migrate deploy`.
 instead of `next lint`. **Why:** `next lint` triggers interactive ESLint setup
 in a fresh project and is non-deterministic in CI. **Status:** adopted; a flat
 ESLint config can be layered in later.
+
+## ADR-011 — Client deletion: hard-delete cascade vs. soft-delete
+**Context:** `Client` deletion currently `onDelete: Cascade`s through the full
+clinical record (notes, treatment plans, diagnoses, medications, admissions,
+assessments) and financial record (insurance policies, claims, invoices,
+payments) — see `docs/DECISION_MEMO_CLIENT_DELETE.md` for the full analysis.
+**Decision:** not yet made — this is a retention/compliance call, not an
+engineering one. **Status:** proposed; recommendation in the linked memo is a
+dedicated `deletedAt` soft-delete field (not reusing `Client.status`), with
+hard delete reserved for a separate, rarely-used, `SUPER_ADMIN`-gated purge
+path once a real retention timeline is set.
