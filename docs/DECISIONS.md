@@ -111,3 +111,35 @@ schema change (`1255c85`); Document — Option A, soft-delete + stop calling
 `20260818223000_document_soft_delete`). Client's and Document's migrations
 not yet applied to a live database — same standing blocker as ADR-011.
 TreatmentPlan needed no migration (Option C is service-layer only).
+
+## ADR-014: No dedicated audit entry for a blocked TreatmentPlan delete attempt
+
+**Context:** `TreatmentPlansService.remove()` (Option C, ADR-013) throws
+`ForbiddenException` before any Prisma call when a non-`DRAFT` plan's delete
+is attempted, so the denial itself is never written to `AuditLog` — only a
+successful delete is. Raised as a repo-side follow-up after Claude A's
+independent code review of `1255c85` flagged it as a gap.
+
+**Finding:** no "denied/rejected action" audit pattern exists anywhere in
+this codebase to extend. Checked both places: (1) the `AuditAction` enum in
+`schema.prisma` has exactly nine values — `CREATE, READ, UPDATE, DELETE,
+LOGIN, LOGOUT, EXPORT, SIGN, SUBMIT` — none represent a denial/rejection; (2)
+`NotesService.remove()`, the exact DRAFT-only guard `TreatmentPlansService`
+was built to mirror, has the identical gap — it also throws
+`ForbiddenException` on a non-`DRAFT` note with no audit call before the
+throw. So this isn't a regression specific to the TreatmentPlan work; it's a
+pre-existing, repo-wide absence of denied-action auditing.
+
+**Decision:** do not invent a new `AuditAction` value or ad-hoc metadata
+convention unilaterally in this pass. Adding one correctly (e.g. a new
+`DENY`/`REJECT` enum value, or overloading `metadata` on an existing action)
+is a schema and cross-cutting-convention decision, not a narrow bug fix, and
+it should apply consistently to every guarded delete/write in the codebase
+(`NotesService.remove()`, `TreatmentPlansService.remove()`, and any future
+ones) rather than be bolted onto one service. Flagging for approval before
+any implementation.
+
+**Status:** decision-note only, no code changed. Once a denied-action audit
+convention is approved, both `NotesService.remove()` and
+`TreatmentPlansService.remove()` should be updated together in one pass so
+the pattern starts consistent rather than divergent from day one.
