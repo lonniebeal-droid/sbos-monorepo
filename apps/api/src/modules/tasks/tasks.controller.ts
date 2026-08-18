@@ -11,6 +11,8 @@ import {
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { Role } from '../../common/enums/role.enum';
 import type { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { CreateTaskDto, TaskQueryDto, UpdateTaskDto } from './dto/task.dto';
 import { TasksService } from './tasks.service';
@@ -53,7 +55,8 @@ export class TasksController {
   }
 
   @Delete(':id')
-  @ApiOperation({ summary: 'Delete a task' })
+  @Roles(Role.SUPERVISOR)
+  @ApiOperation({ summary: 'Delete a task (supervisor and above)' })
   remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.tasksService.remove(user.organizationId, id);
   }
