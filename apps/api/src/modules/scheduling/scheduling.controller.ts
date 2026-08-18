@@ -60,7 +60,7 @@ export class SchedulingController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
-    return this.availability.removeAvailability(user.organizationId, id);
+    return this.availability.removeAvailability(user.organizationId, user.id, id);
   }
 
   @Post('time-off')
@@ -131,6 +131,6 @@ export class SchedulingController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
-    return this.waitlist.remove(user.organizationId, id);
+    return this.waitlist.remove(user.organizationId, user.id, id);
   }
 }

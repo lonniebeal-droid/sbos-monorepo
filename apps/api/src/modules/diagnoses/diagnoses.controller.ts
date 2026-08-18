@@ -58,6 +58,6 @@ export class DiagnosesController {
   @Roles(Role.CLINICIAN)
   @ApiOperation({ summary: 'Delete a diagnosis' })
   remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.diagnosesService.remove(user.organizationId, id);
+    return this.diagnosesService.remove(user.organizationId, user.id, id);
   }
 }

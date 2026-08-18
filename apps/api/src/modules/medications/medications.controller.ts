@@ -58,6 +58,6 @@ export class MedicationsController {
   @Roles(Role.CLINICIAN)
   @ApiOperation({ summary: 'Delete a medication' })
   remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.medicationsService.remove(user.organizationId, id);
+    return this.medicationsService.remove(user.organizationId, user.id, id);
   }
 }

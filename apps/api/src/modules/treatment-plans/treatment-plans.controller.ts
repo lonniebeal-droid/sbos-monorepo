@@ -79,6 +79,6 @@ export class TreatmentPlansController {
   @Roles(Role.SUPERVISOR)
   @ApiOperation({ summary: 'Delete a treatment plan' })
   remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.service.remove(user.organizationId, id);
+    return this.service.remove(user.organizationId, user.id, id);
   }
 }

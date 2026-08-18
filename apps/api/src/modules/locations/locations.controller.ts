@@ -71,6 +71,6 @@ export class LocationsController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
-    return this.locationsService.remove(user.organizationId, id);
+    return this.locationsService.remove(user.organizationId, user.id, id);
   }
 }

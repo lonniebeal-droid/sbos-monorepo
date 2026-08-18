@@ -1,13 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { DiagnosisStatus, type Prisma } from '@sbos/database';
+import { AuditAction, DiagnosisStatus, type Prisma } from '@sbos/database';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../audit/audit.service';
 import { CreateDiagnosisDto } from './dto/create-diagnosis.dto';
 import { UpdateDiagnosisDto } from './dto/update-diagnosis.dto';
 
 @Injectable()
 export class DiagnosesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   create(organizationId: string, dto: CreateDiagnosisDto) {
     const { clientId, ...rest } = dto;
@@ -42,9 +46,17 @@ export class DiagnosesService {
     return this.prisma.diagnosis.update({ where: { id }, data });
   }
 
-  async remove(organizationId: string, id: string) {
-    await this.ensure(organizationId, id);
+  async remove(organizationId: string, actorId: string, id: string) {
+    const existing = await this.ensure(organizationId, id);
     await this.prisma.diagnosis.delete({ where: { id } });
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.DELETE,
+      entityType: 'Diagnosis',
+      entityId: id,
+      metadata: { clientId: existing.clientId, icd10Code: existing.icd10Code },
+    });
     return { success: true };
   }
 

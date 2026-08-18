@@ -1,17 +1,21 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma } from '@sbos/database';
+import { AuditAction, type Prisma } from '@sbos/database';
 
 import {
   paginate,
   type PaginationQueryDto,
 } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../audit/audit.service';
 import { CreateLocationDto } from './dto/create-location.dto';
 import { UpdateLocationDto } from './dto/update-location.dto';
 
 @Injectable()
 export class LocationsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   async create(organizationId: string, dto: CreateLocationDto) {
     return this.prisma.location.create({
@@ -60,9 +64,17 @@ export class LocationsService {
     return this.prisma.location.update({ where: { id }, data: dto });
   }
 
-  async remove(organizationId: string, id: string) {
-    await this.findOne(organizationId, id);
+  async remove(organizationId: string, actorId: string, id: string) {
+    const existing = await this.findOne(organizationId, id);
     await this.prisma.location.delete({ where: { id } });
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.DELETE,
+      entityType: 'Location',
+      entityId: id,
+      metadata: { name: existing.name },
+    });
     return { success: true };
   }
 }

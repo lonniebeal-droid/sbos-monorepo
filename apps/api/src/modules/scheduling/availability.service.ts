@@ -1,12 +1,17 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { AuditAction } from '@sbos/database';
 import { minutesFromHHmm, windowsOverlap, type TimeWindow } from '@sbos/core';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../audit/audit.service';
 import { CreateAvailabilityDto, CreateTimeOffDto } from './dto/availability.dto';
 
 @Injectable()
 export class AvailabilityService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   createAvailability(organizationId: string, dto: CreateAvailabilityDto) {
     if (minutesFromHHmm(dto.endTime) <= minutesFromHHmm(dto.startTime)) {
@@ -24,13 +29,24 @@ export class AvailabilityService {
     });
   }
 
-  async removeAvailability(organizationId: string, id: string) {
+  async removeAvailability(organizationId: string, actorId: string, id: string) {
     const existing = await this.prisma.clinicianAvailability.findFirst({
       where: { id, organizationId },
-      select: { id: true },
+      select: { id: true, clinicianId: true, dayOfWeek: true },
     });
     if (!existing) throw new BadRequestException('Availability not found');
     await this.prisma.clinicianAvailability.delete({ where: { id } });
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.DELETE,
+      entityType: 'ClinicianAvailability',
+      entityId: id,
+      metadata: {
+        clinicianId: existing.clinicianId,
+        dayOfWeek: existing.dayOfWeek,
+      },
+    });
     return { success: true };
   }
 
