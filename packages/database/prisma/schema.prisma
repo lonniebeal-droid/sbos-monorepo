@@ -298,7 +298,9 @@ model Organization {
   admissions     Admission[]
   assessments    Assessment[]
   noteTemplates  NoteTemplate[]
-  waitlistEntries   WaitlistEntry[]
+  waitlistEntries         WaitlistEntry[]
+  clinicianAvailability   ClinicianAvailability[]
+  clinicianTimeOff        ClinicianTimeOff[]
   payers         Payer[]
   serviceCodes   ServiceCode[]
   conversations     Conversation[]
@@ -568,7 +570,8 @@ model ClinicianAvailability {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  clinician Clinician @relation(fields: [clinicianId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clinician    Clinician    @relation(fields: [clinicianId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@index([clinicianId])
@@ -585,7 +588,8 @@ model ClinicianTimeOff {
   endsAt         DateTime
   createdAt      DateTime @default(now())
 
-  clinician Clinician @relation(fields: [clinicianId], references: [id], onDelete: Cascade)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  clinician    Clinician    @relation(fields: [clinicianId], references: [id], onDelete: Cascade)
 
   @@index([organizationId])
   @@index([clinicianId])
