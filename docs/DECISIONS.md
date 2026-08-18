@@ -72,4 +72,19 @@ payments) — see `docs/DECISION_MEMO_CLIENT_DELETE.md` for the full analysis.
 engineering one. **Status:** proposed; recommendation in the linked memo is a
 dedicated `deletedAt` soft-delete field (not reusing `Client.status`), with
 hard delete reserved for a separate, rarely-used, `SUPER_ADMIN`-gated purge
-path once a real retention timeline is set.
+path once a real retention timeline is set. An implementation plan (no code
+changes yet) is written up in `docs/PLAN_CLIENT_SOFT_DELETE.md`.
+
+## ADR-012 — Hard-delete endpoint audit (repo-wide)
+**Context:** following ADR-011, audited every `@Delete(` endpoint across
+`apps/api/src/modules` for the same class of risk — see
+`docs/AUDIT_HARD_DELETE_ENDPOINTS.md` for the full findings.
+**Decision:** report only, no code changes. Two findings raise the same
+category of concern as `Client`: `TreatmentPlan` delete cascades into
+`Goal`/`Objective`, and `Document` delete also permanently removes the
+underlying stored file. Both need a retention/compliance decision, not a
+mechanical fix. A third finding (five delete endpoints missing audit-log
+calls) matches the established low-risk audit-logging pattern but was left
+unfixed as out of this task's scope. **Status:** proposed — no action taken;
+billing, messaging, organizations, and users modules confirmed to have zero
+delete endpoints (safe by omission).
