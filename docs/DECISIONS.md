@@ -68,12 +68,15 @@ ESLint config can be layered in later.
 clinical record (notes, treatment plans, diagnoses, medications, admissions,
 assessments) and financial record (insurance policies, claims, invoices,
 payments) — see `docs/DECISION_MEMO_CLIENT_DELETE.md` for the full analysis.
-**Decision:** not yet made — this is a retention/compliance call, not an
-engineering one. **Status:** proposed; recommendation in the linked memo is a
-dedicated `deletedAt` soft-delete field (not reusing `Client.status`), with
-hard delete reserved for a separate, rarely-used, `SUPER_ADMIN`-gated purge
-path once a real retention timeline is set. An implementation plan (no code
-changes yet) is written up in `docs/PLAN_CLIENT_SOFT_DELETE.md`.
+**Decision:** soft-delete via a dedicated `deletedAt` field (not reusing
+`Client.status`), with hard delete reserved for a separate, rarely-used,
+`SUPER_ADMIN`-gated purge path once a real retention timeline is set.
+**Status:** adopted and implemented — `9fde323`. `Client.deletedAt` +
+composite index (migration `20260818220000_client_soft_delete`),
+`ClientsService.remove()`/`findAll()`/`findOne()` updated, `includeDeleted`
+gated server-side to `ORG_ADMIN`/`SUPER_ADMIN`. Not yet applied to a live
+database (no Postgres reachable this session — run `prisma migrate deploy`
+once one is).
 
 ## ADR-012 — Hard-delete endpoint audit (repo-wide)
 **Context:** following ADR-011, audited every `@Delete(` endpoint across
@@ -100,6 +103,11 @@ for v1). `TreatmentPlan` and `Document` are each presented with three options
 not yet decided — awaiting approval. Also corrects ADR-012 finding 2: the
 currently-bound `LocalStorageProvider.remove()` is a documented no-op, so
 Document hard-delete today only removes the DB row, not file bytes — no
-production storage provider exists in the repo yet. **Status:** proposed;
-Client sub-decision final, TreatmentPlan/Document sub-decisions pending. No
-code or schema changes made.
+production storage provider exists in the repo yet. **Status:** adopted and
+implemented. Final choices: Client — soft-delete (see ADR-011, `9fde323`);
+TreatmentPlan — Option C, block hard delete unless `status === 'DRAFT'`, no
+schema change (`1255c85`); Document — Option A, soft-delete + stop calling
+`storage.remove()` on delete (`0488bd5`, migration
+`20260818223000_document_soft_delete`). Client's and Document's migrations
+not yet applied to a live database — same standing blocker as ADR-011.
+TreatmentPlan needed no migration (Option C is service-layer only).
