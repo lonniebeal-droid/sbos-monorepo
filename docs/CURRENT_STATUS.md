@@ -1,6 +1,8 @@
 # SBOS — Current Status
 
-_Last updated: 2026-07-24_
+_Last updated: 2026-07-24. See "Backend hardening session (2026-08-18)" below
+for what's changed since — the phase history above predates it and is kept
+as-is for historical record; it is not stale, just incomplete past that date._
 
 ## What was completed
 
@@ -206,10 +208,43 @@ _Last updated: 2026-07-24_
 add Organization/Location CRUD, and implement MFA. Then proceed down the
 priority list (client management → scheduling → documentation → AI → billing).
 
+## Backend hardening session (2026-08-18)
+
+Not a new phase — a repo-wide hardening pass on the existing API, done
+incrementally with build/lint/test/boot verification and its own commit per
+change (full detail: `docs/DECISIONS.md`, `docs/AUDIT_HARD_DELETE_ENDPOINTS.md`).
+
+- **RBAC/tenant-scope fixes:** missing `WaitlistEntry`/`ClinicianAvailability`/
+  `ClinicianTimeOff` → `Organization` FKs added; task deletion restricted to
+  supervisor and above.
+- **Audit-log coverage:** every hard-delete endpoint in the API now writes an
+  `AuditLog` entry on delete — clients, billing (payers/fee schedules),
+  appointments, notes, documents, diagnoses, medications, locations,
+  treatment-plans, scheduling (availability/waitlist), tasks, and Jessie
+  knowledge-base articles are all covered. `docs/DECISIONS.md` ADR-014 records
+  the one known gap: a *blocked* (denied) TreatmentPlan delete attempt isn't
+  itself audit-logged, since no denied-action audit pattern exists yet
+  anywhere in the codebase — flagged for a future cross-cutting decision, not
+  silently left undocumented.
+- **Client/TreatmentPlan/Document retention:** replaced Client's and
+  Document's hard `.delete()` with a soft-delete (`deletedAt`, additive
+  migrations `20260818220000_client_soft_delete` and
+  `20260818223000_document_soft_delete`); TreatmentPlan hard-delete is now
+  blocked unless `status === 'DRAFT'`. All default read paths (list, search,
+  direct fetch) exclude soft-deleted rows; `ORG_ADMIN`/`SUPER_ADMIN` can opt
+  into seeing deleted Clients via `?includeDeleted=true`. Dashboard/analytics
+  client counts (`OrganizationsService.stats()`, `SystemHealthService.snapshot()`,
+  `AnalyticsService.overview()`) were also found and fixed to exclude
+  soft-deleted rows. Full decision record: ADR-011/ADR-013 in `docs/DECISIONS.md`.
+- **Still blocked:** the two new migrations above have not been applied to any
+  reachable PostgreSQL — no live database in this environment (same standing
+  limitation noted below), so this is unchanged, not new.
+
 ## Known issues / notes
 
 - **No live database in this environment** — migrations and seed are prepared
-  but not applied; they require a running PostgreSQL and `DATABASE_URL`.
+  but not applied; they require a running PostgreSQL and `DATABASE_URL`. This
+  now includes the two retention migrations from the 2026-08-18 session above.
 - **Interim web credential store** — `apps/web/src/lib/dev-users.ts` exists for
   local sign-in until API auth is wired; not used in production paths.
 - **Prisma deprecation warning** — `package.json#prisma` seed config warns it
