@@ -298,6 +298,7 @@ model Organization {
   admissions     Admission[]
   assessments    Assessment[]
   noteTemplates  NoteTemplate[]
+  waitlistEntries   WaitlistEntry[]
   payers         Payer[]
   serviceCodes   ServiceCode[]
   conversations     Conversation[]
@@ -611,8 +612,9 @@ model WaitlistEntry {
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
-  client    Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
-  clinician Clinician? @relation(fields: [clinicianId], references: [id], onDelete: SetNull)
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client       @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  clinician    Clinician?   @relation(fields: [clinicianId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
   @@index([status])
