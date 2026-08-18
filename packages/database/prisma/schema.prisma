@@ -1164,6 +1164,7 @@ model Document {
   sizeBytes      Int?
   isSigned       Boolean      @default(false)
   signedAt       DateTime?
+  deletedAt      DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -1173,6 +1174,7 @@ model Document {
 
   @@index([organizationId])
   @@index([clientId])
+  @@index([organizationId, deletedAt])
   @@index([type])
 }
 

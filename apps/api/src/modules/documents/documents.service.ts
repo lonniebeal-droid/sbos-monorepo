@@ -57,14 +57,14 @@ export class DocumentsService {
 
   findForClient(organizationId: string, clientId: string) {
     return this.prisma.document.findMany({
-      where: { organizationId, clientId },
+      where: { organizationId, clientId, deletedAt: null },
       orderBy: { createdAt: 'desc' },
     });
   }
 
   private async ensure(organizationId: string, id: string) {
     const document = await this.prisma.document.findFirst({
-      where: { id, organizationId },
+      where: { id, organizationId, deletedAt: null },
     });
     if (!document) {
       throw new NotFoundException(`Document ${id} not found`);
@@ -95,15 +95,23 @@ export class DocumentsService {
   }
 
   async remove(organizationId: string, id: string, userId: string) {
-    const document = await this.ensure(organizationId, id);
-    await this.storage.remove(document.storageKey);
-    await this.prisma.document.delete({ where: { id } });
+    await this.ensure(organizationId, id);
+    // Soft-delete only: the DB row is retained (deletedAt set) and the
+    // underlying storage object is left untouched. Physical file removal
+    // is intentionally not wired up here -- see docs/RETENTION_IMPLEMENTATION_PACKAGE.md
+    // section 3 (Document Option A) for why storage.remove() is not called
+    // from this path.
+    await this.prisma.document.update({
+      where: { id },
+      data: { deletedAt: new Date() },
+    });
     await this.audit.record({
       organizationId,
       actorId: userId,
       action: AuditAction.DELETE,
       entityType: 'Document',
       entityId: id,
+      metadata: { softDelete: true },
     });
     return { success: true };
   }
