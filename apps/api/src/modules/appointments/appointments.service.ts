@@ -5,7 +5,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { AppointmentStatus, type Prisma } from '@sbos/database';
+import { AppointmentStatus, AuditAction, type Prisma } from '@sbos/database';
 import {
   expandRecurrence,
   type RecurrenceFrequencyName,
@@ -13,6 +13,7 @@ import {
 
 import { paginate } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../audit/audit.service';
 import { SMS_PROVIDER, type SmsProvider } from '../../channels/sms.provider';
 import { CreateAppointmentDto } from './dto/create-appointment.dto';
 import { UpdateAppointmentDto } from './dto/update-appointment.dto';
@@ -25,6 +26,7 @@ export class AppointmentsService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
     @Inject(SMS_PROVIDER) private readonly sms: SmsProvider,
   ) {}
 
@@ -45,7 +47,7 @@ export class AppointmentsService {
       );
   }
 
-  async create(organizationId: string, dto: CreateAppointmentDto) {
+  async create(organizationId: string, actorId: string, dto: CreateAppointmentDto) {
     const start = new Date(dto.startTime);
     const end = new Date(dto.endTime);
     if (end <= start) {
@@ -66,6 +68,19 @@ export class AppointmentsService {
         startTime: start,
         endTime: end,
         organizationId,
+      },
+    });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.CREATE,
+      entityType: 'Appointment',
+      entityId: appointment.id,
+      metadata: {
+        clientId: appointment.clientId,
+        clinicianId: appointment.clinicianId,
+        startTime: appointment.startTime,
       },
     });
 
@@ -194,10 +209,15 @@ export class AppointmentsService {
     return appointment;
   }
 
-  async update(organizationId: string, id: string, dto: UpdateAppointmentDto) {
+  async update(
+    organizationId: string,
+    actorId: string,
+    id: string,
+    dto: UpdateAppointmentDto,
+  ) {
     await this.findOne(organizationId, id);
     const { startTime, endTime, ...rest } = dto;
-    return this.prisma.appointment.update({
+    const updated = await this.prisma.appointment.update({
       where: { id },
       data: {
         ...rest,
@@ -205,6 +225,17 @@ export class AppointmentsService {
         ...(endTime ? { endTime: new Date(endTime) } : {}),
       },
     });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.UPDATE,
+      entityType: 'Appointment',
+      entityId: id,
+      metadata: { changedFields: Object.keys(dto) },
+    });
+
+    return updated;
   }
 
   /**
@@ -241,17 +272,38 @@ export class AppointmentsService {
     });
   }
 
-  async cancel(organizationId: string, id: string, reason?: string) {
-    await this.findOne(organizationId, id);
-    return this.prisma.appointment.update({
+  async cancel(organizationId: string, actorId: string, id: string, reason?: string) {
+    const existing = await this.findOne(organizationId, id);
+    const updated = await this.prisma.appointment.update({
       where: { id },
       data: { status: AppointmentStatus.CANCELLED, cancelReason: reason },
     });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.UPDATE,
+      entityType: 'Appointment',
+      entityId: id,
+      metadata: { previousStatus: existing.status, newStatus: 'CANCELLED', reason },
+    });
+
+    return updated;
   }
 
-  async remove(organizationId: string, id: string) {
-    await this.findOne(organizationId, id);
+  async remove(organizationId: string, actorId: string, id: string) {
+    const existing = await this.findOne(organizationId, id);
     await this.prisma.appointment.delete({ where: { id } });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.DELETE,
+      entityType: 'Appointment',
+      entityId: id,
+      metadata: { clientId: existing.clientId, startTime: existing.startTime },
+    });
+
     return { success: true };
   }
 }

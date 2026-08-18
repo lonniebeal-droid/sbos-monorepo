@@ -49,7 +49,7 @@ export class AppointmentsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateAppointmentDto,
   ) {
-    return this.appointmentsService.create(user.organizationId, dto);
+    return this.appointmentsService.create(user.organizationId, user.id, dto);
   }
 
   @Post('recurring')
@@ -91,7 +91,7 @@ export class AppointmentsController {
     @Param('id') id: string,
     @Body() dto: CancelAppointmentDto,
   ) {
-    return this.appointmentsService.cancel(user.organizationId, id, dto.reason);
+    return this.appointmentsService.cancel(user.organizationId, user.id, id, dto.reason);
   }
 
   @Patch(':id')
@@ -102,13 +102,13 @@ export class AppointmentsController {
     @Param('id') id: string,
     @Body() dto: UpdateAppointmentDto,
   ) {
-    return this.appointmentsService.update(user.organizationId, id, dto);
+    return this.appointmentsService.update(user.organizationId, user.id, id, dto);
   }
 
   @Delete(':id')
   @Roles(Role.ORG_ADMIN)
   @ApiOperation({ summary: 'Delete an appointment' })
   remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.appointmentsService.remove(user.organizationId, id);
+    return this.appointmentsService.remove(user.organizationId, user.id, id);
   }
 }
