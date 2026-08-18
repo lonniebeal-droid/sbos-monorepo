@@ -147,6 +147,6 @@ export class JessieController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
-    return this.knowledge.remove(user.organizationId, id);
+    return this.knowledge.remove(user.organizationId, user.id, id);
   }
 }

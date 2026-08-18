@@ -1,13 +1,17 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { TaskStatus, type Prisma } from '@sbos/database';
+import { AuditAction, TaskStatus, type Prisma } from '@sbos/database';
 
 import { paginate } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../audit/audit.service';
 import { CreateTaskDto, TaskQueryDto, UpdateTaskDto } from './dto/task.dto';
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   create(organizationId: string, createdById: string, dto: CreateTaskDto) {
     const { dueDate, ...rest } = dto;
@@ -66,9 +70,17 @@ export class TasksService {
     return this.prisma.task.update({ where: { id }, data });
   }
 
-  async remove(organizationId: string, id: string) {
-    await this.ensure(organizationId, id);
+  async remove(organizationId: string, actorId: string, id: string) {
+    const existing = await this.ensure(organizationId, id);
     await this.prisma.task.delete({ where: { id } });
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.DELETE,
+      entityType: 'Task',
+      entityId: id,
+      metadata: { title: existing.title },
+    });
     return { success: true };
   }
 }

@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import type { Prisma } from '@sbos/database';
+import { AuditAction, type Prisma } from '@sbos/database';
 
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../audit/audit.service';
 import {
   CreateKnowledgeArticleDto,
   UpdateKnowledgeArticleDto,
@@ -9,7 +10,10 @@ import {
 
 @Injectable()
 export class KnowledgeService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   create(organizationId: string, dto: CreateKnowledgeArticleDto) {
     return this.prisma.knowledgeArticle.create({
@@ -48,13 +52,21 @@ export class KnowledgeService {
     return this.prisma.knowledgeArticle.update({ where: { id }, data: dto });
   }
 
-  async remove(organizationId: string, id: string) {
+  async remove(organizationId: string, actorId: string, id: string) {
     const existing = await this.prisma.knowledgeArticle.findFirst({
       where: { id, organizationId },
-      select: { id: true },
+      select: { id: true, title: true, isPublished: true },
     });
     if (!existing) throw new NotFoundException(`Article ${id} not found`);
     await this.prisma.knowledgeArticle.delete({ where: { id } });
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.DELETE,
+      entityType: 'KnowledgeArticle',
+      entityId: id,
+      metadata: { title: existing.title, wasPublished: existing.isPublished },
+    });
     return { success: true };
   }
 

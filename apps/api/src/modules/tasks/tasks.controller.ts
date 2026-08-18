@@ -58,6 +58,6 @@ export class TasksController {
   @Roles(Role.SUPERVISOR)
   @ApiOperation({ summary: 'Delete a task (supervisor and above)' })
   remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.tasksService.remove(user.organizationId, id);
+    return this.tasksService.remove(user.organizationId, user.id, id);
   }
 }
