@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditAction, type Prisma } from '@sbos/database';
 
 import { PrismaService } from '../../prisma/prisma.service';
@@ -102,6 +102,11 @@ export class TreatmentPlansService {
 
   async remove(organizationId: string, actorId: string, id: string) {
     const existing = await this.findOne(organizationId, id);
+    if (existing.status !== 'DRAFT') {
+      throw new ForbiddenException(
+        'Only draft treatment plans can be deleted; discontinue or complete an active plan instead',
+      );
+    }
     await this.prisma.treatmentPlan.delete({ where: { id } });
     await this.audit.record({
       organizationId,

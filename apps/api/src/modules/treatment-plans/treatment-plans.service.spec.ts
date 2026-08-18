@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuditAction } from '@sbos/database';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -13,11 +13,12 @@ function makeService(overrides?: { prisma?: Partial<PrismaService> }) {
 }
 
 describe('TreatmentPlansService.remove', () => {
-  it('deletes the plan and records a DELETE audit entry with goal count', async () => {
+  it('deletes a DRAFT plan and records a DELETE audit entry with goal count', async () => {
     const existing = {
       id: 'p1',
       clientId: 'c1',
       title: 'Anxiety management',
+      status: 'DRAFT',
       goals: [{ id: 'g1' }, { id: 'g2' }],
     };
     const prisma = {
@@ -57,6 +58,29 @@ describe('TreatmentPlansService.remove', () => {
     await expect(service.remove('org1', 'actor1', 'missing')).rejects.toBeInstanceOf(
       NotFoundException,
     );
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('throws ForbiddenException and never deletes/audits an ACTIVE (non-draft) plan', async () => {
+    const existing = {
+      id: 'p2',
+      clientId: 'c1',
+      title: 'Active plan',
+      status: 'ACTIVE',
+      goals: [],
+    };
+    const prisma = {
+      treatmentPlan: {
+        findFirst: vi.fn().mockResolvedValue(existing),
+        delete: vi.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service, audit } = makeService({ prisma });
+
+    await expect(service.remove('org1', 'actor1', 'p2')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(prisma.treatmentPlan.delete).not.toHaveBeenCalled();
     expect(audit.record).not.toHaveBeenCalled();
   });
 });
