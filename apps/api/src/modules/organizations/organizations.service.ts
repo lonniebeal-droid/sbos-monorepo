@@ -30,7 +30,7 @@ export class OrganizationsService {
   /** Aggregate counts for the organization overview. */
   async stats(organizationId: string) {
     const [clients, clinicians, appointments, users] = await Promise.all([
-      this.prisma.client.count({ where: { organizationId } }),
+      this.prisma.client.count({ where: { organizationId, deletedAt: null } }),
       this.prisma.clinician.count({ where: { organizationId } }),
       this.prisma.appointment.count({ where: { organizationId } }),
       this.prisma.user.count({ where: { organizationId } }),

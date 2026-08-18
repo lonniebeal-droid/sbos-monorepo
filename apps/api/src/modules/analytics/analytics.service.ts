@@ -23,7 +23,7 @@ export class AnalyticsService {
       outstandingAgg,
     ] = await Promise.all([
       this.prisma.client.count({
-        where: { organizationId, status: 'ACTIVE' },
+        where: { organizationId, status: 'ACTIVE', deletedAt: null },
       }),
       this.prisma.clinician.count({ where: { organizationId } }),
       this.prisma.appointment.count({

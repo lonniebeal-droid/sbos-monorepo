@@ -26,7 +26,7 @@ export class SystemHealthService {
     if (database.status === 'up') {
       const [users, clients, appointments, notes, claims] = await Promise.all([
         this.prisma.user.count({ where: { organizationId } }),
-        this.prisma.client.count({ where: { organizationId } }),
+        this.prisma.client.count({ where: { organizationId, deletedAt: null } }),
         this.prisma.appointment.count({ where: { organizationId } }),
         this.prisma.note.count({ where: { organizationId } }),
         this.prisma.claim.count({ where: { organizationId } }),
