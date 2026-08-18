@@ -5,13 +5,14 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import type { Prisma } from '@sbos/database';
+import { AuditAction, type Prisma } from '@sbos/database';
 
 import {
   paginate,
   type PaginationQueryDto,
 } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../audit/audit.service';
 import {
   EMAIL_PROVIDER,
   type EmailProvider,
@@ -25,10 +26,11 @@ export class ClientsService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
     @Inject(EMAIL_PROVIDER) private readonly email: EmailProvider,
   ) {}
 
-  async create(organizationId: string, dto: CreateClientDto) {
+  async create(organizationId: string, actorId: string, dto: CreateClientDto) {
     const existing = await this.prisma.client.findFirst({
       where: { organizationId, mrn: dto.mrn },
       select: { id: true },
@@ -58,6 +60,15 @@ export class ClientsService {
           this.logger.warn(`Welcome email failed: ${String(error)}`),
         );
     }
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.CREATE,
+      entityType: 'Client',
+      entityId: client.id,
+      metadata: { mrn: client.mrn },
+    });
 
     return client;
   }
@@ -109,21 +120,47 @@ export class ClientsService {
     return client;
   }
 
-  async update(organizationId: string, id: string, dto: UpdateClientDto) {
+  async update(
+    organizationId: string,
+    actorId: string,
+    id: string,
+    dto: UpdateClientDto,
+  ) {
     await this.findOne(organizationId, id);
     const { dateOfBirth, ...rest } = dto;
-    return this.prisma.client.update({
+    const updated = await this.prisma.client.update({
       where: { id },
       data: {
         ...rest,
         ...(dateOfBirth ? { dateOfBirth: new Date(dateOfBirth) } : {}),
       },
     });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.UPDATE,
+      entityType: 'Client',
+      entityId: id,
+      metadata: { changedFields: Object.keys(dto) },
+    });
+
+    return updated;
   }
 
-  async remove(organizationId: string, id: string) {
-    await this.findOne(organizationId, id);
+  async remove(organizationId: string, actorId: string, id: string) {
+    const existing = await this.findOne(organizationId, id);
     await this.prisma.client.delete({ where: { id } });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.DELETE,
+      entityType: 'Client',
+      entityId: id,
+      metadata: { mrn: existing.mrn },
+    });
+
     return { success: true };
   }
 }

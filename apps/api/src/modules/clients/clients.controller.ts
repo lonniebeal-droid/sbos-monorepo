@@ -47,7 +47,7 @@ export class ClientsController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateClientDto,
   ) {
-    return this.clientsService.create(user.organizationId, dto);
+    return this.clientsService.create(user.organizationId, user.id, dto);
   }
 
   @Patch(':id')
@@ -58,13 +58,13 @@ export class ClientsController {
     @Param('id') id: string,
     @Body() dto: UpdateClientDto,
   ) {
-    return this.clientsService.update(user.organizationId, id, dto);
+    return this.clientsService.update(user.organizationId, user.id, id, dto);
   }
 
   @Delete(':id')
   @Roles(Role.ORG_ADMIN)
   @ApiOperation({ summary: 'Delete a client' })
   remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.clientsService.remove(user.organizationId, id);
+    return this.clientsService.remove(user.organizationId, user.id, id);
   }
 }
