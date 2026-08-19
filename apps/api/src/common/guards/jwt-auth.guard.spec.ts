@@ -4,6 +4,7 @@ import type { Reflector } from '@nestjs/core';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 function makeContext(): ExecutionContext {
   return {
@@ -13,11 +14,14 @@ function makeContext(): ExecutionContext {
   } as unknown as ExecutionContext;
 }
 
-function guardWithIsPublic(isPublic: boolean | undefined): JwtAuthGuard {
+function guardWithIsPublic(isPublic: boolean | undefined): {
+  guard: JwtAuthGuard;
+  reflector: Reflector;
+} {
   const reflector = {
     getAllAndOverride: vi.fn().mockReturnValue(isPublic),
   } as unknown as Reflector;
-  return new JwtAuthGuard(reflector);
+  return { guard: new JwtAuthGuard(reflector), reflector };
 }
 
 /**
@@ -36,20 +40,25 @@ describe('JwtAuthGuard', () => {
   });
 
   it('short-circuits to true on a @Public() route without delegating to Passport', () => {
-    const guard = guardWithIsPublic(true);
+    const { guard, reflector } = guardWithIsPublic(true);
     const baseCanActivate = vi.spyOn(
       Object.getPrototypeOf(JwtAuthGuard.prototype),
       'canActivate',
     );
+    const context = makeContext();
 
-    const result = guard.canActivate(makeContext());
+    const result = guard.canActivate(context);
 
     expect(result).toBe(true);
     expect(baseCanActivate).not.toHaveBeenCalled();
+    expect(reflector.getAllAndOverride).toHaveBeenCalledWith(IS_PUBLIC_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
   });
 
   it('delegates to Passport and allows the request when a valid user/session is present', () => {
-    const guard = guardWithIsPublic(undefined);
+    const { guard } = guardWithIsPublic(undefined);
     const baseCanActivate = vi
       .spyOn(Object.getPrototypeOf(JwtAuthGuard.prototype), 'canActivate')
       .mockReturnValue(true);
@@ -62,7 +71,7 @@ describe('JwtAuthGuard', () => {
   });
 
   it('delegates to Passport and rejects when the base guard rejects (missing/invalid session)', () => {
-    const guard = guardWithIsPublic(false);
+    const { guard } = guardWithIsPublic(false);
     const baseCanActivate = vi
       .spyOn(Object.getPrototypeOf(JwtAuthGuard.prototype), 'canActivate')
       .mockReturnValue(false);
@@ -75,7 +84,7 @@ describe('JwtAuthGuard', () => {
   });
 
   it('propagates a rejection thrown by the base guard for a missing/malformed token', () => {
-    const guard = guardWithIsPublic(undefined);
+    const { guard } = guardWithIsPublic(undefined);
     vi.spyOn(Object.getPrototypeOf(JwtAuthGuard.prototype), 'canActivate').mockImplementation(
       () => {
         throw new UnauthorizedException();
