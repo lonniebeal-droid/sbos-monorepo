@@ -1,4 +1,5 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { AuditAction, NoteStatus } from '@sbos/database';
 import { describe, expect, it, vi } from 'vitest';
 
 import { NotesService } from './notes.service';
@@ -70,6 +71,70 @@ describe('NotesService', () => {
         type: 'BIRP',
         prompt: 'Discussed anxiety',
         clientName: 'Jordan Mitchell',
+      }),
+    );
+  });
+
+  it('deletes a DRAFT note and records a DELETE audit entry', async () => {
+    const existing = { id: 'n1', status: NoteStatus.DRAFT };
+    const prisma = {
+      note: {
+        findFirst: vi.fn().mockResolvedValue(existing),
+        delete: vi.fn().mockResolvedValue(existing),
+      },
+    } as unknown as PrismaService;
+    const audit = { record: vi.fn() } as unknown as AuditService;
+    const assistant = {
+      generateNoteDraft: vi.fn(),
+    } as unknown as NoteAssistant;
+    const service = new NotesService(prisma, audit, assistant);
+
+    const result = await service.remove('org1', 'n1', 'actor1');
+
+    expect(prisma.note.delete).toHaveBeenCalledWith({ where: { id: 'n1' } });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org1',
+        actorId: 'actor1',
+        action: AuditAction.DELETE,
+        entityType: 'Note',
+        entityId: 'n1',
+      }),
+    );
+    expect(result).toEqual({ success: true });
+  });
+
+  it('throws ForbiddenException, never deletes, and records a DENY audit entry for a non-DRAFT note', async () => {
+    const existing = { id: 'n2', status: NoteStatus.SIGNED };
+    const prisma = {
+      note: {
+        findFirst: vi.fn().mockResolvedValue(existing),
+        delete: vi.fn(),
+      },
+    } as unknown as PrismaService;
+    const audit = { record: vi.fn() } as unknown as AuditService;
+    const assistant = {
+      generateNoteDraft: vi.fn(),
+    } as unknown as NoteAssistant;
+    const service = new NotesService(prisma, audit, assistant);
+
+    await expect(service.remove('org1', 'n2', 'actor1')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(prisma.note.delete).not.toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalledTimes(1);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org1',
+        actorId: 'actor1',
+        action: AuditAction.DENY,
+        entityType: 'Note',
+        entityId: 'n2',
+        metadata: expect.objectContaining({
+          attemptedAction: 'DELETE',
+          reason: 'not DRAFT',
+          status: NoteStatus.SIGNED,
+        }),
       }),
     );
   });

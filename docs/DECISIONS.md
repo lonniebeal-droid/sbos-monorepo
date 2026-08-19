@@ -139,7 +139,12 @@ it should apply consistently to every guarded delete/write in the codebase
 ones) rather than be bolted onto one service. Flagging for approval before
 any implementation.
 
-**Status:** decision-note only, no code changed. Once a denied-action audit
-convention is approved, both `NotesService.remove()` and
-`TreatmentPlansService.remove()` should be updated together in one pass so
-the pattern starts consistent rather than divergent from day one.
+**Status:** approved and implemented. Added `DENY` to the `AuditAction` enum
+(migration `20260818230000_audit_action_deny`, additive-only --
+`ALTER TYPE "AuditAction" ADD VALUE 'DENY'`, no existing rows/values
+touched). Both `TreatmentPlansService.remove()` and `NotesService.remove()`
+now call `audit.record({ action: AuditAction.DENY, ... })` with
+`metadata: { attemptedAction: 'DELETE', reason: 'not DRAFT', status }`
+before throwing `ForbiddenException`, so a blocked delete attempt is now
+traceable the same way a successful one is. Not yet applied to a live
+database -- same standing migration-deploy blocker as ADR-011/ADR-013.

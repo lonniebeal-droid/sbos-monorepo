@@ -61,7 +61,7 @@ describe('TreatmentPlansService.remove', () => {
     expect(audit.record).not.toHaveBeenCalled();
   });
 
-  it('throws ForbiddenException and never deletes/audits an ACTIVE (non-draft) plan', async () => {
+  it('throws ForbiddenException, never deletes, and records a DENY audit entry for an ACTIVE (non-draft) plan', async () => {
     const existing = {
       id: 'p2',
       clientId: 'c1',
@@ -81,6 +81,20 @@ describe('TreatmentPlansService.remove', () => {
       ForbiddenException,
     );
     expect(prisma.treatmentPlan.delete).not.toHaveBeenCalled();
-    expect(audit.record).not.toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalledTimes(1);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org1',
+        actorId: 'actor1',
+        action: AuditAction.DENY,
+        entityType: 'TreatmentPlan',
+        entityId: 'p2',
+        metadata: expect.objectContaining({
+          attemptedAction: 'DELETE',
+          reason: 'not DRAFT',
+          status: 'ACTIVE',
+        }),
+      }),
+    );
   });
 });

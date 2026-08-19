@@ -103,6 +103,18 @@ export class TreatmentPlansService {
   async remove(organizationId: string, actorId: string, id: string) {
     const existing = await this.findOne(organizationId, id);
     if (existing.status !== 'DRAFT') {
+      await this.audit.record({
+        organizationId,
+        actorId,
+        action: AuditAction.DENY,
+        entityType: 'TreatmentPlan',
+        entityId: id,
+        metadata: {
+          attemptedAction: 'DELETE',
+          reason: 'not DRAFT',
+          status: existing.status,
+        },
+      });
       throw new ForbiddenException(
         'Only draft treatment plans can be deleted; discontinue or complete an active plan instead',
       );

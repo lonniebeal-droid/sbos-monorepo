@@ -470,6 +470,18 @@ export class NotesService {
   async remove(organizationId: string, id: string, userId: string) {
     const note = await this.findOne(organizationId, id);
     if (note.status !== NoteStatus.DRAFT) {
+      await this.audit.record({
+        organizationId,
+        actorId: userId,
+        action: AuditAction.DENY,
+        entityType: 'Note',
+        entityId: id,
+        metadata: {
+          attemptedAction: 'DELETE',
+          reason: 'not DRAFT',
+          status: note.status,
+        },
+      });
       throw new ForbiddenException('Only draft notes can be deleted');
     }
     await this.prisma.note.delete({ where: { id } });
