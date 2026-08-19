@@ -201,6 +201,34 @@ describe('AuthService.loginMfa', () => {
       UnauthorizedException,
     );
   });
+
+  it('throws UnauthorizedException for a challenge token that is not an MFA-type token', async () => {
+    const { service } = makeService({
+      jwtService: {
+        verifyAsync: vi.fn().mockResolvedValue({ sub: 'u1', type: 'access' }),
+      },
+    });
+
+    await expect(service.loginMfa('access.token', '123456')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+  });
+
+  it('throws UnauthorizedException when MFA is not enabled for the account', async () => {
+    const { service, prisma } = makeService({
+      jwtService: {
+        verifyAsync: vi.fn().mockResolvedValue({ sub: 'u1', type: 'mfa' }),
+      },
+      usersService: {
+        getMfaState: vi.fn().mockResolvedValue({ mfaEnabled: false, mfaSecret: null }),
+      },
+    });
+
+    await expect(service.loginMfa('mfa.challenge.token', '123456')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    expect(prisma.refreshToken.create).not.toHaveBeenCalled();
+  });
 });
 
 describe('AuthService.refresh', () => {
