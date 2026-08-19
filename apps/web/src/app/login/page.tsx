@@ -23,7 +23,7 @@ export default function LoginPage() {
           </h1>
           <p className="max-w-md text-primary-foreground/80">
             Scheduling, clinical documentation, billing, and analytics in one
-            secure, HIPAA-ready platform.
+            secure platform, built with HIPAA-conscious safeguards.
           </p>
         </div>
         <p className="text-sm text-primary-foreground/70">
