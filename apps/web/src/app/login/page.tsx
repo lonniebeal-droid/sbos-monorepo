@@ -8,6 +8,9 @@ export const metadata = {
 };
 
 export default function LoginPage() {
+  const showDemoCredentials =
+    process.env.NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS === "true";
+
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       <div className="relative hidden flex-col justify-between bg-primary p-10 text-primary-foreground lg:flex">
@@ -48,7 +51,7 @@ export default function LoginPage() {
             </p>
           </div>
           <Suspense>
-            <LoginForm />
+            <LoginForm showDemoCredentials={showDemoCredentials} />
           </Suspense>
         </div>
       </div>
