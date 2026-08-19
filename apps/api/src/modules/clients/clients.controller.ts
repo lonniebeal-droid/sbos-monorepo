@@ -87,4 +87,11 @@ export class ClientsController {
   remove(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
     return this.clientsService.remove(user.organizationId, user.id, id);
   }
+
+  @Post(':id/restore')
+  @Roles(Role.ORG_ADMIN)
+  @ApiOperation({ summary: 'Restore a soft-deleted client' })
+  restore(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
+    return this.clientsService.restore(user.organizationId, user.id, id);
+  }
 }

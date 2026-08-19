@@ -175,4 +175,34 @@ export class ClientsService {
 
     return { success: true };
   }
+
+  async restore(organizationId: string, actorId: string, id: string) {
+    const existing = await this.prisma.client.findFirst({
+      where: { id, organizationId },
+    });
+    if (!existing) {
+      throw new NotFoundException(`Client ${id} not found`);
+    }
+
+    if (existing.deletedAt === null) {
+      return existing;
+    }
+
+    const previouslyDeletedAt = existing.deletedAt;
+    const restored = await this.prisma.client.update({
+      where: { id },
+      data: { deletedAt: null },
+    });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.UPDATE,
+      entityType: 'Client',
+      entityId: id,
+      metadata: { restored: true, previouslyDeletedAt },
+    });
+
+    return restored;
+  }
 }

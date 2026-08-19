@@ -59,6 +59,69 @@ describe('ClientsService.remove (soft-delete)', () => {
   });
 });
 
+describe('ClientsService.restore', () => {
+  it('clears deletedAt on a soft-deleted client and audits it', async () => {
+    const deletedAt = new Date('2026-08-01T00:00:00.000Z');
+    const existing = { id: 'c1', mrn: 'MRN-1', deletedAt };
+    const restored = { ...existing, deletedAt: null };
+    const prisma = {
+      client: {
+        findFirst: vi.fn().mockResolvedValue(existing),
+        update: vi.fn().mockResolvedValue(restored),
+      },
+    } as unknown as PrismaService;
+    const { service, audit } = makeService({ prisma });
+
+    const result = await service.restore('org1', 'actor1', 'c1');
+
+    expect(prisma.client.findFirst).toHaveBeenCalledWith({
+      where: { id: 'c1', organizationId: 'org1' },
+    });
+    expect(prisma.client.update).toHaveBeenCalledWith({
+      where: { id: 'c1' },
+      data: { deletedAt: null },
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org1',
+        actorId: 'actor1',
+        action: AuditAction.UPDATE,
+        entityType: 'Client',
+        entityId: 'c1',
+        metadata: expect.objectContaining({ restored: true, previouslyDeletedAt: deletedAt }),
+      }),
+    );
+    expect(result).toEqual(restored);
+  });
+
+  it('throws NotFoundException and never updates/audits a missing client', async () => {
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue(null), update: vi.fn() },
+    } as unknown as PrismaService;
+    const { service, audit } = makeService({ prisma });
+
+    await expect(service.restore('org1', 'actor1', 'missing')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.client.update).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('is a no-op and returns the client as-is when already active', async () => {
+    const existing = { id: 'c1', mrn: 'MRN-1', deletedAt: null };
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue(existing), update: vi.fn() },
+    } as unknown as PrismaService;
+    const { service, audit } = makeService({ prisma });
+
+    const result = await service.restore('org1', 'actor1', 'c1');
+
+    expect(prisma.client.update).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+    expect(result).toEqual(existing);
+  });
+});
+
 describe('ClientsService.findOne (soft-delete visibility)', () => {
   it('excludes soft-deleted clients by default', async () => {
     const findFirst = vi.fn().mockResolvedValue(null);
