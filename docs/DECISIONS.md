@@ -74,9 +74,14 @@ payments) — see `docs/DECISION_MEMO_CLIENT_DELETE.md` for the full analysis.
 **Status:** adopted and implemented — `9fde323`. `Client.deletedAt` +
 composite index (migration `20260818220000_client_soft_delete`),
 `ClientsService.remove()`/`findAll()`/`findOne()` updated, `includeDeleted`
-gated server-side to `ORG_ADMIN`/`SUPER_ADMIN`. Not yet applied to a live
-database (no Postgres reachable this session — run `prisma migrate deploy`
-once one is).
+gated server-side to `ORG_ADMIN`/`SUPER_ADMIN`. **Applied and verified live
+2026-08-19** against a local Postgres (`postgres:16-alpine` via `docker run`,
+compose plugin unavailable in this environment) — `prisma migrate deploy`
+applied cleanly, `\d "Client"` confirms the `deletedAt` column and
+`Client_organizationId_deletedAt_idx` index exist, seed ran, and the API
+booted with `PrismaService` reporting "Connected to the database" (the
+first time this session with a real connection, not the no-DB warning
+path). Not yet applied to any staging/production database.
 
 ## ADR-012 — Hard-delete endpoint audit (repo-wide)
 **Context:** following ADR-011, audited every `@Delete(` endpoint across
@@ -108,9 +113,11 @@ implemented. Final choices: Client — soft-delete (see ADR-011, `9fde323`);
 TreatmentPlan — Option C, block hard delete unless `status === 'DRAFT'`, no
 schema change (`1255c85`); Document — Option A, soft-delete + stop calling
 `storage.remove()` on delete (`0488bd5`, migration
-`20260818223000_document_soft_delete`). Client's and Document's migrations
-not yet applied to a live database — same standing blocker as ADR-011.
-TreatmentPlan needed no migration (Option C is service-layer only).
+`20260818223000_document_soft_delete`). **Applied and verified live
+2026-08-19** — see ADR-011 for the local-Postgres setup; `\d "Document"`
+confirms `deletedAt` and `Document_organizationId_deletedAt_idx` exist.
+TreatmentPlan needed no migration (Option C is service-layer only). Not
+yet applied to any staging/production database.
 
 ## ADR-014: No dedicated audit entry for a blocked TreatmentPlan delete attempt
 
@@ -146,5 +153,8 @@ touched). Both `TreatmentPlansService.remove()` and `NotesService.remove()`
 now call `audit.record({ action: AuditAction.DENY, ... })` with
 `metadata: { attemptedAction: 'DELETE', reason: 'not DRAFT', status }`
 before throwing `ForbiddenException`, so a blocked delete attempt is now
-traceable the same way a successful one is. Not yet applied to a live
-database -- same standing migration-deploy blocker as ADR-011/ADR-013.
+traceable the same way a successful one is. **Applied and verified live
+2026-08-19** — `SELECT enumlabel FROM pg_enum WHERE enumtypid =
+'"AuditAction"'::regtype` confirms `DENY` is present alongside the original
+nine values, in a local Postgres (see ADR-011 for setup detail). Not yet
+applied to any staging/production database.

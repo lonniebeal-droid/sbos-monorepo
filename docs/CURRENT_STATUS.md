@@ -236,27 +236,46 @@ change (full detail: `docs/DECISIONS.md`, `docs/AUDIT_HARD_DELETE_ENDPOINTS.md`)
   client counts (`OrganizationsService.stats()`, `SystemHealthService.snapshot()`,
   `AnalyticsService.overview()`) were also found and fixed to exclude
   soft-deleted rows. Full decision record: ADR-011/ADR-013 in `docs/DECISIONS.md`.
-- **Still blocked:** the three migrations below have not been applied to any
-  reachable PostgreSQL — no live database in this environment (same standing
-  limitation noted below), so this is unchanged, not new.
+- **Resolved 2026-08-19:** all 13 migrations, including the three above, have
+  now been applied and live-verified against a local Postgres — see "Local
+  Postgres verification (2026-08-19)" below. Not yet applied to any staging/
+  production database, which is a separate, still-open step.
 
-## Known issues / notes
+## Local Postgres verification (2026-08-19)
 
-- **No live database in this environment** — migrations and seed are
-  prepared but not applied. Confirmed again 2026-08-19: no `.env`/
-  `DATABASE_URL` configured, `localhost:5432` unreachable, and the local
-  Docker daemon (which would run `docker-compose.yml`'s `postgres` service)
-  is not running — not started, since this environment's disk is very tight
-  (~3GB free) and starting it is a real environment change, not just a
-  reachability check. Three migrations from the 2026-08-18/19 hardening
-  session are pending, on top of everything from `20260724000000_init`
-  onward: `20260818220000_client_soft_delete`, `20260818223000_document_soft_delete`,
-  `20260818230000_audit_action_deny`. Exact command once a real
-  `DATABASE_URL` is reachable:
-  ```
-  cd packages/database && DATABASE_URL=<real-postgres-url> npx prisma migrate deploy
-  ```
-  followed by `pnpm --filter @sbos/database db:seed` if a fresh/empty database.
+With explicit approval, started a local Postgres to close the migration-
+deploy gap that every entry above had been tracking. This environment has
+no Docker Desktop app and no `docker compose`/`docker-compose` plugin
+installed — `docker-compose.yml` could not be run directly — so the same
+`postgres:16-alpine` image and the same defaults documented in
+`.env.docker.example` (`POSTGRES_USER=postgres`, `POSTGRES_PASSWORD=postgres`,
+`POSTGRES_DB=sbos`) were started via `docker run` instead, backed by Docker's
+`colima` VM (already installed on this machine) rather than Docker Desktop.
+
+- `cd packages/database && DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sbos npx prisma migrate deploy`
+  — all 13 migrations applied cleanly, `20260724000000_init` through
+  `20260818230000_audit_action_deny`.
+- `pnpm --filter @sbos/database db:seed` — seeded successfully (Success Brand
+  Behavioral Health org, admin + clinician users).
+- Verified live via `psql \d`: `Client.deletedAt` +
+  `Client_organizationId_deletedAt_idx`, `Document.deletedAt` +
+  `Document_organizationId_deletedAt_idx`, `WaitlistEntry`/
+  `ClinicianAvailability`/`ClinicianTimeOff` → `Organization` foreign keys,
+  and `AuditAction`'s `DENY` value (via `pg_enum`) all exist exactly as the
+  migration SQL specified.
+- `pnpm --filter @sbos/api build/lint/test` all green with `DATABASE_URL` set
+  (the first time this session's tests ran against a real database instead
+  of the no-DB mocked path). Live boot smoke test: `PrismaService` logged
+  "Connected to the database" instead of the usual unavailable-at-startup
+  warning, and the app started cleanly.
+- Exercised a real soft-delete round-trip directly in Postgres (flipped one
+  seeded `Client.deletedAt`, confirmed the active-count query dropped by
+  one, reverted it) to prove the column/index behave as designed, not just
+  that they exist.
+- Still open: **no staging/production database exists yet** — this only
+  closes the "can these migrations even apply cleanly" question, not
+  production readiness. `DATABASE_URL=<real-postgres-url> npx prisma migrate deploy`
+  is the same command to run against a real environment when one exists.
 - **Interim web credential store** — `apps/web/src/lib/dev-users.ts` exists for
   local sign-in until API auth is wired; not used in production paths.
 - **Prisma deprecation warning** — `package.json#prisma` seed config warns it
