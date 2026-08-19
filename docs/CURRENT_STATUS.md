@@ -221,11 +221,11 @@ change (full detail: `docs/DECISIONS.md`, `docs/AUDIT_HARD_DELETE_ENDPOINTS.md`)
   `AuditLog` entry on delete — clients, billing (payers/fee schedules),
   appointments, notes, documents, diagnoses, medications, locations,
   treatment-plans, scheduling (availability/waitlist), tasks, and Jessie
-  knowledge-base articles are all covered. `docs/DECISIONS.md` ADR-014 records
-  the one known gap: a *blocked* (denied) TreatmentPlan delete attempt isn't
-  itself audit-logged, since no denied-action audit pattern exists yet
-  anywhere in the codebase — flagged for a future cross-cutting decision, not
-  silently left undocumented.
+  knowledge-base articles are all covered. A *blocked* (denied) delete
+  attempt is covered too: `docs/DECISIONS.md` ADR-014 (approved, implemented
+  `bba6ca7`) added a `DENY` `AuditAction` and wired it into both
+  `TreatmentPlansService.remove()` and `NotesService.remove()`'s DRAFT-only
+  guards, so a rejected delete is now traceable, not just a successful one.
 - **Client/TreatmentPlan/Document retention:** replaced Client's and
   Document's hard `.delete()` with a soft-delete (`deletedAt`, additive
   migrations `20260818220000_client_soft_delete` and
@@ -236,15 +236,27 @@ change (full detail: `docs/DECISIONS.md`, `docs/AUDIT_HARD_DELETE_ENDPOINTS.md`)
   client counts (`OrganizationsService.stats()`, `SystemHealthService.snapshot()`,
   `AnalyticsService.overview()`) were also found and fixed to exclude
   soft-deleted rows. Full decision record: ADR-011/ADR-013 in `docs/DECISIONS.md`.
-- **Still blocked:** the two new migrations above have not been applied to any
+- **Still blocked:** the three migrations below have not been applied to any
   reachable PostgreSQL — no live database in this environment (same standing
   limitation noted below), so this is unchanged, not new.
 
 ## Known issues / notes
 
-- **No live database in this environment** — migrations and seed are prepared
-  but not applied; they require a running PostgreSQL and `DATABASE_URL`. This
-  now includes the two retention migrations from the 2026-08-18 session above.
+- **No live database in this environment** — migrations and seed are
+  prepared but not applied. Confirmed again 2026-08-19: no `.env`/
+  `DATABASE_URL` configured, `localhost:5432` unreachable, and the local
+  Docker daemon (which would run `docker-compose.yml`'s `postgres` service)
+  is not running — not started, since this environment's disk is very tight
+  (~3GB free) and starting it is a real environment change, not just a
+  reachability check. Three migrations from the 2026-08-18/19 hardening
+  session are pending, on top of everything from `20260724000000_init`
+  onward: `20260818220000_client_soft_delete`, `20260818223000_document_soft_delete`,
+  `20260818230000_audit_action_deny`. Exact command once a real
+  `DATABASE_URL` is reachable:
+  ```
+  cd packages/database && DATABASE_URL=<real-postgres-url> npx prisma migrate deploy
+  ```
+  followed by `pnpm --filter @sbos/database db:seed` if a fresh/empty database.
 - **Interim web credential store** — `apps/web/src/lib/dev-users.ts` exists for
   local sign-in until API auth is wired; not used in production paths.
 - **Prisma deprecation warning** — `package.json#prisma` seed config warns it
