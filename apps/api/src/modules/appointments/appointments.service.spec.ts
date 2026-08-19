@@ -214,6 +214,113 @@ describe('AppointmentsService.findOne', () => {
   });
 });
 
+describe('AppointmentsService.update', () => {
+  it('propagates NotFoundException without writing when the appointment is missing', async () => {
+    const { service, prisma } = makeService({
+      prisma: {
+        appointment: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          findMany: vi.fn(),
+          count: vi.fn(),
+          create: vi.fn(),
+          update: vi.fn(),
+          delete: vi.fn(),
+        },
+      },
+    });
+
+    await expect(
+      service.update('org1', 'actor1', 'missing', { locationId: 'loc2' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.appointment.update).not.toHaveBeenCalled();
+  });
+
+  it('parses startTime/endTime into Dates, updates, and audits the changed fields', async () => {
+    const existing = { id: 'appt1' };
+    const updated = { id: 'appt1', locationId: 'loc2' };
+    const { service, prisma, audit } = makeService({
+      prisma: {
+        appointment: {
+          findFirst: vi.fn().mockResolvedValue(existing),
+          findMany: vi.fn(),
+          count: vi.fn(),
+          create: vi.fn(),
+          update: vi.fn().mockResolvedValue(updated),
+          delete: vi.fn(),
+        },
+      },
+    });
+
+    const result = await service.update('org1', 'actor1', 'appt1', {
+      locationId: 'loc2',
+      startTime: '2026-09-02T13:00:00.000Z',
+    });
+
+    expect(prisma.appointment.update).toHaveBeenCalledWith({
+      where: { id: 'appt1' },
+      data: { locationId: 'loc2', startTime: new Date('2026-09-02T13:00:00.000Z') },
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AuditAction.UPDATE,
+        entityId: 'appt1',
+        metadata: { changedFields: ['locationId', 'startTime'] },
+      }),
+    );
+    expect(result).toBe(updated);
+  });
+});
+
+describe('AppointmentsService.checkIn', () => {
+  it('sets status CHECKED_IN with a timestamp', async () => {
+    const existing = { id: 'appt1' };
+    const { service, prisma } = makeService({
+      prisma: {
+        appointment: {
+          findFirst: vi.fn().mockResolvedValue(existing),
+          findMany: vi.fn(),
+          count: vi.fn(),
+          create: vi.fn(),
+          update: vi.fn().mockResolvedValue({ id: 'appt1', status: AppointmentStatus.CHECKED_IN }),
+          delete: vi.fn(),
+        },
+      },
+    });
+
+    await service.checkIn('org1', 'appt1');
+
+    expect(prisma.appointment.update).toHaveBeenCalledWith({
+      where: { id: 'appt1' },
+      data: { status: AppointmentStatus.CHECKED_IN, checkedInAt: expect.any(Date) },
+    });
+  });
+});
+
+describe('AppointmentsService.checkOut', () => {
+  it('sets status COMPLETED with a timestamp', async () => {
+    const existing = { id: 'appt1' };
+    const { service, prisma } = makeService({
+      prisma: {
+        appointment: {
+          findFirst: vi.fn().mockResolvedValue(existing),
+          findMany: vi.fn(),
+          count: vi.fn(),
+          create: vi.fn(),
+          update: vi.fn().mockResolvedValue({ id: 'appt1', status: AppointmentStatus.COMPLETED }),
+          delete: vi.fn(),
+        },
+      },
+    });
+
+    await service.checkOut('org1', 'appt1');
+
+    expect(prisma.appointment.update).toHaveBeenCalledWith({
+      where: { id: 'appt1' },
+      data: { status: AppointmentStatus.COMPLETED, checkedOutAt: expect.any(Date) },
+    });
+  });
+});
+
 describe('AppointmentsService.startTelehealth', () => {
   it('generates and persists a stable room URL when none exists yet', async () => {
     const existing = { id: 'appt1', telehealthUrl: null };
