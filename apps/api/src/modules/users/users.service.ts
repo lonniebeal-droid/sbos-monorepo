@@ -47,7 +47,11 @@ export class UsersService {
     });
     if (!record) return null;
     const valid = await bcrypt.compare(password, record.passwordHash);
-    return valid ? this.toEntity(record) : null;
+    if (!valid) return null;
+    // A correct password must not be enough on its own: suspended/deactivated/
+    // not-yet-onboarded accounts must never be able to log in.
+    if (record.status !== 'ACTIVE') return null;
+    return this.toEntity(record);
   }
 
   async findById(id: string): Promise<UserEntity> {
