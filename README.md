@@ -27,9 +27,14 @@ pnpm dev              # run dev servers
 ### Run individual apps
 
 ```bash
-pnpm --filter @sbos/web dev     # web on http://localhost:3000
-pnpm --filter @sbos/api dev     # api on http://localhost:4000 (docs at /docs)
+NODE_ENV=development pnpm --filter @sbos/web dev     # web on http://localhost:3000
+NODE_ENV=development pnpm --filter @sbos/api dev     # api on http://localhost:4000 (docs at /docs)
 ```
+
+> The explicit `NODE_ENV=development` matters: the API hard-fails on
+> missing/default secrets whenever `NODE_ENV=production` is set — including
+> when it's inherited from your shell rather than set on purpose. See
+> [INSTALL troubleshooting](docs/INSTALL.md#troubleshooting).
 
 ### Database
 
@@ -70,7 +75,8 @@ See [`docs/`](docs/):
 - **Reference:** [SYSTEM_ARCHITECTURE](docs/SYSTEM_ARCHITECTURE.md) · [DATABASE_SCHEMA](docs/DATABASE_SCHEMA.md) · [API_SPEC](docs/API_SPEC.md)
 - **Reviews:** [SECURITY](docs/SECURITY.md) · [DATABASE_REVIEW](docs/DATABASE_REVIEW.md) · [DECISIONS](docs/DECISIONS.md)
 - **Status:** [CURRENT_STATUS](docs/CURRENT_STATUS.md) · [ROADMAP](docs/ROADMAP.md) · [FEATURE_REQUIREMENTS](docs/FEATURE_REQUIREMENTS.md)
-- **Release:** [RELEASE_1_CHECKLIST](RELEASE_1_CHECKLIST.md)
+- **Release:** [RELEASE_1_CHECKLIST](RELEASE_1_CHECKLIST.md) · [PRODUCTION_READINESS_CHECKLIST](docs/PRODUCTION_READINESS_CHECKLIST.md)
+- **Demo:** [SBOS_DEMO_PACKAGE](docs/SBOS_DEMO_PACKAGE.md) — architecture, working features, demo login, and a sales demo script
 
 ## License
 

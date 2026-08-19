@@ -49,18 +49,42 @@ Seeded sign-in (development): `admin@sbos.health` / `Sbos!2026`.
 
 ```bash
 # Terminal 1 — API on http://localhost:4000 (Swagger at /docs)
-pnpm --filter @sbos/api dev
+NODE_ENV=development pnpm --filter @sbos/api dev
 
 # Terminal 2 — web on http://localhost:3000
-pnpm --filter @sbos/web dev
+NODE_ENV=development pnpm --filter @sbos/web dev
 ```
 
-Or the whole stack with Docker (no local Node/Postgres needed):
+**Why the explicit `NODE_ENV=development`:** the API's config validation only
+warns about missing/default secrets in development, but hard-fails
+(`Refusing to start in production`) whenever `NODE_ENV=production` — and some
+shells/CI images export `NODE_ENV=production` globally regardless of what
+you're running. Run `echo $NODE_ENV` first if the API exits immediately on
+`dev` with an "Insecure/missing configuration" error; set it to `development`
+explicitly for local work rather than relying on it being unset.
 
-```bash
-cp .env.production.example .env   # set the required secrets
-docker compose up --build
-```
+### Docker vs. local Postgres
+
+Two supported ways to get a database, pick one:
+
+- **Docker Compose (whole stack, no local Node/Postgres needed):**
+  ```bash
+  cp .env.production.example .env   # set the required secrets
+  docker compose up --build
+  ```
+  This starts Postgres, Redis, the api, and the web app together.
+
+- **A standalone local/throwaway Postgres, running only `pnpm dev` for the
+  apps** (useful when Docker Compose or a compose plugin isn't available):
+  ```bash
+  docker run --rm -d --name sbos-postgres -p 5432:5432 \
+    -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=sbos postgres:16-alpine
+  ```
+  Then set `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/sbos?schema=public`
+  in `packages/database/.env` and `apps/api/.env` and continue with step 3
+  above. The API also boots without a reachable database at all (it logs a
+  warning and DB-backed endpoints error per-request) — useful for a quick
+  build/boot sanity check, not for an actual demo.
 
 ## 5. Verify
 
@@ -84,8 +108,12 @@ All three should pass. See [INSTALL troubleshooting](#troubleshooting) if not.
 
 ## Troubleshooting
 
-- **API exits on start** — in production it refuses to boot with default/missing
-  secrets or no `DATABASE_URL`. Set them (see step 2).
+- **API exits on start with "Insecure/missing configuration"** — this is the
+  production fail-fast gate (see the `NODE_ENV` note in step 4), triggered
+  whenever `NODE_ENV=production` is set — including inherited from your shell
+  or CI environment, not just when you set it deliberately. For local dev,
+  explicitly run with `NODE_ENV=development`. For an actual production
+  deploy, set real secrets (see step 2) instead of unsetting `NODE_ENV`.
 - **`prisma migrate` can't connect** — verify `DATABASE_URL` and that PostgreSQL
   is reachable.
 - **Login fails locally** — ensure you ran `db:seed`; auth is database-backed.
