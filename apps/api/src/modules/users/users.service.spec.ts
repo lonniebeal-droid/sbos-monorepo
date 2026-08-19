@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import * as bcrypt from 'bcryptjs';
 
@@ -107,5 +108,44 @@ describe('UsersService.validateCredentials', () => {
     );
 
     expect(result).toBeNull();
+  });
+});
+
+describe('UsersService.findActiveById', () => {
+  it('returns the user entity for an ACTIVE account', async () => {
+    const record = { ...baseRecord, passwordHash: 'irrelevant', status: 'ACTIVE' };
+    const findUnique = vi.fn().mockResolvedValue(record);
+    const prisma = { user: { findUnique } } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    const result = await service.findActiveById('u1');
+
+    expect(result.id).toBe('u1');
+  });
+
+  it('throws NotFoundException for a SUSPENDED account', async () => {
+    const record = { ...baseRecord, passwordHash: 'irrelevant', status: 'SUSPENDED' };
+    const findUnique = vi.fn().mockResolvedValue(record);
+    const prisma = { user: { findUnique } } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(service.findActiveById('u1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('throws NotFoundException for a DEACTIVATED account', async () => {
+    const record = { ...baseRecord, passwordHash: 'irrelevant', status: 'DEACTIVATED' };
+    const findUnique = vi.fn().mockResolvedValue(record);
+    const prisma = { user: { findUnique } } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(service.findActiveById('u1')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('throws NotFoundException when no user matches the id', async () => {
+    const findUnique = vi.fn().mockResolvedValue(null);
+    const prisma = { user: { findUnique } } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(service.findActiveById('missing')).rejects.toBeInstanceOf(NotFoundException);
   });
 });

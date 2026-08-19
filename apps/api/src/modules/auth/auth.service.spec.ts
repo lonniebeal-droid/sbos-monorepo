@@ -1,4 +1,4 @@
-import { UnauthorizedException } from '@nestjs/common';
+import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import { AuthService } from './auth.service';
@@ -34,6 +34,7 @@ function makeService(overrides?: {
     validateCredentials: vi.fn(),
     getMfaState: vi.fn().mockResolvedValue({ mfaEnabled: false, mfaSecret: null }),
     findById: vi.fn().mockResolvedValue(testUser),
+    findActiveById: vi.fn().mockResolvedValue(testUser),
     ...overrides?.usersService,
   } as unknown as UsersService;
 
@@ -203,8 +204,8 @@ describe('AuthService.loginMfa', () => {
 });
 
 describe('AuthService.refresh', () => {
-  it('rotates the refresh token and issues a fresh pair for a valid, unrevoked token', async () => {
-    const { service, jwtService, prisma } = makeService({
+  it('rotates the refresh token and issues a fresh pair for a valid, unrevoked token from an active user', async () => {
+    const { service, usersService, jwtService, prisma } = makeService({
       jwtService: {
         verifyAsync: vi
           .fn()
@@ -227,12 +228,47 @@ describe('AuthService.refresh', () => {
 
     const result = await service.refresh('some.refresh.token');
 
+    expect(usersService.findActiveById).toHaveBeenCalledWith('u1');
     expect(prisma.refreshToken.update).toHaveBeenCalledWith({
       where: { jti: 'jti-1' },
       data: { revokedAt: expect.any(Date) },
     });
     expect(jwtService.signAsync).toHaveBeenCalledTimes(2);
     expect(result).toMatchObject({ accessToken: 'signed.jwt.token' });
+  });
+
+  it('throws UnauthorizedException and never rotates/reissues for a suspended/deactivated/missing user', async () => {
+    const { service, prisma, jwtService } = makeService({
+      jwtService: {
+        verifyAsync: vi
+          .fn()
+          .mockResolvedValue({ sub: 'u1', type: 'refresh', jti: 'jti-1' }),
+      },
+      usersService: {
+        // Mirrors UsersService.findActiveById: a non-ACTIVE (or missing) user
+        // is treated identically to "not found".
+        findActiveById: vi.fn().mockRejectedValue(new NotFoundException()),
+      },
+      prisma: {
+        refreshToken: {
+          create: vi.fn(),
+          findUnique: vi.fn().mockResolvedValue({
+            jti: 'jti-1',
+            userId: 'u1',
+            revokedAt: null,
+            expiresAt: new Date(Date.now() + 60_000),
+          }),
+          update: vi.fn(),
+          updateMany: vi.fn(),
+        },
+      },
+    });
+
+    await expect(service.refresh('some.refresh.token')).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    expect(prisma.refreshToken.update).not.toHaveBeenCalled();
+    expect(jwtService.signAsync).not.toHaveBeenCalled();
   });
 
   it('throws UnauthorizedException for a token with a bad/expired signature', async () => {

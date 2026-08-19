@@ -62,6 +62,21 @@ export class UsersService {
     return this.toEntity(record);
   }
 
+  /**
+   * Like findById, but treats a non-ACTIVE account the same as a missing one.
+   * Use this anywhere a fresh authorization decision is being made (e.g.
+   * reissuing tokens on refresh) so a suspended/deactivated account can't
+   * silently keep itself signed in -- mirrors the ACTIVE-only gate in
+   * validateCredentials.
+   */
+  async findActiveById(id: string): Promise<UserEntity> {
+    const record = await this.prisma.user.findUnique({ where: { id } });
+    if (!record || record.status !== 'ACTIVE') {
+      throw new NotFoundException(`User ${id} not found`);
+    }
+    return this.toEntity(record);
+  }
+
   /** Read a user's MFA state (used by the auth flow). */
   async getMfaState(
     userId: string,

@@ -218,13 +218,22 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token has expired');
     }
 
+    // A suspended/deactivated (or deleted) account must not be able to
+    // refresh its way to a new token pair, even with an otherwise-valid,
+    // unexpired refresh token.
+    let user: UserEntity;
+    try {
+      user = await this.usersService.findActiveById(payload.sub);
+    } catch {
+      throw new UnauthorizedException('Account is no longer active');
+    }
+
     // Rotate: revoke the presented token, then issue a fresh pair.
     await this.prisma.refreshToken.update({
       where: { jti: payload.jti },
       data: { revokedAt: new Date() },
     });
 
-    const user = await this.usersService.findById(payload.sub);
     return this.issueTokens(user);
   }
 
