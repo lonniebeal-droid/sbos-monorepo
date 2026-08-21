@@ -27,11 +27,11 @@ export function ApiErrorBanner({ message }: { message: string }) {
 }
 
 export function EmptyState({
-  icon: Icon,
+  icon,
   title,
   description,
 }: {
-  icon: LucideIcon;
+  icon: React.ReactNode;
   title: string;
   description: string;
 }) {
@@ -39,7 +39,7 @@ export function EmptyState({
     <Card>
       <CardContent className="flex flex-col items-center justify-center gap-2 py-16 text-center">
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-          <Icon className="h-6 w-6 text-muted-foreground" />
+          {icon}
         </div>
         <p className="text-sm font-medium">{title}</p>
         <p className="max-w-sm text-sm text-muted-foreground">{description}</p>
@@ -47,3 +47,4 @@ export function EmptyState({
     </Card>
   );
 }
+
