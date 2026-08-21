@@ -49,8 +49,8 @@ async function bootstrap(): Promise<void> {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('SBOS API')
     .setDescription(
-      'Success Brand Operating System — behavioral health REST API. ' +
-        'JWT-authenticated, role-based, versioned endpoints.',
+      'Success Brand Operating System — service business operations REST API, ' +
+        'with an optional behavioral health module. JWT-authenticated, role-based, versioned endpoints.',
     )
     .setVersion('1.0')
     .setContact('SBOS Engineering', 'https://successbrand.org', 'support@successbrand.org')

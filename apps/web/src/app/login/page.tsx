@@ -24,11 +24,12 @@ export default function LoginPage() {
         </div>
         <div className="space-y-4">
           <h1 className="text-3xl font-semibold leading-tight">
-            The behavioral health operating system built for modern practices.
+            The operating system built for modern service businesses.
           </h1>
           <p className="max-w-md text-primary-foreground/80">
-            Scheduling, clinical documentation, billing, and analytics in one
-            secure platform, built with HIPAA-conscious safeguards.
+            Scheduling, documentation, billing, and analytics in one secure
+            platform — with an optional behavioral health module built with
+            HIPAA-conscious safeguards for clinical practices.
           </p>
         </div>
         <p className="text-sm text-primary-foreground/70">
@@ -49,7 +50,7 @@ export default function LoginPage() {
               Welcome back
             </h2>
             <p className="text-sm text-muted-foreground">
-              Sign in to your practice workspace.
+              Sign in to your workspace.
             </p>
           </div>
           <Suspense>

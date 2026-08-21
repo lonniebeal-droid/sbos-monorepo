@@ -28,7 +28,7 @@ export const primaryNav: NavItem[] = [
     title: "Schedule",
     href: "/schedule",
     icon: ClipboardList,
-    description: "Appointments and clinician availability",
+    description: "Appointments and staff availability",
   },
   {
     title: "Calendar",

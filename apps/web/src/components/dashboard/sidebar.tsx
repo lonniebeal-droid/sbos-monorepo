@@ -24,7 +24,7 @@ export function Sidebar({ className }: { className?: string }) {
         <div className="flex flex-col leading-tight">
           <span className="text-sm font-semibold">SBOS</span>
           <span className="text-xs text-muted-foreground">
-            Behavioral Health OS
+            Service Operations
           </span>
         </div>
       </div>
@@ -58,7 +58,7 @@ export function Sidebar({ className }: { className?: string }) {
 
       <div className="border-t border-sidebar-border p-4 text-xs text-muted-foreground">
         <p className="font-medium text-foreground">Success Brand OS</p>
-        <p>v0.1.0 · HIPAA-ready</p>
+        <p>v0.1.0 · Secure & compliance-ready</p>
       </div>
     </aside>
   );

@@ -82,7 +82,7 @@ export default async function SchedulePage() {
     <>
       <PageHeader
         title="Schedule"
-        description="Appointments and clinician availability for the day."
+        description="Appointments and staff availability for the day."
         actions={
           <NewAppointmentDialog clients={clients} clinicians={clinicians} />
         }

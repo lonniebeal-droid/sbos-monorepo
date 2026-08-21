@@ -9,11 +9,11 @@ const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 export const metadata: Metadata = {
   title: {
-    default: "SBOS — Behavioral Health Operating System",
+    default: "SBOS — Service Business Operating System",
     template: "%s · SBOS",
   },
   description:
-    "Success Brand Operating System — a production-grade behavioral health platform for scheduling, clinical documentation, billing, and analytics.",
+    "Success Brand Operating System — a production-grade platform for scheduling, documentation, billing, and analytics, with an optional behavioral health module for clinical practices.",
 };
 
 export const viewport: Viewport = {

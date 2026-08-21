@@ -99,7 +99,7 @@ export default async function DashboardPage() {
     <>
       <PageHeader
         title={`Good to see you, ${firstName}`}
-        description="Here's what's happening across your practice today."
+        description="Here's what's happening across your business today."
         actions={
           <Button asChild>
             <Link href="/schedule">New appointment</Link>

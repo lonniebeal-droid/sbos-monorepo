@@ -43,7 +43,7 @@ export default async function ReportsPage() {
     <>
       <PageHeader
         title="Reports & Analytics"
-        description="Operational and clinical insights across your practice."
+        description="Operational insights across your business."
         actions={<Button variant="outline">Export</Button>}
       />
 
