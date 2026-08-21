@@ -27,7 +27,7 @@ export default async function TasksPage() {
 
       {tasks.length === 0 ? (
         <EmptyState
-          icon={ListChecks}
+          icon={<ListChecks className="h-6 w-6 text-muted-foreground" />}
           title="No tasks yet"
           description="Create a task to track follow-ups, co-signs, and billing work."
         />
@@ -69,3 +69,4 @@ export default async function TasksPage() {
     </>
   );
 }
+
