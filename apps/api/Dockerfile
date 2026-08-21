@@ -27,6 +27,7 @@ RUN pnpm turbo run build --filter=@sbos/api
 # 3) Minimal runtime image.
 FROM base AS runner
 ENV NODE_ENV=production
+ENV HOME=/tmp
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 --ingroup nodejs nodeuser
 COPY --from=builder --chown=nodeuser:nodejs /app .
