@@ -8,6 +8,9 @@ export const metadata = {
 };
 
 export default function LoginPage() {
+  const showDemoCredentials =
+    process.env.NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS === "true";
+
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       <div className="relative hidden flex-col justify-between bg-primary p-10 text-primary-foreground lg:flex">
@@ -23,7 +26,7 @@ export default function LoginPage() {
           </h1>
           <p className="max-w-md text-primary-foreground/80">
             Scheduling, clinical documentation, billing, and analytics in one
-            secure, HIPAA-ready platform.
+            secure platform, built with HIPAA-conscious safeguards.
           </p>
         </div>
         <p className="text-sm text-primary-foreground/70">
@@ -48,7 +51,7 @@ export default function LoginPage() {
             </p>
           </div>
           <Suspense>
-            <LoginForm />
+            <LoginForm showDemoCredentials={showDemoCredentials} />
           </Suspense>
         </div>
       </div>

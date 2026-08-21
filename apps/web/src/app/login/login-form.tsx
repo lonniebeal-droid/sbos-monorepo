@@ -19,7 +19,11 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-export function LoginForm() {
+export function LoginForm({
+  showDemoCredentials,
+}: {
+  showDemoCredentials: boolean;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [submitting, setSubmitting] = useState(false);
@@ -174,11 +178,13 @@ export function LoginForm() {
         Sign in
       </Button>
 
-      <div className="rounded-md border border-dashed bg-muted/40 p-3 text-xs text-muted-foreground">
-        <p className="font-medium text-foreground">Development access</p>
-        <p>admin@sbos.health · clinician@sbos.health</p>
-        <p>Password: Sbos!2026</p>
-      </div>
+      {showDemoCredentials && (
+        <div className="rounded-md border border-dashed bg-muted/40 p-3 text-xs text-muted-foreground">
+          <p className="font-medium text-foreground">Development access</p>
+          <p>admin@sbos.health · clinician@sbos.health</p>
+          <p>Password: Sbos!2026</p>
+        </div>
+      )}
     </form>
   );
 }
