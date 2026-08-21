@@ -1,3 +1,4 @@
+import Link from "next/link";
 import {
   CalendarCheck,
   ClipboardList,
@@ -86,14 +87,24 @@ export default async function DashboardPage() {
   const overview = overviewRes.ok ? overviewRes.data : null;
   const appointments = apptRes.ok ? apptRes.data.data : [];
   const tasks = taskRes.ok ? taskRes.data.data : [];
-  const unreachable = !overviewRes.ok ? overviewRes.error : null;
+  const unreachable = !overviewRes.ok
+    ? overviewRes.error
+    : !apptRes.ok
+      ? apptRes.error
+      : !taskRes.ok
+        ? taskRes.error
+        : null;
 
   return (
     <>
       <PageHeader
         title={`Good to see you, ${firstName}`}
         description="Here's what's happening across your practice today."
-        actions={<Button>New appointment</Button>}
+        actions={
+          <Button asChild>
+            <Link href="/schedule">New appointment</Link>
+          </Button>
+        }
       />
 
       {unreachable && <ApiErrorBanner message={unreachable} />}
@@ -131,8 +142,8 @@ export default async function DashboardPage() {
                 {appointments.length === 1 ? "" : "s"}
               </CardDescription>
             </div>
-            <Button variant="outline" size="sm">
-              View calendar
+            <Button asChild variant="outline" size="sm">
+              <Link href="/calendar">View calendar</Link>
             </Button>
           </CardHeader>
           <CardContent className="space-y-2">

@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { AlertCircle, Users } from "lucide-react";
+import { Users } from "lucide-react";
 
 import { apiFetch, ApiError, type Paginated } from "@/lib/api";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { ApiErrorBanner } from "@/components/dashboard/api-state";
 import { NewClientDialog } from "@/components/clients/new-client-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -81,12 +82,7 @@ export default async function ClientsPage() {
         actions={<NewClientDialog />}
       />
 
-      {hasError && (
-        <div className="flex items-center gap-2 rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-700 dark:text-amber-300">
-          <AlertCircle className="h-4 w-4 shrink-0" />
-          {result.error}
-        </div>
-      )}
+      {hasError && <ApiErrorBanner message={result.error} />}
 
       <Card>
         <CardContent className="p-0">
