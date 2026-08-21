@@ -1,6 +1,7 @@
 import {
   CallHandler,
   ExecutionContext,
+  HttpException,
   Injectable,
   Logger,
   NestInterceptor,
@@ -33,7 +34,17 @@ export class LoggingInterceptor implements NestInterceptor {
     return next.handle().pipe(
       tap({
         next: () => this.log(method, originalUrl, res.statusCode, start, req.user),
-        error: () => this.log(method, originalUrl, res.statusCode || 500, start, req.user),
+        // The global exception filter runs after interceptors, so res.statusCode
+        // is still its unset default (200) here — derive the real status from
+        // the error itself instead, mirroring AllExceptionsFilter's own logic.
+        error: (err: unknown) =>
+          this.log(
+            method,
+            originalUrl,
+            err instanceof HttpException ? err.getStatus() : 500,
+            start,
+            req.user,
+          ),
       }),
     );
   }

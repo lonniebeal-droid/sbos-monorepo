@@ -224,6 +224,9 @@ importers:
       '@types/node':
         specifier: ^22.10.5
         version: 22.20.1
+      dotenv:
+        specifier: ^16.4.5
+        version: 16.6.1
       prisma:
         specifier: ^6.2.1
         version: 6.19.3(typescript@5.9.3)

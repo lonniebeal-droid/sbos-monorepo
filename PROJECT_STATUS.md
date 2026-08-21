@@ -1,7 +1,5 @@
 # SBOS — Project Status
 
-_Last updated: 2026-07-25_
-
 SBOS (Success Brand Operating System) is a **multi-tenant SaaS behavioral-health
 operating system**. It is a product in its own right; **SuccessBrand is Tenant
 #1**, not the subject of the platform. There is no hardcoded tenant logic —
@@ -10,63 +8,14 @@ organizations, locations, staff, clinicians, clients, roles, and permissions.
 **Jessie AI** is the platform's proprietary AI layer, architected as a
 provider-abstracted module so it can eventually be licensed independently.
 
-## Delivered
+## Current status
 
-### Platform & architecture
-- pnpm + Turborepo monorepo: `apps/web`, `apps/api`, `packages/database`,
-  `packages/core`, `packages/tsconfig`.
-- Shared domain logic in `@sbos/core` (RBAC + note rules) with unit tests —
-  no duplicated business logic across services.
-- Multi-tenant row isolation (`organizationId`) across all 31 data models.
+This file previously carried its own snapshot of what's built and what's
+outstanding; that content drifted out of sync with reality and has been
+removed in favor of a single source of truth:
 
-### Web (`apps/web`) — Next.js 15
-- Auth (JWT cookie + edge middleware), responsive dashboard shell, dark mode.
-- Seven modules: Schedule, Calendar, Clients, Clinical Notes (interactive
-  BIRP/DAP/SOAP composer), Billing, Reports, Settings.
-
-### API (`apps/api`) — NestJS 10 (`/api/v1`, Swagger at `/docs`)
-- **117 routes** across 20 resource groups.
-- Auth (JWT access+refresh), hierarchical RBAC, validation, rate limiting.
-- Prisma-backed, tenant-scoped: Organizations, Locations, Clients,
-  Appointments (conflict detection), **Clinical Notes** (BIRP/DAP/SOAP/progress/
-  group; draft→sign→co-sign→amend; version history; audit trail; AI draft),
-  Diagnoses, Medications, Treatment Plans (goals/objectives), Documents
-  (presigned upload/download, e-sign).
-- Cross-cutting modules: **AuditModule** (immutable trail), **AiModule**
-  (Jessie note-assistant, provider-swappable), **StorageModule** (S3-swappable).
-
-### Database (`packages/database`) — Prisma + PostgreSQL
-- 41 models, 31 enums; six migrations (initial + note versions/templates +
-  scheduling + billing reference + Jessie AI + feature flags).
-- Generated client singleton; idempotent dev seed.
-
-## In progress / next
-- Wire the web app to the live API (remove interim dev credential store); MFA.
-- Apply migrations + seed against a real PostgreSQL (needs `DATABASE_URL`).
-- Live provider adapters are built and config-selected (OpenAI chat, Stripe
-  payments, Resend email, Twilio SMS); they activate automatically when keys are
-  supplied — voice remains to be added.
-- Production infrastructure: Redis/BullMQ, S3, WebSockets, HIPAA controls.
-  (Docker + Compose + GitHub Actions CI are in place.)
-- Surface the new API resources in the web UI.
-
-### Historical phase notes
-- Phase 10 Enterprise (analytics, notifications, messaging, tasks, file mgmt,
-  feature flags, system health).
-- Wire web ↔ API auth; remove interim dev credential stores; MFA (TOTP).
-
-## Known issues / notes
-- **No live database in this environment**: migrations/seed are prepared but not
-  applied; DB-backed endpoints error until `DATABASE_URL` targets a reachable
-  PostgreSQL. The API boots without a DB by design.
-- **Interim dev credential stores** (`apps/api/.../users.service.ts` seed,
-  `apps/web/src/lib/dev-users.ts`) exist for local sign-in only; they are not
-  tenant logic and will be replaced when web↔API auth is wired.
-- **External integrations** (Stripe, Twilio, Resend, hosted LLM providers) are
-  architected behind interfaces but require credentials to activate.
-- Prisma `package.json#prisma` seed-config deprecation warning (non-blocking).
-
-## Verification (latest)
-- `turbo run build` → 5/5 · `turbo run lint` → 7/7 · `turbo run test` → 6/6
-  (5 unit assertions in `@sbos/core`).
-- API boots without a DB; 55 routes mapped across 12 groups.
+- **What's built, what's in progress, and known issues:**
+  [`docs/CURRENT_STATUS.md`](docs/CURRENT_STATUS.md)
+- **Why key decisions were made (RBAC, multi-tenancy, retention, etc.):**
+  [`docs/DECISIONS.md`](docs/DECISIONS.md)
+- **Feature-level roadmap:** [`docs/ROADMAP.md`](docs/ROADMAP.md)

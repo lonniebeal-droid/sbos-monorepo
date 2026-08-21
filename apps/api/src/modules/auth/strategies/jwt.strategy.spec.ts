@@ -60,6 +60,15 @@ describe('JwtStrategy.validate', () => {
     expect(() => strategy.validate(refreshPayload)).toThrow(UnauthorizedException);
   });
 
+  it('throws UnauthorizedException for a payload missing the type claim entirely', () => {
+    const strategy = makeStrategy();
+    const { type: _type, ...payloadWithoutType } = basePayload;
+
+    expect(() => strategy.validate(payloadWithoutType as JwtPayload)).toThrow(
+      UnauthorizedException,
+    );
+  });
+
   it('KNOWN GAP: does not reject a well-formed payload for a user that no longer exists or is inactive', () => {
     // JwtStrategy performs no database lookup at all -- it trusts every claim
     // in an already-signature-verified access token. If this test starts
