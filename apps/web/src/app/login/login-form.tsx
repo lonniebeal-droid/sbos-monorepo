@@ -180,7 +180,7 @@ export function LoginForm({
 
       {showDemoCredentials && (
         <div className="rounded-md border border-dashed bg-muted/40 p-3 text-xs text-muted-foreground">
-          <p className="font-medium text-foreground">Development access</p>
+          <p className="font-medium text-foreground">Demo access</p>
           <p>admin@sbos.health · clinician@sbos.health</p>
           <p>Password: Sbos!2026</p>
         </div>

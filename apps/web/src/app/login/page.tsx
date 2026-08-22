@@ -23,13 +23,20 @@ export default function LoginPage() {
           <span className="text-lg font-semibold">SBOS</span>
         </div>
         <div className="space-y-4">
+          <div className="inline-flex w-fit rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-medium uppercase tracking-[0.2em] text-primary-foreground/85">
+            Live SBOS demo
+          </div>
           <h1 className="text-3xl font-semibold leading-tight">
-            The operating system built for modern service businesses.
+            Current SBOS workflows for scheduling, notes, billing, tasks, and reporting.
           </h1>
           <p className="max-w-md text-primary-foreground/80">
-            Scheduling, documentation, billing, and analytics in one secure
-            platform — with an optional behavioral health module built with
-            HIPAA-conscious safeguards for clinical practices.
+            This live site is a product demo of the current SBOS build. It
+            uses sample workspace data, preserves the existing sign-in flow,
+            and is not for real patient records or compliance claims.
+          </p>
+          <p className="max-w-md text-sm text-primary-foreground/70">
+            Behavioral health workflows shown in the demo are examples only and
+            do not represent a HealthOS deployment.
           </p>
         </div>
         <p className="text-sm text-primary-foreground/70">
@@ -50,7 +57,7 @@ export default function LoginPage() {
               Welcome back
             </h2>
             <p className="text-sm text-muted-foreground">
-              Sign in to your workspace.
+              Sign in to the SBOS demo workspace.
             </p>
           </div>
           <Suspense>

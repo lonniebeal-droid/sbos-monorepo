@@ -46,6 +46,14 @@ export default async function AppLayout({
           tabIndex={-1}
         >
           <div className="mx-auto w-full max-w-7xl space-y-6 p-4 md:p-6 lg:p-8">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+              <p className="font-medium">SBOS live demo</p>
+              <p className="mt-1 text-amber-900/80">
+                This environment showcases current SBOS workflows with sample
+                data only. Do not use it for real patient records or compliance
+                claims.
+              </p>
+            </div>
             {children}
           </div>
         </main>

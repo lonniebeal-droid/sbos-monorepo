@@ -58,7 +58,7 @@ export function Sidebar({ className }: { className?: string }) {
 
       <div className="border-t border-sidebar-border p-4 text-xs text-muted-foreground">
         <p className="font-medium text-foreground">Success Brand OS</p>
-        <p>v0.1.0 · Secure & compliance-ready</p>
+        <p>v0.1.0 · Live demo build</p>
       </div>
     </aside>
   );

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     template: "%s · SBOS",
   },
   description:
-    "Success Brand Operating System — a production-grade platform for scheduling, documentation, billing, and analytics, with an optional behavioral health module for clinical practices.",
+    "Success Brand Operating System live demo — current workflows for scheduling, documentation, billing, tasks, and reporting shown with sample data only.",
 };
 
 export const viewport: Viewport = {
