@@ -1,9 +1,14 @@
-import { NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import * as bcrypt from 'bcryptjs';
 
 import { UsersService } from './users.service';
 import type { PrismaService } from '../../prisma/prisma.service';
+import { Role } from '../../common/enums/role.enum';
 
 function makeService(overrides?: { prisma?: Partial<PrismaService> }) {
   const prisma = (overrides?.prisma ?? {}) as PrismaService;
@@ -147,5 +152,113 @@ describe('UsersService.findActiveById', () => {
     const { service } = makeService({ prisma });
 
     await expect(service.findActiveById('missing')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('UsersService.findByIdInOrganization', () => {
+  it('scopes the lookup to the caller organization', async () => {
+    const findFirst = vi.fn().mockResolvedValue({
+      ...baseRecord,
+      passwordHash: 'irrelevant',
+      status: 'ACTIVE',
+    });
+    const prisma = { user: { findFirst } } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    const result = await service.findByIdInOrganization('org1', 'u1');
+
+    expect(result.id).toBe('u1');
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { id: 'u1', organizationId: 'org1' },
+    });
+  });
+
+  it('throws NotFoundException for a user in another organization', async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const prisma = { user: { findFirst } } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(
+      service.findByIdInOrganization('org2', 'u1'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('UsersService.create', () => {
+  const dto = {
+    email: 'New.User@sbos.health',
+    name: 'Jordan Practitioner',
+    password: 'S3cure!Pass',
+    role: Role.CLINICIAN,
+  };
+
+  function prismaWithCreate() {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const create = vi.fn().mockImplementation(({ data }) =>
+      Promise.resolve({
+        ...baseRecord,
+        id: 'u9',
+        email: data.email,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        role: data.role,
+        organizationId: data.organizationId,
+      }),
+    );
+    return {
+      findFirst,
+      create,
+      prisma: { user: { findFirst, create } } as unknown as PrismaService,
+    };
+  }
+
+  it('creates the user in the actor organization, ignoring any client value', async () => {
+    const { create, prisma } = prismaWithCreate();
+    const { service } = makeService({ prisma });
+
+    const result = await service.create(
+      { organizationId: 'org1', role: Role.ORG_ADMIN },
+      { ...dto, organizationId: 'org-attacker' } as never,
+    );
+
+    expect(result.organizationId).toBe('org1');
+    expect(create.mock.calls[0][0].data.organizationId).toBe('org1');
+  });
+
+  it('rejects creating a user that outranks the actor', async () => {
+    const { create, prisma } = prismaWithCreate();
+    const { service } = makeService({ prisma });
+
+    await expect(
+      service.create(
+        { organizationId: 'org1', role: Role.ORG_ADMIN },
+        { ...dto, role: Role.SUPER_ADMIN },
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('allows creating a user at the actor own role level', async () => {
+    const { prisma } = prismaWithCreate();
+    const { service } = makeService({ prisma });
+
+    const result = await service.create(
+      { organizationId: 'org1', role: Role.ORG_ADMIN },
+      { ...dto, role: Role.ORG_ADMIN },
+    );
+
+    expect(result.role).toBe(Role.ORG_ADMIN);
+  });
+
+  it('rejects a duplicate email inside the organization', async () => {
+    const findFirst = vi.fn().mockResolvedValue({ id: 'existing' });
+    const create = vi.fn();
+    const prisma = { user: { findFirst, create } } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(
+      service.create({ organizationId: 'org1', role: Role.ORG_ADMIN }, dto),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(create).not.toHaveBeenCalled();
   });
 });

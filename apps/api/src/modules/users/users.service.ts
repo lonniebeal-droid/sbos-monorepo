@@ -1,10 +1,12 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { Role as PrismaRole, type Prisma, type User } from '@sbos/database';
+import { roleSatisfies } from '@sbos/core';
 
 import { Role } from '../../common/enums/role.enum';
 import {
@@ -63,6 +65,24 @@ export class UsersService {
   }
 
   /**
+   * Tenant-scoped lookup. Use for any request where the id comes from the
+   * caller: a user in another organization must be indistinguishable from a
+   * user that does not exist.
+   */
+  async findByIdInOrganization(
+    organizationId: string,
+    id: string,
+  ): Promise<UserEntity> {
+    const record = await this.prisma.user.findFirst({
+      where: { id, organizationId },
+    });
+    if (!record) {
+      throw new NotFoundException(`User ${id} not found`);
+    }
+    return this.toEntity(record);
+  }
+
+  /**
    * Like findById, but treats a non-ACTIVE account the same as a missing one.
    * Use this anywhere a fresh authorization decision is being made (e.g.
    * reissuing tokens on refresh) so a suspended/deactivated account can't
@@ -107,10 +127,25 @@ export class UsersService {
     });
   }
 
-  async create(dto: CreateUserDto): Promise<UserEntity> {
+  /**
+   * Create a user inside `actor`'s own organization. The organization comes
+   * from the caller's token, never the request body, and the new account may
+   * not outrank its creator.
+   */
+  async create(
+    actor: { organizationId: string; role: Role },
+    dto: CreateUserDto,
+  ): Promise<UserEntity> {
+    if (!roleSatisfies(actor.role, dto.role)) {
+      throw new ForbiddenException(
+        'Cannot create a user with more privileges than your own role',
+      );
+    }
+
+    const organizationId = actor.organizationId;
     const existing = await this.prisma.user.findFirst({
       where: {
-        organizationId: dto.organizationId,
+        organizationId,
         email: dto.email.trim().toLowerCase(),
       },
       select: { id: true },
@@ -123,7 +158,7 @@ export class UsersService {
     const [firstName, ...rest] = dto.name.trim().split(' ');
     const record = await this.prisma.user.create({
       data: {
-        organizationId: dto.organizationId,
+        organizationId,
         email: dto.email.trim().toLowerCase(),
         passwordHash,
         firstName: firstName ?? dto.name,

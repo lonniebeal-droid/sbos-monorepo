@@ -37,15 +37,21 @@ export class UsersController {
 
   @Get(':id')
   @Roles(Role.SUPERVISOR)
-  @ApiOperation({ summary: 'Get a user by id' })
-  findOne(@Param('id') id: string) {
-    return this.usersService.findById(id);
+  @ApiOperation({ summary: 'Get a user in the current organization by id' })
+  findOne(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+  ) {
+    return this.usersService.findByIdInOrganization(user.organizationId, id);
   }
 
   @Post()
   @Roles(Role.ORG_ADMIN)
-  @ApiOperation({ summary: 'Create a new user' })
-  create(@Body() dto: CreateUserDto) {
-    return this.usersService.create(dto);
+  @ApiOperation({ summary: 'Create a new user in the current organization' })
+  create(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateUserDto,
+  ) {
+    return this.usersService.create(user, dto);
   }
 }
