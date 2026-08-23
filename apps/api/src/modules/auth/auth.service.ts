@@ -261,6 +261,50 @@ export class AuthService {
     return this.usersService.findById(userId);
   }
 
+  /** One-time bootstrap: create an organization and first ORG_ADMIN when none exist. */
+  async bootstrap(dto: {
+    token: string;
+    organizationName: string;
+    organizationSlug: string;
+    adminEmail: string;
+    adminPassword: string;
+  }): Promise<{ success: true }> {
+    const configured = this.configService.get('adminBootstrapToken' as any, {
+      infer: false,
+    }) as string | undefined;
+    const envToken = configured ?? process.env.ADMIN_BOOTSTRAP_TOKEN;
+    if (!envToken) {
+      throw new BadRequestException('Bootstrap is not enabled');
+    }
+    if (dto.token !== envToken) {
+      throw new UnauthorizedException('Invalid bootstrap token');
+    }
+
+    // Disallow bootstrap if any ORG_ADMIN already exists.
+    const existingAdmin = await this.prisma.user.findFirst({ where: { role: 'ORG_ADMIN' } });
+    if (existingAdmin) {
+      throw new BadRequestException('An organization admin already exists');
+    }
+
+    // Create organization and admin user.
+    const org = await this.prisma.organization.create({
+      data: {
+        name: dto.organizationName,
+        slug: dto.organizationSlug,
+      },
+    });
+
+    await this.usersService.create({
+      organizationId: org.id,
+      email: dto.adminEmail,
+      password: dto.adminPassword,
+      name: 'Administrator',
+      role: Role.ORG_ADMIN,
+    } as any);
+
+    return { success: true };
+  }
+
   /** Exposed for documentation/testing of role constants. */
   get roles(): Role[] {
     return Object.values(Role);
