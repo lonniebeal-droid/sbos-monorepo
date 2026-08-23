@@ -39,6 +39,9 @@ export class AuthController {
     return this.authService.bootstrap(dto);
   }
 
+  // Must be public: the global JwtAuthGuard otherwise rejects login requests
+  // (401) before credentials are ever checked.
+  @Public()
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
   @HttpCode(200)

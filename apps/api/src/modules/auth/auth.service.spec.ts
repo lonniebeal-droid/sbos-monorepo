@@ -1,5 +1,6 @@
 import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
+import * as bcrypt from 'bcryptjs';
 
 import { AuthService } from './auth.service';
 import type { UsersService } from '../users/users.service';
@@ -375,5 +376,75 @@ describe('AuthService.logout', () => {
 
     expect(prisma.refreshToken.updateMany).not.toHaveBeenCalled();
     expect(result).toEqual({ success: true });
+  });
+});
+
+describe('AuthService.resetPassword — regression: reset → new password works, old password fails', () => {
+  function makeResetService() {
+    const storedHash = { current: '$2a$10$originalhash' };
+    let resetSeq = 0;
+    const prisma = {
+      user: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'u1', email: 'admin@sbos.health' }),
+        // Capture exactly what resetPassword persists, as the DB would.
+        update: vi.fn().mockImplementation(({ data }: { data: { passwordHash: string } }) => {
+          storedHash.current = data.passwordHash;
+          return Promise.resolve({});
+        }),
+      },
+      passwordReset: {
+        create: vi.fn().mockImplementation(({ data }) =>
+          Promise.resolve({ id: `reset-${++resetSeq}`, ...data })),
+        findUnique: vi.fn(),
+        update: vi.fn().mockResolvedValue({}),
+      },
+      refreshToken: {
+        create: vi.fn().mockResolvedValue({}),
+        deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
+      },
+    };
+    const { service } = makeService({ prisma });
+    return { service, prisma, storedHash };
+  }
+
+  it('forgot → reset writes a hash of the NEW password only; new verifies, old does not', async () => {
+    vi.useFakeTimers();
+    try {
+      const { service, prisma, storedHash } = makeResetService();
+
+      const forgot = await service.forgotPassword('admin@sbos.health');
+      const link = forgot.previewLink;
+      expect(link).toBeTruthy();
+      const resetId = link!.split('resetId=')[1].split('&')[0];
+      const token = link!.split('token=')[1];
+      const createdReset = await prisma.passwordReset.create.mock.results[0].value;
+
+      prisma.passwordReset.findUnique.mockResolvedValue(createdReset);
+
+      await service.resetPassword({ resetId, token, password: 'NewAdmin1!' });
+
+      // The persisted hash must verify against the NEW password…
+      const newOk = await bcrypt.compare('NewAdmin1!', storedHash.current);
+      expect(newOk).toBe(true);
+      // …and must NOT verify against any previously used password.
+      const oldOk = await bcrypt.compare('Admin123!', storedHash.current);
+      expect(oldOk).toBe(false);
+      const oldOk2 = await bcrypt.compare('AdminPass123!', storedHash.current);
+      expect(oldOk2).toBe(false);
+
+      // Reset is single-use and refresh sessions are revoked.
+      expect(prisma.passwordReset.update).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: createdReset.id }, data: expect.objectContaining({ usedAt: expect.any(Date) }) }),
+      );
+      expect(prisma.refreshToken.deleteMany).toHaveBeenCalledWith({ where: { userId: createdReset.userId } });
+
+      // A second use of the same reset must be rejected.
+      prisma.passwordReset.findUnique.mockResolvedValue({ ...createdReset, usedAt: new Date() });
+      await expect(
+        service.resetPassword({ resetId, token, password: 'Again1!' }),
+      ).rejects.toThrow('Reset token already used');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

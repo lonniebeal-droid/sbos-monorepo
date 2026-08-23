@@ -168,6 +168,16 @@ export class UsersService {
         role: dto.role as unknown as PrismaRole,
       },
     });
+
+    // Clinicians must have a Clinician profile row: appointments and notes
+    // reference the profile (Appointment.clinicianId -> Clinician.id), not
+    // the user row. Without it, booking for an invited clinician fails.
+    if (record.role === 'CLINICIAN') {
+      await this.prisma.clinician.create({
+        data: { organizationId: record.organizationId, userId: record.id },
+      });
+    }
+
     return this.toEntity(record);
   }
 
