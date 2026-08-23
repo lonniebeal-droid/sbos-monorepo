@@ -26,8 +26,4 @@ export class CreateUserDto {
   @ApiProperty({ enum: Role, example: Role.CLINICIAN })
   @IsEnum(Role)
   role!: Role;
-
-  @ApiProperty({ example: 'org_success_brand' })
-  @IsString()
-  organizationId!: string;
 }
