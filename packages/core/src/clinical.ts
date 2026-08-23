@@ -11,23 +11,39 @@ export type RoleName =
   | "BILLING"
   | "CLINICIAN"
   | "FRONT_DESK";
-
-/** Lower rank = broader authority. */
-export const ROLE_RANK: Record<RoleName, number> = {
-  SUPER_ADMIN: 0,
-  ORG_ADMIN: 1,
-  SUPERVISOR: 2,
-  BILLING: 3,
-  CLINICIAN: 4,
-  FRONT_DESK: 5,
+/**
+ * Explicit role satisfaction map.
+ * Use this map to determine whether an acting role satisfies a required role.
+ * This replaces a linear numeric ordering to allow isolated functional roles
+ * (FRONT_DESK, CLINICIAN, BILLING) that do not implicitly satisfy each other.
+ */
+export const ROLE_SATISFIES: Record<RoleName, RoleName[]> = {
+  SUPER_ADMIN: [
+    'SUPER_ADMIN',
+    'ORG_ADMIN',
+    'SUPERVISOR',
+    'BILLING',
+    'CLINICIAN',
+    'FRONT_DESK',
+  ],
+  ORG_ADMIN: [
+    'SUPER_ADMIN',
+    'ORG_ADMIN',
+    'SUPERVISOR',
+    'BILLING',
+    'CLINICIAN',
+    'FRONT_DESK',
+  ],
+  SUPERVISOR: ['SUPERVISOR', 'CLINICIAN'],
+  BILLING: ['BILLING'],
+  CLINICIAN: ['CLINICIAN'],
+  FRONT_DESK: ['FRONT_DESK'],
 };
 
-/**
- * Whether an acting role satisfies a required role. A higher-privilege role
- * (lower rank) always satisfies a requirement for a lower-privilege role.
- */
+/** Whether an acting role satisfies a required role. */
 export function roleSatisfies(acting: RoleName, required: RoleName): boolean {
-  return ROLE_RANK[acting] <= ROLE_RANK[required];
+  const allowed = ROLE_SATISFIES[acting] ?? [];
+  return allowed.includes(required);
 }
 
 /** Whether an acting role satisfies at least one of the required roles. */
