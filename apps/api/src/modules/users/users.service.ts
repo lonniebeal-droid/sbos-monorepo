@@ -47,6 +47,11 @@ export class UsersService {
     organizationId: string,
   ): Promise<{ id: string; previewLink?: string }>
   {
+    // Ensure the inviter belongs to the same organization to prevent cross-org invites.
+    const inviter = await this.prisma.user.findUnique({ where: { id: invitedById }, select: { organizationId: true } });
+    if (!inviter || inviter.organizationId !== organizationId) {
+      throw new Error('Inviter does not belong to the target organization');
+    }
     const token = crypto.randomBytes(24).toString('hex');
     const tokenHash = await bcrypt.hash(token, 10);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
