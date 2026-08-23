@@ -13,8 +13,6 @@ import type { AuthenticatedUser } from '../../common/interfaces/authenticated-us
 import { CreateUserDto } from './dto/create-user.dto';
 import { UsersService } from './users.service';
 import { InviteUserDto } from './dto/invite-user.dto';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import type { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { AuthService } from '../auth/auth.service';
 
 @ApiTags('Users')

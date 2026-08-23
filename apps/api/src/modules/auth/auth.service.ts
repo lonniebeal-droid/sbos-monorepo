@@ -273,9 +273,7 @@ export class AuthService {
     adminEmail: string;
     adminPassword: string;
   }): Promise<{ success: true }> {
-    const configured = this.configService.get('adminBootstrapToken' as any, {
-      infer: false,
-    }) as string | undefined;
+    const configured = this.configService.get('adminBootstrapToken' as any) as string | undefined;
     const envToken = configured ?? process.env.ADMIN_BOOTSTRAP_TOKEN;
     if (!envToken) {
       throw new BadRequestException('Bootstrap is not enabled');
