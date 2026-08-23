@@ -1,6 +1,6 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Max, Min, IsBoolean } from 'class-validator';
 
 /** Reusable query parameters for paginated, searchable list endpoints. */
 export class PaginationQueryDto {
@@ -28,6 +28,12 @@ export class PaginationQueryDto {
   @IsOptional()
   @IsString()
   search?: string;
+
+  @ApiPropertyOptional({ description: 'Include soft-deleted records (admin only)' })
+  @IsOptional()
+  @Type(() => Boolean)
+  @IsBoolean()
+  includeDeleted?: boolean;
 }
 
 export interface PaginatedResult<T> {
