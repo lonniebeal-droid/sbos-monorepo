@@ -22,6 +22,10 @@ import { AuthResponseDto, AuthTokensDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { MfaService } from './mfa.service';
 import { MfaChallengeDto, MfaSetupResponseDto } from './dto/mfa.dto';
+import * as bcrypt from 'bcryptjs';
+import * as crypto from 'node:crypto';
+import { AcceptInviteDto } from './dto/accept-invite.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -259,6 +263,108 @@ export class AuthService {
 
   async profile(userId: string): Promise<UserEntity> {
     return this.usersService.findById(userId);
+  }
+
+  /** One-time bootstrap: create an organization and first ORG_ADMIN when none exist. */
+  async bootstrap(dto: {
+    token: string;
+    organizationName: string;
+    organizationSlug: string;
+    adminEmail: string;
+    adminPassword: string;
+  }): Promise<{ success: true }> {
+    const configured = this.configService.get('adminBootstrapToken' as any) as string | undefined;
+    const envToken = configured ?? process.env.ADMIN_BOOTSTRAP_TOKEN;
+    if (!envToken) {
+      throw new BadRequestException('Bootstrap is not enabled');
+    }
+    if (dto.token !== envToken) {
+      throw new UnauthorizedException('Invalid bootstrap token');
+    }
+
+    // Disallow bootstrap if any ORG_ADMIN already exists.
+    const existingAdmin = await this.prisma.user.findFirst({ where: { role: 'ORG_ADMIN' } });
+    if (existingAdmin) {
+      throw new BadRequestException('An organization admin already exists');
+    }
+
+    // Create organization and admin user.
+    const org = await this.prisma.organization.create({
+      data: {
+        name: dto.organizationName,
+        slug: dto.organizationSlug,
+      },
+    });
+
+    await this.usersService.create({
+      organizationId: org.id,
+      email: dto.adminEmail,
+      password: dto.adminPassword,
+      name: 'Administrator',
+      role: Role.ORG_ADMIN,
+    } as any);
+
+    return { success: true };
+  }
+
+  /** Accept an invite: validate token, create user, mark invite used. */
+  async acceptInvite(dto: AcceptInviteDto): Promise<{ success: true }> {
+    const invite = await this.prisma.userInvite.findUnique({ where: { id: dto.inviteId } });
+    if (!invite) throw new BadRequestException('Invalid invite');
+    if (invite.usedAt) throw new BadRequestException('Invite already used');
+    if (invite.expiresAt <= new Date()) throw new BadRequestException('Invite expired');
+
+    const ok = await bcrypt.compare(dto.token, invite.tokenHash);
+    if (!ok) throw new BadRequestException('Invalid invite token');
+
+    // Create the user in the invited organization with the invited role.
+    await this.usersService.create({
+      organizationId: invite.organizationId,
+      email: invite.email,
+      password: dto.password,
+      name: dto.name,
+      role: invite.role as unknown as Role,
+    } as any);
+
+    await this.prisma.userInvite.update({ where: { id: invite.id }, data: { usedAt: new Date() } });
+    return { success: true };
+  }
+
+  /** Request a password reset. Silent response regardless of email existence. */
+  async forgotPassword(email: string): Promise<{ success: true; previewLink?: string }>
+  {
+    const record = await this.prisma.user.findFirst({ where: { email: email.trim().toLowerCase() } });
+    if (!record) return { success: true };
+
+    const token = crypto.randomBytes(24).toString('hex');
+    const tokenHash = await bcrypt.hash(token, 10);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    const reset = await this.prisma.passwordReset.create({ data: { userId: record.id, tokenHash, expiresAt } });
+
+    if (process.env.NODE_ENV !== 'production') {
+      const previewLink = `/auth/reset?resetId=${reset.id}&token=${token}`;
+      return { success: true, previewLink };
+    }
+    return { success: true };
+  }
+
+  /** Reset a password using a reset record. */
+  async resetPassword(dto: ResetPasswordDto): Promise<{ success: true }> {
+    const reset = await this.prisma.passwordReset.findUnique({ where: { id: dto.resetId } });
+    if (!reset) throw new BadRequestException('Invalid reset token');
+    if (reset.usedAt) throw new BadRequestException('Reset token already used');
+    if (reset.expiresAt <= new Date()) throw new BadRequestException('Reset token expired');
+
+    const ok = await bcrypt.compare(dto.token, reset.tokenHash);
+    if (!ok) throw new BadRequestException('Invalid reset token');
+
+    // Update user's password and mark token used. Revoke refresh tokens.
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+    await this.prisma.user.update({ where: { id: reset.userId }, data: { passwordHash } });
+    await this.prisma.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } });
+    await this.prisma.refreshToken.deleteMany({ where: { userId: reset.userId } });
+    return { success: true };
   }
 
   /** Exposed for documentation/testing of role constants. */

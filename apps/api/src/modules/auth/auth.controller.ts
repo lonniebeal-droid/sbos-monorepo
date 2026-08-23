@@ -12,6 +12,10 @@ import { Public } from '../../common/decorators/public.decorator';
 import type { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { UserEntity } from '../users/entities/user.entity';
 import { AuthService } from './auth.service';
+import { AcceptInviteDto } from './dto/accept-invite.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
+import { BootstrapDto } from './dto/bootstrap.dto';
 import { AuthResponseDto, AuthTokensDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
@@ -27,6 +31,16 @@ import {
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
+  @Public()
+  @Post('bootstrap')
+  @HttpCode(201)
+  @ApiOperation({ summary: 'One-time initial admin bootstrap (requires env token)' })
+  async bootstrap(@Body() dto: BootstrapDto) {
+    return this.authService.bootstrap(dto);
+  }
+
+  // Must be public: the global JwtAuthGuard otherwise rejects login requests
+  // (401) before credentials are ever checked.
   @Public()
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   @Post('login')
@@ -111,5 +125,29 @@ export class AuthController {
   @ApiOkResponse({ type: UserEntity })
   profile(@CurrentUser() user: AuthenticatedUser): Promise<UserEntity> {
     return this.authService.profile(user.id);
+  }
+
+  @Public()
+  @Post('invite/accept')
+  @HttpCode(201)
+  @ApiOperation({ summary: 'Accept an invitation and set your password' })
+  acceptInvite(@Body() dto: AcceptInviteDto) {
+    return this.authService.acceptInvite(dto);
+  }
+
+  @Public()
+  @Post('forgot')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Request a password reset (silent response)' })
+  forgot(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @Public()
+  @Post('reset')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Reset password using a one-time token' })
+  reset(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
   }
 }

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { AuditAction, ClaimStatus, type Prisma } from '@sbos/database';
 
 import { paginate, type PaginationQueryDto } from '../../common/dto/pagination.dto';
@@ -111,6 +111,29 @@ export class ClaimsService {
     dto: UpdateClaimStatusDto,
   ) {
     const claim = await this.ensure(organizationId, id);
+    // Enforce monotonic claim status transitions to prevent regressions
+    const statusOrder: ClaimStatus[] = [
+      ClaimStatus.DRAFT,
+      ClaimStatus.READY,
+      ClaimStatus.SUBMITTED,
+      ClaimStatus.ACCEPTED,
+      ClaimStatus.DENIED,
+      ClaimStatus.PARTIALLY_PAID,
+      ClaimStatus.PAID,
+      ClaimStatus.APPEALED,
+      ClaimStatus.VOID,
+    ];
+    const currentIndex = statusOrder.indexOf(claim.status as ClaimStatus);
+    const newIndex = statusOrder.indexOf(dto.status as ClaimStatus);
+    if (newIndex === -1) throw new BadRequestException('Invalid claim status');
+    if (newIndex < currentIndex) {
+      throw new BadRequestException('Invalid status transition');
+    }
+
+    if (dto.status === ClaimStatus.PAID && (dto.paidAmount === undefined || dto.paidAmount <= 0)) {
+      throw new BadRequestException('paidAmount must be provided and > 0 when marking PAID');
+    }
+
     const data: Prisma.ClaimUpdateInput = {
       status: dto.status as ClaimStatus,
       denialReason: dto.denialReason,

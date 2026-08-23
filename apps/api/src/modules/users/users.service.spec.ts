@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import * as bcrypt from 'bcryptjs';
 
 import { UsersService } from './users.service';
+import { Role } from '../../common/enums/role.enum';
 import type { PrismaService } from '../../prisma/prisma.service';
 
 function makeService(overrides?: { prisma?: Partial<PrismaService> }) {
@@ -147,5 +148,55 @@ describe('UsersService.findActiveById', () => {
     const { service } = makeService({ prisma });
 
     await expect(service.findActiveById('missing')).rejects.toBeInstanceOf(NotFoundException);
+  });
+});
+
+describe('UsersService.create — clinician profile regression', () => {
+  it('creates a Clinician profile row when the new user is a CLINICIAN (appointments/notes reference the profile, not the user row)', async () => {
+    const created = { id: 'u2', organizationId: 'org1', role: 'CLINICIAN', createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date() };
+    const clinicianCreate = vi.fn().mockResolvedValue({ id: 'c1', userId: 'u2' });
+    const prisma = {
+      user: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue(created),
+      },
+      clinician: { create: clinicianCreate },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await service.create({
+      organizationId: 'org1',
+      email: 'new-clinician@sbos.health',
+      password: 'Password123!',
+      name: 'Jordan Fox',
+      role: Role.CLINICIAN,
+    } as never);
+
+    expect(clinicianCreate).toHaveBeenCalledWith({
+      data: { organizationId: 'org1', userId: 'u2' },
+    });
+  });
+
+  it('does not create a Clinician profile for non-clinician roles', async () => {
+    const created = { id: 'u3', organizationId: 'org1', role: 'FRONT_DESK', createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date() };
+    const clinicianCreate = vi.fn();
+    const prisma = {
+      user: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue(created),
+      },
+      clinician: { create: clinicianCreate },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await service.create({
+      organizationId: 'org1',
+      email: 'fd@sbos.health',
+      password: 'Password123!',
+      name: 'Peyton Park',
+      role: Role.FRONT_DESK,
+    } as never);
+
+    expect(clinicianCreate).not.toHaveBeenCalled();
   });
 });

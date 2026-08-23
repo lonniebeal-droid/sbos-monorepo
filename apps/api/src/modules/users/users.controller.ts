@@ -12,12 +12,26 @@ import { PaginationQueryDto } from '../../common/dto/pagination.dto';
 import type { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UsersService } from './users.service';
+import { InviteUserDto } from './dto/invite-user.dto';
+import { AuthService } from '../auth/auth.service';
 
 @ApiTags('Users')
 @ApiBearerAuth()
 @Controller({ path: 'users', version: '1' })
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  // Admin-only invite: create a single-use invite token scoped to the org.
+  @Post('invite')
+  @Roles(Role.ORG_ADMIN)
+  @ApiOperation({ summary: 'Invite a user to the organization' })
+  async invite(
+    @Body() dto: InviteUserDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    // Delegate to AuthService for token creation and persistence.
+    return this.usersService.createInvite(dto.email, dto.role, user.id, user.organizationId);
+  }
 
   @Get()
   @Roles(Role.ORG_ADMIN)

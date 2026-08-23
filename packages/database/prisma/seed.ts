@@ -21,6 +21,12 @@ const prisma = new PrismaClient();
  * API have realistic data to render against in local environments.
  */
 async function main(): Promise<void> {
+  if (process.env.SBOS_SEED_DEV !== 'true') {
+    // Prevent accidental seeding in production. Require explicit opt-in.
+    // eslint-disable-next-line no-console
+    console.log('Skipping seed: SBOS_SEED_DEV not set to true');
+    return;
+  }
   const org = await prisma.organization.upsert({
     where: { slug: "success-brand" },
     update: {},
