@@ -8,8 +8,8 @@ export type RoleName =
   | "SUPER_ADMIN"
   | "ORG_ADMIN"
   | "SUPERVISOR"
-  | "CLINICIAN"
   | "BILLING"
+  | "CLINICIAN"
   | "FRONT_DESK";
 
 /** Lower rank = broader authority. */
@@ -17,8 +17,8 @@ export const ROLE_RANK: Record<RoleName, number> = {
   SUPER_ADMIN: 0,
   ORG_ADMIN: 1,
   SUPERVISOR: 2,
-  CLINICIAN: 3,
-  BILLING: 4,
+  BILLING: 3,
+  CLINICIAN: 4,
   FRONT_DESK: 5,
 };
 

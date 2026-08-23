@@ -47,4 +47,12 @@ describe('RolesGuard', () => {
       ForbiddenException,
     );
   });
+
+  it('enforces BILLING requirement: allows BILLING, rejects CLINICIAN', () => {
+    const guard = guardWithRequiredRoles([Role.BILLING]);
+    expect(guard.canActivate(contextWithUser({ role: Role.BILLING }))).toBe(true);
+    expect(() => guard.canActivate(contextWithUser({ role: Role.CLINICIAN }))).toThrow(
+      ForbiddenException,
+    );
+  });
 });
