@@ -23,7 +23,7 @@ export default function AcceptInvite() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    const res = await fetch('/api/auth/invite/accept', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inviteId, token, name, password }) });
+    const res = await fetch('http://localhost:4000/api/v1/auth/invite/accept', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ inviteId, token, name, password }) });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       setError(data.message || 'Failed');

@@ -21,7 +21,7 @@ export default function FirstAdmin() {
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch('/api/auth/bootstrap', {
+      const res = await fetch('http://localhost:4000/api/v1/auth/bootstrap', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, organizationName: orgName, organizationSlug: orgSlug, adminEmail: email, adminPassword: password }),

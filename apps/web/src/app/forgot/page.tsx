@@ -11,7 +11,7 @@ export default function Forgot() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setResult(null);
-    const res = await fetch('/api/auth/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+    const res = await fetch('http://localhost:4000/api/v1/auth/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
     const data = await res.json().catch(() => ({}));
     setResult({ ok: res.ok, data });
   }

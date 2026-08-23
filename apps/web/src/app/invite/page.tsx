@@ -12,7 +12,7 @@ export default function InvitePage() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setResult(null);
-    const res = await fetch('/api/users/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, role }) });
+    const res = await fetch('http://localhost:4000/api/v1/users/invite', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, role }) });
     const data = await res.json().catch(() => ({}));
     setResult({ ok: res.ok, data });
   }
