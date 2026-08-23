@@ -7,6 +7,8 @@ import * as bcrypt from 'bcryptjs';
 import { Role as PrismaRole, type Prisma, type User } from '@sbos/database';
 
 import { Role } from '../../common/enums/role.enum';
+import * as crypto from 'node:crypto';
+import * as bcrypt from 'bcryptjs';
 import {
   paginate,
   type PaginatedResult,
@@ -35,6 +37,37 @@ export class UsersService {
       organizationId: record.organizationId,
       createdAt: record.createdAt.toISOString(),
     };
+  }
+
+  /** Create a single-use invite record and return an opaque token (dev-only). */
+  async createInvite(
+    email: string,
+    role: Role,
+    invitedById: string,
+    organizationId: string,
+  ): Promise<{ id: string; previewLink?: string }>
+  {
+    const token = crypto.randomBytes(24).toString('hex');
+    const tokenHash = await bcrypt.hash(token, 10);
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
+
+    const record = await this.prisma.userInvite.create({
+      data: {
+        organizationId,
+        email: email.trim().toLowerCase(),
+        role: role as unknown as PrismaRole,
+        tokenHash,
+        expiresAt,
+        invitedById,
+      },
+    });
+
+    // Only reveal the raw token in non-production for dev/test convenience.
+    if (process.env.NODE_ENV !== 'production') {
+      const previewLink = `/auth/invite/accept?inviteId=${record.id}&token=${token}`;
+      return { id: record.id, previewLink };
+    }
+    return { id: record.id };
   }
 
   /** Validate email/password. Email lookup is global (first match) for login. */

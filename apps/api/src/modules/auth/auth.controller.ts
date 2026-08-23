@@ -12,6 +12,9 @@ import { Public } from '../../common/decorators/public.decorator';
 import type { AuthenticatedUser } from '../../common/interfaces/authenticated-user.interface';
 import { UserEntity } from '../users/entities/user.entity';
 import { AuthService } from './auth.service';
+import { AcceptInviteDto } from './dto/accept-invite.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { BootstrapDto } from './dto/bootstrap.dto';
 import { AuthResponseDto, AuthTokensDto } from './dto/auth-response.dto';
 import { LoginDto } from './dto/login.dto';
@@ -119,5 +122,29 @@ export class AuthController {
   @ApiOkResponse({ type: UserEntity })
   profile(@CurrentUser() user: AuthenticatedUser): Promise<UserEntity> {
     return this.authService.profile(user.id);
+  }
+
+  @Public()
+  @Post('invite/accept')
+  @HttpCode(201)
+  @ApiOperation({ summary: 'Accept an invitation and set your password' })
+  acceptInvite(@Body() dto: AcceptInviteDto) {
+    return this.authService.acceptInvite(dto);
+  }
+
+  @Public()
+  @Post('forgot')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Request a password reset (silent response)' })
+  forgot(@Body() dto: ForgotPasswordDto) {
+    return this.authService.forgotPassword(dto.email);
+  }
+
+  @Public()
+  @Post('reset')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Reset password using a one-time token' })
+  reset(@Body() dto: ResetPasswordDto) {
+    return this.authService.resetPassword(dto);
   }
 }

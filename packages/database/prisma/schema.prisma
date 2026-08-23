@@ -308,6 +308,7 @@ model Organization {
   promptTemplates   PromptTemplate[]
   knowledgeArticles KnowledgeArticle[]
   featureFlags      FeatureFlag[]
+  userInvites       UserInvite[]
 
   @@index([isActive])
 }
@@ -496,11 +497,50 @@ model User {
   threadMemberships ThreadParticipant[]
   noteVersions      NoteVersion[]       @relation("NoteVersionEditor")
   refreshTokens     RefreshToken[]
+  sentInvites       UserInvite[]
+  passwordResets    PasswordReset[]
 
   @@unique([organizationId, email])
   @@index([organizationId])
   @@index([role])
   @@index([status])
+}
+
+/// Single-use invite tokens for onboarding users. Token hashes are stored,
+/// tokens expire and may be marked used to prevent reuse. Scoped per org.
+model UserInvite {
+  id             String   @id @default(cuid())
+  organizationId String
+  email          String
+  role           Role
+  tokenHash      String
+  expiresAt      DateTime
+  usedAt         DateTime?
+  invitedById    String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  invitedBy    User?        @relation(fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([email])
+  @@index([expiresAt])
+}
+
+/// Password reset tokens for existing users. Token hashes stored, single-use,
+/// expire and are invalidated on use.
+model PasswordReset {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 model Location {
