@@ -38,4 +38,16 @@ describe('ClaimsService (transitions)', () => {
     const updated = await svc.updateStatus('org', 'actor', 'c3', { status: ClaimStatus.SUBMITTED as any });
     expect(updated.status).toBe(ClaimStatus.SUBMITTED);
   });
+
+  it('records an audit entry when creating a claim', async () => {
+    const created = { id: 'c-new', claimNumber: 'CLM-999', billedAmount: 50 };
+    const prisma = { claim: { create: vi.fn().mockResolvedValue(created) } } as any;
+    const audit = { record: vi.fn() } as any;
+    const svc2 = new ClaimsService(prisma, audit);
+    const dto = { clientId: 'c1', appointmentId: 'a1', billedAmount: 50, serviceDate: '2026-08-23' } as any;
+    const result = await svc2.create('org1', 'actor1', dto);
+    expect(prisma.claim.create).toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: expect.any(String), entityType: 'Claim', entityId: created.id }));
+    expect(result).toBe(created);
+  });
 });
