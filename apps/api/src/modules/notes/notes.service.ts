@@ -511,6 +511,7 @@ export class NotesService {
       type: dto.type,
       prompt: dto.prompt,
       clientName,
+      presentingProblem: dto.presentingProblem,
       interventions: dto.interventions,
     });
   }

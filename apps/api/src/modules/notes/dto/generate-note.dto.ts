@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsArray,
   IsEnum,
@@ -31,6 +32,16 @@ export class GenerateNoteDto {
   @IsOptional()
   @IsString()
   clientId?: string;
+
+  @ApiPropertyOptional({
+    description: 'The primary concern or reason for the session',
+    example: 'Anxiety related to work transition',
+  })
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MinLength(1)
+  presentingProblem?: string;
 
   @ApiPropertyOptional({ type: [String], example: ['CBT', 'mindfulness'] })
   @IsOptional()

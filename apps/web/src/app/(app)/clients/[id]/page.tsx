@@ -5,6 +5,9 @@ import { ArrowLeft, CalendarDays, FileText, Pill, Stethoscope } from "lucide-rea
 import { apiFetch, ApiError, tryApiFetch, type Paginated } from "@/lib/api";
 import { formatDate, titleCaseEnum } from "@/lib/format";
 import { PageHeader } from "@/components/dashboard/page-header";
+import { EditClientDialog } from "@/components/clients/edit-client-dialog";
+import { AddDiagnosisDialog } from "@/components/clients/add-diagnosis-dialog";
+import { AddMedicationDialog } from "@/components/clients/add-medication-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -121,7 +124,12 @@ export default async function ClientChartPage({
       <PageHeader
         title={displayName}
         description={`MRN ${client.mrn} · ${age(client.dateOfBirth)} yrs · ${titleCaseEnum(client.gender)}`}
-        actions={<Badge variant="secondary">{titleCaseEnum(client.status)}</Badge>}
+        actions={
+          <div className="flex items-center gap-2">
+            <Badge variant="secondary">{titleCaseEnum(client.status)}</Badge>
+            <EditClientDialog client={client} />
+          </div>
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-4">
@@ -165,6 +173,9 @@ export default async function ClientChartPage({
         </TabsContent>
 
         <TabsContent value="diagnoses">
+          <div className="mb-4 flex justify-end">
+            <AddDiagnosisDialog clientId={id} />
+          </div>
           <ListCard
             empty="No diagnoses recorded."
             items={client.diagnoses.map((d) => ({
@@ -177,6 +188,9 @@ export default async function ClientChartPage({
         </TabsContent>
 
         <TabsContent value="medications">
+          <div className="mb-4 flex justify-end">
+            <AddMedicationDialog clientId={id} />
+          </div>
           <ListCard
             empty="No medications recorded."
             items={meds.map((m) => ({

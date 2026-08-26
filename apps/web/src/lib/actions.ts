@@ -84,6 +84,8 @@ export interface GenerateNoteInput {
   type: "BIRP" | "DAP" | "SOAP";
   prompt: string;
   clientId?: string;
+  presentingProblem?: string;
+  interventions?: string[];
 }
 
 export type GenerateNoteResult =
@@ -188,6 +190,96 @@ export async function updateTaskStatusAction(
     });
     revalidatePath("/tasks");
     revalidatePath("/dashboard");
+    return { ok: true };
+  } catch (error) {
+    return toError(error);
+  }
+}
+
+export interface UpdateClientInput {
+  firstName?: string;
+  lastName?: string;
+  preferredName?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  email?: string;
+  phone?: string;
+  status?: string;
+  primaryClinicianId?: string;
+}
+
+export async function updateClientAction(
+  clientId: string,
+  input: UpdateClientInput,
+): Promise<ActionResult> {
+  try {
+    await apiFetch(`/clients/${clientId}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    });
+    revalidatePath(`/clients/${clientId}`);
+    revalidatePath("/clients");
+    return { ok: true };
+  } catch (error) {
+    return toError(error);
+  }
+}
+
+export async function deleteClientAction(
+  clientId: string,
+): Promise<ActionResult> {
+  try {
+    await apiFetch(`/clients/${clientId}`, { method: "DELETE" });
+    revalidatePath("/clients");
+    return { ok: true };
+  } catch (error) {
+    return toError(error);
+  }
+}
+
+export interface NewDiagnosisInput {
+  clientId: string;
+  icd10Code: string;
+  description: string;
+  type?: string;
+  status?: string;
+}
+
+export async function addDiagnosisAction(
+  input: NewDiagnosisInput,
+): Promise<ActionResult> {
+  try {
+    await apiFetch("/diagnoses", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    revalidatePath(`/clients/${input.clientId}`);
+    return { ok: true };
+  } catch (error) {
+    return toError(error);
+  }
+}
+
+export interface NewMedicationInput {
+  clientId: string;
+  name: string;
+  dosage?: string;
+  frequency?: string;
+  route?: string;
+  status?: string;
+  startDate?: string;
+  notes?: string;
+}
+
+export async function addMedicationAction(
+  input: NewMedicationInput,
+): Promise<ActionResult> {
+  try {
+    await apiFetch("/medications", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    revalidatePath(`/clients/${input.clientId}`);
     return { ok: true };
   } catch (error) {
     return toError(error);

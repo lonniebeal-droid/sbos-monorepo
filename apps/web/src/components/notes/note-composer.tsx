@@ -70,6 +70,8 @@ export function NoteComposer({
   const [clientId, setClientId] = useState("");
   const [clinicianId, setClinicianId] = useState("");
   const [prompt, setPrompt] = useState("");
+  const [presentingProblem, setPresentingProblem] = useState("");
+  const [interventions, setInterventions] = useState("");
   const [sections, setSections] = useState<Record<string, string>>({});
 
   const disabled = clients.length === 0 || clinicians.length === 0;
@@ -79,6 +81,8 @@ export function NoteComposer({
     setClientId("");
     setClinicianId("");
     setPrompt("");
+    setPresentingProblem("");
+    setInterventions("");
     setSections({});
   }
 
@@ -92,6 +96,10 @@ export function NoteComposer({
       type,
       prompt,
       clientId: clientId || undefined,
+      presentingProblem: presentingProblem || undefined,
+      interventions: interventions
+        ? interventions.split(",").map((s) => s.trim()).filter(Boolean)
+        : undefined,
     });
     setGenerating(false);
     if (!result.ok) {
@@ -209,6 +217,30 @@ export function NoteComposer({
                 value={prompt}
                 onChange={(e) => setPrompt(e.target.value)}
               />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1">
+                  <Label htmlFor="note-problem" className="text-xs">
+                    Presenting problem
+                  </Label>
+                  <Input
+                    id="note-problem"
+                    placeholder="e.g. Anxiety related to work transition"
+                    value={presentingProblem}
+                    onChange={(e) => setPresentingProblem(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label htmlFor="note-interventions" className="text-xs">
+                    Interventions (comma-separated)
+                  </Label>
+                  <Input
+                    id="note-interventions"
+                    placeholder="e.g. CBT, mindfulness"
+                    value={interventions}
+                    onChange={(e) => setInterventions(e.target.value)}
+                  />
+                </div>
+              </div>
               <Button
                 type="button"
                 variant="secondary"

@@ -75,6 +75,24 @@ describe('NotesService', () => {
     );
   });
 
+  it('passes presentingProblem to the assistant when provided', async () => {
+    const { service, assistant } = makeService();
+
+    await service.generateDraft('org1', {
+      type: 'SOAP' as never,
+      prompt: 'Session summary',
+      presentingProblem: 'Difficulty sleeping',
+    });
+
+    expect(assistant.generateNoteDraft).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'SOAP',
+        prompt: 'Session summary',
+        presentingProblem: 'Difficulty sleeping',
+      }),
+    );
+  });
+
   it('deletes a DRAFT note and records a DELETE audit entry', async () => {
     const existing = { id: 'n1', status: NoteStatus.DRAFT };
     const prisma = {

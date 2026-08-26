@@ -5,7 +5,7 @@ import { formatCurrency, titleCaseEnum } from "@/lib/format";
 import { PageHeader } from "@/components/dashboard/page-header";
 import { StatCard } from "@/components/dashboard/stat-card";
 import { ApiErrorBanner } from "@/components/dashboard/api-state";
-import { Button } from "@/components/ui/button";
+import { ExportReportsButton } from "@/components/reports/export-reports-button";
 import {
   Card,
   CardContent,
@@ -43,8 +43,8 @@ export default async function ReportsPage() {
     <>
       <PageHeader
         title="Reports & Analytics"
-        description="Operational insights across your business."
-        actions={<Button variant="outline">Export</Button>}
+        description="Operational and clinical insights across your practice."
+        actions={<ExportReportsButton />}
       />
 
       {!overviewRes.ok && <ApiErrorBanner message={overviewRes.error} />}
