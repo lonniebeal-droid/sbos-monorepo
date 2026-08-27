@@ -14,6 +14,77 @@ function makeService(overrides?: { prisma?: Partial<PrismaService> }) {
   return { service: new ClientsService(prisma, audit, email), audit };
 }
 
+describe('ClientsService.update', () => {
+  it('updates client fields and audits the change', async () => {
+    const existing = { id: 'c1', mrn: 'MRN-1' };
+    const updated = { ...existing, firstName: 'Jane', lastName: 'Doe-Smith', phone: '555-0199' };
+    const prisma = {
+      client: {
+        findFirst: vi.fn().mockResolvedValue(existing),
+        update: vi.fn().mockResolvedValue(updated),
+      },
+    } as unknown as PrismaService;
+    const { service, audit } = makeService({ prisma });
+
+    const result = await service.update('org1', 'actor1', 'c1', {
+      firstName: 'Jane',
+      lastName: 'Doe-Smith',
+      phone: '555-0199',
+    });
+
+    expect(prisma.client.update).toHaveBeenCalledWith({
+      where: { id: 'c1' },
+      data: { firstName: 'Jane', lastName: 'Doe-Smith', phone: '555-0199' },
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org1',
+        actorId: 'actor1',
+        action: AuditAction.UPDATE,
+        entityType: 'Client',
+        entityId: 'c1',
+        metadata: { changedFields: ['firstName', 'lastName', 'phone'] },
+      }),
+    );
+    expect(result).toEqual(updated);
+  });
+
+  it('converts dateOfBirth string to Date when provided', async () => {
+    const existing = { id: 'c1', mrn: 'MRN-1' };
+    const prisma = {
+      client: {
+        findFirst: vi.fn().mockResolvedValue(existing),
+        update: vi.fn().mockResolvedValue(existing),
+      },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await service.update('org1', 'actor1', 'c1', {
+      dateOfBirth: '1990-01-15',
+    });
+
+    expect(prisma.client.update).toHaveBeenCalledWith({
+      where: { id: 'c1' },
+      data: { dateOfBirth: new Date('1990-01-15') },
+    });
+  });
+
+  it('throws NotFoundException when client is missing', async () => {
+    const prisma = {
+      client: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        update: vi.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(
+      service.update('org1', 'actor1', 'missing', { firstName: 'X' }),
+    ).rejects.toThrow(NotFoundException);
+    expect(prisma.client.update).not.toHaveBeenCalled();
+  });
+});
+
 describe('ClientsService.remove (soft-delete)', () => {
   it('soft-deletes via update(deletedAt) instead of delete(), and audits it', async () => {
     const existing = { id: 'c1', mrn: 'MRN-1' };
