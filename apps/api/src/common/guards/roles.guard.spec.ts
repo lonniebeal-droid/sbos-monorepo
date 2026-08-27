@@ -48,73 +48,59 @@ describe('RolesGuard', () => {
     );
   });
 
-  it('enforces BILLING requirement: allows BILLING, rejects CLINICIAN', () => {
+  it('BILLING satisfies BILLING requirement', () => {
     const guard = guardWithRequiredRoles([Role.BILLING]);
     expect(guard.canActivate(contextWithUser({ role: Role.BILLING }))).toBe(true);
-    expect(() => guard.canActivate(contextWithUser({ role: Role.CLINICIAN }))).toThrow(
-      ForbiddenException,
-    );
   });
 
-  it('enforces FRONT_DESK requirement: allows FRONT_DESK, rejects CLINICIAN', () => {
+  it('CLINICIAN satisfies BILLING requirement (higher in hierarchy)', () => {
+    const guard = guardWithRequiredRoles([Role.BILLING]);
+    expect(guard.canActivate(contextWithUser({ role: Role.CLINICIAN }))).toBe(true);
+  });
+
+  it('FRONT_DESK does NOT satisfy BILLING requirement', () => {
+    const guard = guardWithRequiredRoles([Role.BILLING]);
+    expect(() =>
+      guard.canActivate(contextWithUser({ role: Role.FRONT_DESK })),
+    ).toThrow(ForbiddenException);
+  });
+
+  it('FRONT_DESK satisfies FRONT_DESK requirement', () => {
     const guard = guardWithRequiredRoles([Role.FRONT_DESK]);
     expect(guard.canActivate(contextWithUser({ role: Role.FRONT_DESK }))).toBe(true);
-    expect(() => guard.canActivate(contextWithUser({ role: Role.CLINICIAN }))).toThrow(
-      ForbiddenException,
-    );
   });
 
-  it('ensures functional roles are isolated (no cross-satisfaction)', () => {
-    // CLINICIAN should NOT satisfy FRONT_DESK
-    expect(() =>
-      guardWithRequiredRoles([Role.FRONT_DESK]).canActivate(
-        contextWithUser({ role: Role.CLINICIAN }),
-      ),
-    ).toThrow(ForbiddenException);
+  it('CLINICIAN satisfies FRONT_DESK requirement (higher in hierarchy)', () => {
+    const guard = guardWithRequiredRoles([Role.FRONT_DESK]);
+    expect(guard.canActivate(contextWithUser({ role: Role.CLINICIAN }))).toBe(true);
+  });
 
-    // FRONT_DESK should NOT satisfy CLINICIAN
+  it('BILLING does NOT satisfy CLINICIAN requirement', () => {
+    const guard = guardWithRequiredRoles([Role.CLINICIAN]);
     expect(() =>
-      guardWithRequiredRoles([Role.CLINICIAN]).canActivate(
-        contextWithUser({ role: Role.FRONT_DESK }),
-      ),
+      guard.canActivate(contextWithUser({ role: Role.BILLING })),
     ).toThrow(ForbiddenException);
+  });
 
-    // BILLING should NOT satisfy CLINICIAN
+  it('FRONT_DESK does NOT satisfy CLINICIAN requirement', () => {
+    const guard = guardWithRequiredRoles([Role.CLINICIAN]);
     expect(() =>
-      guardWithRequiredRoles([Role.CLINICIAN]).canActivate(
-        contextWithUser({ role: Role.BILLING }),
-      ),
-    ).toThrow(ForbiddenException);
-
-    // CLINICIAN should NOT satisfy BILLING
-    expect(() =>
-      guardWithRequiredRoles([Role.BILLING]).canActivate(
-        contextWithUser({ role: Role.CLINICIAN }),
-      ),
-    ).toThrow(ForbiddenException);
-
-    // FRONT_DESK should NOT satisfy BILLING
-    expect(() =>
-      guardWithRequiredRoles([Role.BILLING]).canActivate(
-        contextWithUser({ role: Role.FRONT_DESK }),
-      ),
-    ).toThrow(ForbiddenException);
-
-    // BILLING should NOT satisfy FRONT_DESK
-    expect(() =>
-      guardWithRequiredRoles([Role.FRONT_DESK]).canActivate(
-        contextWithUser({ role: Role.BILLING }),
-      ),
+      guard.canActivate(contextWithUser({ role: Role.FRONT_DESK })),
     ).toThrow(ForbiddenException);
   });
 
   it('SUPER_ADMIN satisfies all functional roles', () => {
-    const guardFD = guardWithRequiredRoles([Role.FRONT_DESK]);
-    const guardCL = guardWithRequiredRoles([Role.CLINICIAN]);
-    const guardBL = guardWithRequiredRoles([Role.BILLING]);
-    expect(guardFD.canActivate(contextWithUser({ role: Role.SUPER_ADMIN }))).toBe(true);
-    expect(guardCL.canActivate(contextWithUser({ role: Role.SUPER_ADMIN }))).toBe(true);
-    expect(guardBL.canActivate(contextWithUser({ role: Role.SUPER_ADMIN }))).toBe(true);
-  });
+    for (const role of [
+      Role.ORG_ADMIN,
+      Role.SUPERVISOR,
+      Role.CLINICIAN,
+      Role.BILLING,
+      Role.FRONT_DESK,
+    ]) {
+      const guard = guardWithRequiredRoles([role]);
+      expect(
+        guard.canActivate(contextWithUser({ role: Role.SUPER_ADMIN })),
+      ).toBe(true);
+    }
   });
 });
