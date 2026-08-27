@@ -116,4 +116,5 @@ describe('RolesGuard', () => {
     expect(guardCL.canActivate(contextWithUser({ role: Role.SUPER_ADMIN }))).toBe(true);
     expect(guardBL.canActivate(contextWithUser({ role: Role.SUPER_ADMIN }))).toBe(true);
   });
+  });
 });

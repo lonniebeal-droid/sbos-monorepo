@@ -19,6 +19,8 @@ const prisma = new PrismaClient();
  * Idempotent development seed. Establishes one organization with a full set of
  * users, clinicians, clients, appointments, and clinical records so the app and
  * API have realistic data to render against in local environments.
+ *
+ * REFUSES to run in production to prevent demo data from polluting real systems.
  */
 async function main(): Promise<void> {
   if (process.env.SBOS_SEED_DEV !== 'true') {

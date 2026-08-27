@@ -2,18 +2,26 @@ PROJECT: SBOS
 AGENT: SBOS Build Agent (mimo-v2.5-free)
 MODEL: opencode/mimo-v2.5-free
 STARTING HEAD: 25dd7f5
-ENDING HEAD: a0d84c4
+ENDING HEAD: a871644
 BRANCH: claude/sbos-demo-readiness-docs
 
-FILES CHANGED (23 files, +1612 / -6):
+COMMITS:
+  c51ab98 feat: demographics write flows + note composer enrichment
+  a0d84c4 feat(assessments): add assessments API module, PHQ-9/GAD-7 scoring, and client chart UI
+  74ad3a3 docs: add tracker update for SBOS build session
+  a871644 SBOS: verify end-to-end demo readiness
+
+FILES CHANGED (26 files, +1956 / -6):
 
   apps/api/src/ai/heuristic-note-assistant.spec.ts          (new)
   apps/api/src/app.module.ts                                (modified)
   apps/api/src/modules/assessments/assessments.controller.ts (new)
   apps/api/src/modules/assessments/assessments.module.ts    (new)
   apps/api/src/modules/assessments/assessments.service.ts   (new)
+  apps/api/src/modules/assessments/assessments.service.spec.ts (new)
   apps/api/src/modules/assessments/dto/create-assessment.dto.ts (new)
   apps/api/src/modules/assessments/dto/update-assessment.dto.ts (new)
+  apps/api/src/modules/clients/clients.service.spec.ts      (modified)
   apps/api/src/modules/notes/dto/generate-note.dto.spec.ts  (new)
   apps/api/src/modules/notes/dto/generate-note.dto.ts       (modified)
   apps/api/src/modules/notes/notes.service.spec.ts          (modified)
@@ -30,6 +38,7 @@ FILES CHANGED (23 files, +1612 / -6):
   packages/core/src/assessments.test.ts                     (new)
   packages/core/src/assessments.ts                          (new)
   packages/core/src/index.ts                                (modified)
+  SBOS_DEMO_READINESS.md                                    (new)
 
 FEATURES/FIXES:
 
@@ -57,21 +66,31 @@ FEATURES/FIXES:
    - AddAssessmentDialog with interactive per-question scoring and live score preview
    - Assessments tab on client detail page with stat card and history list
 
-5. ADDITIONAL TESTS
-   - heuristic-note-assistant.spec.ts: 2 tests for offline note generation
-   - generate-note.dto.spec.ts: 2 tests for DTO validation (trim, whitespace rejection)
+5. DEMO ACCEPTANCE TESTS
+   - assessments.service.spec.ts: 7 tests (CRUD, audit, NotFoundException)
+   - clients.service.spec.ts: 3 new tests for update (field update, dateOfBirth conversion, not-found)
 
 LINT RESULT: PASS (6/6 packages)
-TEST RESULT: PASS (25 core + 125 API = 150 total, 0 failures)
-BUILD RESULT: PASS (4/4 packages build; Next.js standalone trace collection slow on this machine but typecheck clean)
+TEST RESULT: PASS (25 core + 135 API = 160 total, 0 failures)
+BUILD RESULT: PASS (4/4 packages build)
 SECURITY VERIFICATION:
   - All new API endpoints use existing JWT + RBAC guards (CLINICIAN gate on writes)
   - Tenant isolation maintained via organizationId scoping on all queries
   - No credentials exposed, no security weakened
   - Assessment responses stored as JSON (Prisma InputJsonValue), no injection risk
 
-CURRENT STATUS: Two meaningful feature commits landed. All gates green.
-BLOCKERS: None (local build verified).
+RUNTIME ACCEPTANCE (local API + Postgres):
+  AUTH: PASS (login returns tokens + user)
+  CLIENTS: PASS (create, edit demographics, persist)
+  DIAGNOSES: PASS (add ICD-10, list, persist)
+  MEDICATIONS: PASS (add medication, list, persist)
+  NOTES: PASS (generate draft with enrichment, create, persist)
+  ASSESSMENTS: PASS (PHQ-9 score=12, GAD-7 score=8, list, persist)
+  RBAC: PASS (admin + clinician read, clinician write guard)
+  CSV: PASS (overview, appointments-by-status, claims-by-status)
+
+CURRENT STATUS: Demo-readiness milestone verified and committed. All gates green.
+BLOCKERS: None (local build + runtime verified).
 NEXT ACTION: Continue building toward production-ready LOCAL milestone. Next priorities:
   - Admissions module (schema exists, no API/UI yet)
   - Calendar drag-to-reschedule (complex client-side state)
