@@ -5,3 +5,4 @@
 export * from "./clinical.js";
 export * from "./scheduling.js";
 export * from "./money.js";
+export * from "./assessments.js";

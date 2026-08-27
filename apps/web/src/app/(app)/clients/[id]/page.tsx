@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ArrowLeft, CalendarDays, FileText, Pill, Stethoscope } from "lucide-react";
+import { ArrowLeft, CalendarDays, FileText, Pill, Stethoscope, ClipboardCheck } from "lucide-react";
 
 import { apiFetch, ApiError, tryApiFetch, type Paginated } from "@/lib/api";
 import { formatDate, titleCaseEnum } from "@/lib/format";
@@ -8,6 +8,7 @@ import { PageHeader } from "@/components/dashboard/page-header";
 import { EditClientDialog } from "@/components/clients/edit-client-dialog";
 import { AddDiagnosisDialog } from "@/components/clients/add-diagnosis-dialog";
 import { AddMedicationDialog } from "@/components/clients/add-medication-dialog";
+import { AddAssessmentDialog } from "@/components/clients/add-assessment-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -71,6 +72,13 @@ interface AppointmentRow {
   type: string;
   status: string;
 }
+interface AssessmentRow {
+  id: string;
+  instrument: string;
+  score: number | null;
+  severity: string | null;
+  administeredAt: string;
+}
 
 function age(dob: string): number {
   const diff = Date.now() - new Date(dob).getTime();
@@ -105,14 +113,16 @@ export default async function ClientChartPage({
     );
   }
 
-  const [notesRes, medsRes, apptRes] = await Promise.all([
+  const [notesRes, medsRes, apptRes, assessRes] = await Promise.all([
     tryApiFetch<Paginated<NoteRow>>(`/notes?clientId=${id}&limit=25`),
     tryApiFetch<MedicationRow[]>(`/medications?clientId=${id}`),
     tryApiFetch<Paginated<AppointmentRow>>(`/appointments?clientId=${id}&limit=25`),
+    tryApiFetch<AssessmentRow[]>(`/assessments?clientId=${id}`),
   ]);
   const notes = notesRes.ok ? notesRes.data.data : [];
   const meds = medsRes.ok ? medsRes.data : [];
   const appts = apptRes.ok ? apptRes.data.data : [];
+  const assessments = assessRes.ok ? assessRes.data : [];
 
   const displayName =
     `${client.firstName} ${client.lastName}` +
@@ -132,9 +142,10 @@ export default async function ClientChartPage({
         }
       />
 
-      <div className="grid gap-4 sm:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-5">
         <StatMini icon={Stethoscope} label="Diagnoses" value={client.diagnoses.length} />
         <StatMini icon={Pill} label="Medications" value={meds.length} />
+        <StatMini icon={ClipboardCheck} label="Assessments" value={assessments.length} />
         <StatMini icon={FileText} label="Notes" value={notes.length} />
         <StatMini icon={CalendarDays} label="Appointments" value={appts.length} />
       </div>
@@ -144,6 +155,7 @@ export default async function ClientChartPage({
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="diagnoses">Diagnoses</TabsTrigger>
           <TabsTrigger value="medications">Medications</TabsTrigger>
+          <TabsTrigger value="assessments">Assessments</TabsTrigger>
           <TabsTrigger value="notes">Notes</TabsTrigger>
           <TabsTrigger value="plans">Treatment Plans</TabsTrigger>
         </TabsList>
@@ -200,6 +212,44 @@ export default async function ClientChartPage({
               badge: titleCaseEnum(m.status),
             }))}
           />
+        </TabsContent>
+
+        <TabsContent value="assessments">
+          <div className="mb-4 flex justify-end">
+            <AddAssessmentDialog clientId={id} />
+          </div>
+          {assessments.length === 0 ? (
+            <Card>
+              <CardContent className="py-10 text-center text-sm text-muted-foreground">
+                No assessments recorded.
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <CardContent className="divide-y p-0">
+                {assessments.map((a) => (
+                  <div key={a.id} className="flex items-center justify-between p-4">
+                    <div>
+                      <p className="text-sm font-medium">{a.instrument}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDate(a.administeredAt)}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      {a.score != null && (
+                        <p className="text-sm font-semibold tabular-nums">
+                          Score: {a.score}
+                        </p>
+                      )}
+                      {a.severity && (
+                        <Badge variant="outline">{a.severity}</Badge>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="notes">

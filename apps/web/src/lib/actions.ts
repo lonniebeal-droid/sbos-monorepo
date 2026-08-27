@@ -286,6 +286,30 @@ export async function addMedicationAction(
   }
 }
 
+export interface NewAssessmentInput {
+  clientId: string;
+  instrument: string;
+  score?: number;
+  severity?: string;
+  responses?: Record<string, unknown>;
+  administeredAt?: string;
+}
+
+export async function addAssessmentAction(
+  input: NewAssessmentInput,
+): Promise<ActionResult> {
+  try {
+    await apiFetch("/assessments", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    revalidatePath(`/clients/${input.clientId}`);
+    return { ok: true };
+  } catch (error) {
+    return toError(error);
+  }
+}
+
 export interface UpdateOrganizationInput {
   name?: string;
   npi?: string;

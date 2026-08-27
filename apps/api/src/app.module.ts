@@ -23,6 +23,7 @@ import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { SchedulingModule } from './modules/scheduling/scheduling.module';
 import { NotesModule } from './modules/notes/notes.module';
 import { DiagnosesModule } from './modules/diagnoses/diagnoses.module';
+import { AssessmentsModule } from './modules/assessments/assessments.module';
 import { MedicationsModule } from './modules/medications/medications.module';
 import { TreatmentPlansModule } from './modules/treatment-plans/treatment-plans.module';
 import { DocumentsModule } from './modules/documents/documents.module';
@@ -64,6 +65,7 @@ import { HealthController } from './modules/health/health.controller';
     SchedulingModule,
     NotesModule,
     DiagnosesModule,
+    AssessmentsModule,
     MedicationsModule,
     TreatmentPlansModule,
     DocumentsModule,
