@@ -25,6 +25,15 @@ export interface AppConfig {
     twilioAuthToken?: string;
     twilioFromNumber?: string;
   };
+  /**
+   * Jessie / ElevenLabs agent tool auth.
+   * Map of agentSecret → organizationId (never trust org from the request body).
+   * Env: JESSIE_AGENT_SECRETS=orgId1:secret1,orgId2:secret2
+   */
+  jessieAgent: {
+    /** secret → organizationId */
+    secrets: Record<string, string>;
+  };
 }
 
 export default (): AppConfig => ({
@@ -58,4 +67,23 @@ export default (): AppConfig => ({
     twilioAuthToken: process.env.TWILIO_AUTH_TOKEN,
     twilioFromNumber: process.env.TWILIO_FROM_NUMBER,
   },
+  jessieAgent: {
+    secrets: parseAgentSecrets(process.env.JESSIE_AGENT_SECRETS),
+  },
 });
+
+/** Parse "orgId:secret,orgId2:secret2" into secret → organizationId. */
+function parseAgentSecrets(raw?: string): Record<string, string> {
+  const map: Record<string, string> = {};
+  if (!raw?.trim()) return map;
+  for (const part of raw.split(',')) {
+    const trimmed = part.trim();
+    if (!trimmed) continue;
+    const colon = trimmed.indexOf(':');
+    if (colon <= 0) continue;
+    const orgId = trimmed.slice(0, colon).trim();
+    const secret = trimmed.slice(colon + 1).trim();
+    if (orgId && secret) map[secret] = orgId;
+  }
+  return map;
+}
