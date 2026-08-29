@@ -19,7 +19,42 @@ export class ClaimsService {
     return `CLM-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
+  /**
+   * Ensure the client (and optional appointment) belong to this tenant.
+   * Client-supplied IDs must never cross organization boundaries.
+   */
+  private async ensureClientInOrg(
+    organizationId: string,
+    clientId: string,
+  ): Promise<void> {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+  }
+
+  private async ensureAppointmentInOrg(
+    organizationId: string,
+    appointmentId: string,
+  ): Promise<void> {
+    const appointment = await this.prisma.appointment.findFirst({
+      where: { id: appointmentId, organizationId },
+      select: { id: true },
+    });
+    if (!appointment) {
+      throw new NotFoundException(`Appointment ${appointmentId} not found`);
+    }
+  }
+
   async create(organizationId: string, actorId: string, dto: CreateClaimDto) {
+    await this.ensureClientInOrg(organizationId, dto.clientId);
+    if (dto.appointmentId) {
+      await this.ensureAppointmentInOrg(organizationId, dto.appointmentId);
+    }
+
     const claim = await this.prisma.claim.create({
       data: {
         organizationId,
@@ -81,27 +116,8 @@ export class ClaimsService {
     return claim;
   }
 
-  findOne(organizationId: string, id: string) {
+  async findOne(organizationId: string, id: string) {
     return this.ensure(organizationId, id);
-  }
-
-  async submit(organizationId: string, actorId: string, id: string) {
-    const claim = await this.ensure(organizationId, id);
-    const submitted = await this.prisma.claim.update({
-      where: { id },
-      data: { status: ClaimStatus.SUBMITTED, submittedAt: new Date() },
-    });
-
-    await this.audit.record({
-      organizationId,
-      actorId,
-      action: AuditAction.SUBMIT,
-      entityType: 'Claim',
-      entityId: id,
-      metadata: { claimNumber: claim.claimNumber, previousStatus: claim.status },
-    });
-
-    return submitted;
   }
 
   async updateStatus(
@@ -111,7 +127,7 @@ export class ClaimsService {
     dto: UpdateClaimStatusDto,
   ) {
     const claim = await this.ensure(organizationId, id);
-    // Enforce monotonic claim status transitions to prevent regressions
+
     const statusOrder: ClaimStatus[] = [
       ClaimStatus.DRAFT,
       ClaimStatus.READY,
@@ -146,8 +162,6 @@ export class ClaimsService {
     }
     const updated = await this.prisma.claim.update({ where: { id }, data });
 
-    // Claim status transitions (accept/deny/pay/appeal) are financially and
-    // clinically material — always audited with the prior and new status.
     await this.audit.record({
       organizationId,
       actorId,
