@@ -121,7 +121,7 @@ export class SchedulingController {
     @Param('id') id: string,
     @Body() dto: UpdateWaitlistDto,
   ) {
-    return this.waitlist.updateStatus(user.organizationId, id, dto);
+    return this.waitlist.updateStatus(user.organizationId, user.id, id, dto);
   }
 
   @Delete('waitlist/:id')
