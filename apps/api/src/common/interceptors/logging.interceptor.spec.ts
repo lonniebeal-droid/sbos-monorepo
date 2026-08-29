@@ -11,11 +11,13 @@ function makeHttpContext(opts: {
   originalUrl?: string;
   statusCode?: number;
   user?: AuthenticatedUser;
+  agentOrganizationId?: string;
 }): ExecutionContext {
   const req = {
     method: opts.method ?? 'GET',
     originalUrl: opts.originalUrl ?? '/api/v1/clients',
     user: opts.user,
+    agentOrganizationId: opts.agentOrganizationId,
   };
   const res = { statusCode: opts.statusCode ?? 200 };
   return {
@@ -72,16 +74,40 @@ describe('LoggingInterceptor', () => {
     const user = {
       id: 'u1',
       email: 'clinician@sbos.health',
-      name: 'Riley Chen',
-      role: 'CLINICIAN',
       organizationId: 'org1',
-    } as unknown as AuthenticatedUser;
-    const context = makeHttpContext({ statusCode: 200, user });
+      role: 'CLINICIAN',
+    } as AuthenticatedUser;
+    const context = makeHttpContext({
+      method: 'GET',
+      originalUrl: '/api/v1/clients',
+      statusCode: 200,
+      user,
+    });
 
-    interceptor.intercept(context, handlerReturning({})).subscribe();
+    interceptor.intercept(context, handlerReturning({ ok: true })).subscribe();
 
+    expect(logSpy).toHaveBeenCalledTimes(1);
     const line = logSpy.mock.calls[0][0] as string;
-    expect(line).toContain('user=u1 org=org1');
+    expect(line).toContain('user=u1');
+    expect(line).toContain('org=org1');
+  });
+
+  it('appends agentOrg when the request was authenticated via agent secret (no JWT user)', () => {
+    const interceptor = new LoggingInterceptor();
+    const logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const context = makeHttpContext({
+      method: 'POST',
+      originalUrl: '/api/v1/jessie/agent/tools/lookup_client',
+      statusCode: 200,
+      agentOrganizationId: 'org_test_abc',
+    });
+
+    interceptor.intercept(context, handlerReturning({ ok: true })).subscribe();
+
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    const line = logSpy.mock.calls[0][0] as string;
+    expect(line).toContain('agentOrg=org_test_abc');
+    expect(line).not.toContain('user=');
   });
 
   it('logs a 4xx response at "warn" level', () => {
