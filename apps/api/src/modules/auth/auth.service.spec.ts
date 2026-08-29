@@ -1,7 +1,6 @@
 import {
   BadRequestException,
   ConflictException,
-  NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
@@ -302,7 +301,7 @@ describe('AuthService.resetPassword', () => {
         user,
         passwordReset,
         refreshToken,
-        $transaction: vi.fn().mockImplementation(async (fn: (tx: typeof tx) => unknown) => fn(tx)),
+        $transaction: vi.fn().mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
       };
       const { service, audit } = makeService({ prisma });
 
@@ -372,7 +371,7 @@ describe('AuthService.resetPassword', () => {
       user,
       passwordReset,
       refreshToken,
-      $transaction: vi.fn().mockImplementation(async (fn: (tx: typeof tx) => unknown) => fn(tx)),
+      $transaction: vi.fn().mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
     };
     const { service, audit } = makeService({ prisma });
 
@@ -546,7 +545,7 @@ describe('AuthService.acceptInvite', () => {
       userInvite,
       user,
       clinician,
-      $transaction: vi.fn().mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx)),
+      $transaction: vi.fn().mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
     };
     const { service, audit } = makeService({ prisma });
 
@@ -692,7 +691,7 @@ describe('AuthService.acceptInvite', () => {
       userInvite,
       user,
       clinician,
-      $transaction: vi.fn().mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx)),
+      $transaction: vi.fn().mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
     };
     const { service, audit } = makeService({ prisma });
 
@@ -733,7 +732,7 @@ describe('AuthService.acceptInvite', () => {
       userInvite,
       user,
       clinician,
-      $transaction: vi.fn().mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx)),
+      $transaction: vi.fn().mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
     };
     const { service, audit } = makeService({ prisma });
 
@@ -779,7 +778,7 @@ describe('AuthService.acceptInvite', () => {
       userInvite,
       user,
       clinician,
-      $transaction: vi.fn().mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx)),
+      $transaction: vi.fn().mockImplementation(async (fn: (client: typeof tx) => unknown) => fn(tx)),
     };
     const { service } = makeService({ prisma });
 
