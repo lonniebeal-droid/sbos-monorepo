@@ -13,7 +13,26 @@ export class AssessmentsService {
     private readonly audit: AuditService,
   ) {}
 
-  create(organizationId: string, actorId: string, dto: CreateAssessmentDto) {
+  /**
+   * Client-supplied clientId must belong to this organization (and not be
+   * soft-deleted). Prevents cross-tenant assessment attachment.
+   */
+  private async ensureClientInOrg(
+    organizationId: string,
+    clientId: string,
+  ): Promise<void> {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+  }
+
+  async create(organizationId: string, actorId: string, dto: CreateAssessmentDto) {
+    await this.ensureClientInOrg(organizationId, dto.clientId);
+
     const { clientId, administeredAt, responses, ...rest } = dto;
     return this.prisma.assessment.create({
       data: {

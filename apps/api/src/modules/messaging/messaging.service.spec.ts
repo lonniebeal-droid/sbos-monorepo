@@ -6,8 +6,13 @@ import { MessagingService } from './messaging.service';
 import { MessageThreadTypeDto } from './dto/messaging.dto';
 import type { PrismaService } from '../../prisma/prisma.service';
 
-function makeService(overrides?: { prisma?: Record<string, unknown> }) {
-  const prisma = {
+function makeService(overrides?: { prisma?: Partial<PrismaService> }) {
+  const base = {
+    user: {
+      findMany: vi.fn().mockImplementation(({ where }: { where: { id: { in: string[] } } }) =>
+        Promise.resolve((where.id.in as string[]).map((id) => ({ id }))),
+      ),
+    },
     messageThread: {
       create: vi.fn(),
       findMany: vi.fn(),
@@ -21,12 +26,53 @@ function makeService(overrides?: { prisma?: Record<string, unknown> }) {
     message: {
       create: vi.fn(),
     },
-    ...overrides?.prisma,
+  };
+  const prisma = {
+    ...base,
+    ...(overrides?.prisma ?? {}),
   } as unknown as PrismaService;
   return { service: new MessagingService(prisma), prisma };
 }
 
-describe('MessagingService.createThread', () => {
+describe('MessagingService.createThread — tenant ownership of participantIds', () => {
+  it('rejects when any participant is not in the actor organization and never creates', async () => {
+    const prismaOverride = {
+      user: {
+        findMany: vi.fn().mockResolvedValue([{ id: 'creator1' }]),
+      },
+      messageThread: { create: vi.fn() },
+    } as unknown as Partial<PrismaService>;
+    const { service, prisma } = makeService({ prisma: prismaOverride });
+
+    await expect(
+      service.createThread('org1', 'creator1', {
+        participantIds: ['creator1', 'user-other-org'],
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.messageThread.create).not.toHaveBeenCalled();
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      where: { organizationId: 'org1', id: { in: ['creator1', 'user-other-org'] } },
+      select: { id: true },
+    });
+  });
+
+  it('creates when every participant belongs to the organization', async () => {
+    const created = { id: 't1', participants: [] };
+    const { service, prisma } = makeService();
+    (prisma.messageThread.create as ReturnType<typeof vi.fn>).mockResolvedValue(created);
+
+    const result = await service.createThread('org1', 'creator1', {
+      participantIds: ['other1'],
+    });
+
+    expect(prisma.user.findMany).toHaveBeenCalledWith({
+      where: { organizationId: 'org1', id: { in: ['creator1', 'other1'] } },
+      select: { id: true },
+    });
+    expect(prisma.messageThread.create).toHaveBeenCalled();
+    expect(result).toBe(created);
+  });
+
   it('dedupes the creator into participants and defaults type to DIRECT', async () => {
     const { service, prisma } = makeService();
     (prisma.messageThread.create as ReturnType<typeof vi.fn>).mockResolvedValue({
@@ -115,7 +161,7 @@ describe('MessagingService.getThread', () => {
     expect(prisma.threadParticipant.updateMany).not.toHaveBeenCalled();
   });
 
-  it('marks the caller\'s last-read marker and returns the thread with messages ascending', async () => {
+  it("marks the caller's last-read marker and returns the thread with messages ascending", async () => {
     const { service, prisma } = makeService();
     (prisma.messageThread.findFirst as ReturnType<typeof vi.fn>).mockResolvedValue({
       id: 't1',

@@ -117,7 +117,56 @@ export class NotesService {
     }
   }
 
+  /**
+   * Client-supplied ownership IDs must belong to this organization.
+   * Prevents cross-tenant note attachment via clientId/clinicianId/appointmentId.
+   */
+  private async ensureClientInOrg(
+    organizationId: string,
+    clientId: string,
+  ): Promise<void> {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+  }
+
+  private async ensureClinicianInOrg(
+    organizationId: string,
+    clinicianId: string,
+  ): Promise<void> {
+    const clinician = await this.prisma.clinician.findFirst({
+      where: { id: clinicianId, organizationId },
+      select: { id: true },
+    });
+    if (!clinician) {
+      throw new NotFoundException(`Clinician ${clinicianId} not found`);
+    }
+  }
+
+  private async ensureAppointmentInOrg(
+    organizationId: string,
+    appointmentId: string,
+  ): Promise<void> {
+    const appointment = await this.prisma.appointment.findFirst({
+      where: { id: appointmentId, organizationId },
+      select: { id: true },
+    });
+    if (!appointment) {
+      throw new NotFoundException(`Appointment ${appointmentId} not found`);
+    }
+  }
+
   async create(organizationId: string, authorId: string, dto: CreateNoteDto) {
+    await this.ensureClientInOrg(organizationId, dto.clientId);
+    await this.ensureClinicianInOrg(organizationId, dto.clinicianId);
+    if (dto.appointmentId) {
+      await this.ensureAppointmentInOrg(organizationId, dto.appointmentId);
+    }
+
     const type = dto.type as unknown as NoteType;
     this.validateSections(type, dto.sections);
 

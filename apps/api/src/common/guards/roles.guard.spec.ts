@@ -53,9 +53,11 @@ describe('RolesGuard', () => {
     expect(guard.canActivate(contextWithUser({ role: Role.BILLING }))).toBe(true);
   });
 
-  it('CLINICIAN satisfies BILLING requirement (higher in hierarchy)', () => {
+  it('CLINICIAN does NOT satisfy BILLING requirement (isolated functional roles)', () => {
     const guard = guardWithRequiredRoles([Role.BILLING]);
-    expect(guard.canActivate(contextWithUser({ role: Role.CLINICIAN }))).toBe(true);
+    expect(() =>
+      guard.canActivate(contextWithUser({ role: Role.CLINICIAN })),
+    ).toThrow(ForbiddenException);
   });
 
   it('FRONT_DESK does NOT satisfy BILLING requirement', () => {
@@ -70,9 +72,11 @@ describe('RolesGuard', () => {
     expect(guard.canActivate(contextWithUser({ role: Role.FRONT_DESK }))).toBe(true);
   });
 
-  it('CLINICIAN satisfies FRONT_DESK requirement (higher in hierarchy)', () => {
+  it('CLINICIAN does NOT satisfy FRONT_DESK requirement (isolated functional roles)', () => {
     const guard = guardWithRequiredRoles([Role.FRONT_DESK]);
-    expect(guard.canActivate(contextWithUser({ role: Role.CLINICIAN }))).toBe(true);
+    expect(() =>
+      guard.canActivate(contextWithUser({ role: Role.CLINICIAN })),
+    ).toThrow(ForbiddenException);
   });
 
   it('BILLING does NOT satisfy CLINICIAN requirement', () => {
@@ -86,6 +90,13 @@ describe('RolesGuard', () => {
     const guard = guardWithRequiredRoles([Role.CLINICIAN]);
     expect(() =>
       guard.canActivate(contextWithUser({ role: Role.FRONT_DESK })),
+    ).toThrow(ForbiddenException);
+  });
+
+  it('BILLING does NOT satisfy FRONT_DESK requirement (isolated functional roles)', () => {
+    const guard = guardWithRequiredRoles([Role.FRONT_DESK]);
+    expect(() =>
+      guard.canActivate(contextWithUser({ role: Role.BILLING })),
     ).toThrow(ForbiddenException);
   });
 

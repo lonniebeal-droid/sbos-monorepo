@@ -24,6 +24,50 @@ export class PaymentsService {
   ) {}
 
   /**
+   * Client-supplied ownership IDs must belong to this organization.
+   * Prevents cross-tenant payment attachment via clientId/invoiceId/claimId.
+   * Validated before any external charge side effect.
+   */
+  private async ensureClientInOrg(
+    organizationId: string,
+    clientId: string,
+  ): Promise<void> {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+  }
+
+  private async ensureInvoiceInOrg(
+    organizationId: string,
+    invoiceId: string,
+  ): Promise<void> {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, organizationId },
+      select: { id: true },
+    });
+    if (!invoice) {
+      throw new NotFoundException(`Invoice ${invoiceId} not found`);
+    }
+  }
+
+  private async ensureClaimInOrg(
+    organizationId: string,
+    claimId: string,
+  ): Promise<void> {
+    const claim = await this.prisma.claim.findFirst({
+      where: { id: claimId, organizationId },
+      select: { id: true },
+    });
+    if (!claim) {
+      throw new NotFoundException(`Claim ${claimId} not found`);
+    }
+  }
+
+  /**
    * Record a payment: charge via the configured provider, persist the payment,
    * and (when applied to an invoice) recompute the invoice balance/status.
    */
@@ -32,6 +76,14 @@ export class PaymentsService {
     userId: string,
     dto: RecordPaymentDto,
   ) {
+    await this.ensureClientInOrg(organizationId, dto.clientId);
+    if (dto.invoiceId) {
+      await this.ensureInvoiceInOrg(organizationId, dto.invoiceId);
+    }
+    if (dto.claimId) {
+      await this.ensureClaimInOrg(organizationId, dto.claimId);
+    }
+
     // Card/ACH route through the provider; cash/check/adjustment are manual.
     const charge = await this.provider.charge({
       organizationId,

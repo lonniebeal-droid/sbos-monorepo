@@ -8,11 +8,92 @@ import type { AuditService } from '../../audit/audit.service';
 import type { EmailProvider } from '../../channels/email.provider';
 
 function makeService(overrides?: { prisma?: Partial<PrismaService> }) {
-  const prisma = (overrides?.prisma ?? {}) as PrismaService;
+  const defaultPrisma = {
+    clinician: { findFirst: vi.fn().mockResolvedValue({ id: 'cl1' }) },
+    client: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn(),
+      update: vi.fn(),
+      findMany: vi.fn(),
+      count: vi.fn(),
+    },
+  };
+  const prisma = {
+    ...defaultPrisma,
+    ...(overrides?.prisma ?? {}),
+  } as unknown as PrismaService;
+  if (overrides?.prisma) {
+    Object.assign(prisma, overrides.prisma);
+  }
   const audit = { record: vi.fn() } as unknown as AuditService;
   const email = { send: vi.fn() } as unknown as EmailProvider;
-  return { service: new ClientsService(prisma, audit, email), audit };
+  return { service: new ClientsService(prisma, audit, email), audit, prisma };
 }
+
+describe('ClientsService.create — tenant ownership of primaryClinicianId', () => {
+  const baseDto = {
+    mrn: 'MRN-100',
+    firstName: 'Jordan',
+    lastName: 'Mitchell',
+    dateOfBirth: '1990-05-15',
+  };
+
+  it('rejects create when primaryClinicianId is not in the actor organization', async () => {
+    const prisma = {
+      clinician: { findFirst: vi.fn().mockResolvedValue(null) },
+      client: { findFirst: vi.fn(), create: vi.fn() },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(
+      service.create('org1', 'actor1', {
+        ...baseDto,
+        primaryClinicianId: 'cl-other',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.client.create).not.toHaveBeenCalled();
+    expect(prisma.clinician.findFirst).toHaveBeenCalledWith({
+      where: { id: 'cl-other', organizationId: 'org1' },
+      select: { id: true },
+    });
+  });
+
+  it('creates when primaryClinician belongs to the organization', async () => {
+    const created = { id: 'c1', mrn: 'MRN-100', firstName: 'Jordan' };
+    const prisma = {
+      clinician: { findFirst: vi.fn().mockResolvedValue({ id: 'cl1' }) },
+      client: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue(created),
+      },
+    } as unknown as PrismaService;
+    const { service, audit } = makeService({ prisma });
+
+    const result = await service.create('org1', 'actor1', {
+      ...baseDto,
+      primaryClinicianId: 'cl1',
+    });
+    expect(prisma.client.create).toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalled();
+    expect(result).toBe(created);
+  });
+
+  it('creates without primaryClinicianId when omitted', async () => {
+    const created = { id: 'c2', mrn: 'MRN-100' };
+    const prisma = {
+      clinician: { findFirst: vi.fn() },
+      client: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: vi.fn().mockResolvedValue(created),
+      },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await service.create('org1', 'actor1', baseDto);
+    expect(prisma.clinician.findFirst).not.toHaveBeenCalled();
+    expect(prisma.client.create).toHaveBeenCalled();
+  });
+});
 
 describe('ClientsService.update', () => {
   it('updates client fields and audits the change', async () => {

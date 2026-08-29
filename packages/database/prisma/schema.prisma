@@ -480,6 +480,8 @@ model User {
   mfaEnabled     Boolean    @default(false)
   mfaSecret      String?
   lastLoginAt    DateTime?
+  /// Incremented on password change/reset so existing access JWTs become invalid.
+  passwordVersion Int       @default(1)
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 

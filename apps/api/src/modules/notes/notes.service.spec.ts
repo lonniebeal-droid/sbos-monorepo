@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { AuditAction, NoteStatus } from '@sbos/database';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -12,7 +12,18 @@ function makeService(overrides?: {
   prisma?: Partial<PrismaService>;
   assistant?: NoteAssistant;
 }) {
-  const prisma = (overrides?.prisma ?? {}) as PrismaService;
+  const defaultPrisma = {
+    client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+    clinician: { findFirst: vi.fn().mockResolvedValue({ id: 'cl1' }) },
+    appointment: { findFirst: vi.fn().mockResolvedValue({ id: 'a1' }) },
+  };
+  const prisma = {
+    ...defaultPrisma,
+    ...(overrides?.prisma ?? {}),
+  } as unknown as PrismaService;
+  if (overrides?.prisma) {
+    Object.assign(prisma, overrides.prisma);
+  }
   const audit = { record: vi.fn() } as unknown as AuditService;
   const assistant =
     overrides?.assistant ??
@@ -23,7 +34,11 @@ function makeService(overrides?: {
         provider: 'test',
       }),
     } as unknown as NoteAssistant);
-  return { service: new NotesService(prisma, audit, assistant), assistant };
+  return {
+    service: new NotesService(prisma, audit, assistant),
+    assistant,
+    audit,
+  };
 }
 
 describe('NotesService', () => {
@@ -155,5 +170,82 @@ describe('NotesService', () => {
         }),
       }),
     );
+  });
+});
+
+describe('NotesService.create — tenant ownership of clientId/clinicianId', () => {
+  const baseDto = {
+    clientId: 'c1',
+    clinicianId: 'cl1',
+    type: NoteTypeDto.PROGRESS,
+    content: 'Session summary',
+  };
+
+  it('rejects create when clientId is not in the actor organization', async () => {
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue(null) },
+      note: { create: vi.fn() },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(service.create('org1', 'author1', baseDto as never)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.note.create).not.toHaveBeenCalled();
+    expect(prisma.client.findFirst).toHaveBeenCalledWith({
+      where: { id: 'c1', organizationId: 'org1', deletedAt: null },
+      select: { id: true },
+    });
+  });
+
+  it('rejects create when clinicianId is not in the actor organization', async () => {
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+      clinician: { findFirst: vi.fn().mockResolvedValue(null) },
+      note: { create: vi.fn() },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(service.create('org1', 'author1', baseDto as never)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.note.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects create when appointmentId is not in the actor organization', async () => {
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+      clinician: { findFirst: vi.fn().mockResolvedValue({ id: 'cl1' }) },
+      appointment: { findFirst: vi.fn().mockResolvedValue(null) },
+      note: { create: vi.fn() },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(
+      service.create('org1', 'author1', {
+        ...baseDto,
+        appointmentId: 'appt-other',
+      } as never),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.note.create).not.toHaveBeenCalled();
+  });
+
+  it('creates when client, clinician, and appointment belong to the organization', async () => {
+    const created = { id: 'n1', type: 'PROGRESS' };
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+      clinician: { findFirst: vi.fn().mockResolvedValue({ id: 'cl1' }) },
+      appointment: { findFirst: vi.fn().mockResolvedValue({ id: 'a1' }) },
+      note: { create: vi.fn().mockResolvedValue(created) },
+    } as unknown as PrismaService;
+    const { service, audit } = makeService({ prisma });
+
+    const result = await service.create('org1', 'author1', {
+      ...baseDto,
+      appointmentId: 'a1',
+    } as never);
+    expect(prisma.note.create).toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalled();
+    expect(result).toBe(created);
   });
 });

@@ -11,8 +11,10 @@ import { AuthController } from './auth.controller';
  */
 describe('AuthController public routes', () => {
   const IS_PUBLIC_KEY = 'isPublic';
-  const isPublic = (method: string) =>
-    Reflect.getMetadata(IS_PUBLIC_KEY, AuthController.prototype[method]);
+  const isPublic = (method: string) => {
+    const proto = AuthController.prototype as unknown as Record<string, object>;
+    return Reflect.getMetadata(IS_PUBLIC_KEY, proto[method]);
+  };
 
   it.each(['bootstrap', 'login', 'loginMfa', 'refresh', 'logout', 'acceptInvite', 'forgot', 'reset'])(
     '%s is publicly accessible (no JWT required)',

@@ -7,9 +7,24 @@ import type { PrismaService } from '../../prisma/prisma.service';
 import type { AuditService } from '../../audit/audit.service';
 
 function makeService(overrides?: { prisma?: Partial<PrismaService> }) {
-  const prisma = (overrides?.prisma ?? {}) as PrismaService;
+  const defaultPrisma = {
+    client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+    clinician: { findFirst: vi.fn().mockResolvedValue({ id: 'cl1' }) },
+    treatmentPlan: {
+      findFirst: vi.fn(),
+      create: vi.fn(),
+      delete: vi.fn(),
+    },
+  };
+  const prisma = {
+    ...defaultPrisma,
+    ...(overrides?.prisma ?? {}),
+  } as unknown as PrismaService;
+  if (overrides?.prisma) {
+    Object.assign(prisma, overrides.prisma);
+  }
   const audit = { record: vi.fn() } as unknown as AuditService;
-  return { service: new TreatmentPlansService(prisma, audit), audit };
+  return { service: new TreatmentPlansService(prisma, audit), audit, prisma };
 }
 
 describe('TreatmentPlansService.remove', () => {
@@ -96,5 +111,54 @@ describe('TreatmentPlansService.remove', () => {
         }),
       }),
     );
+  });
+});
+
+describe('TreatmentPlansService.create — tenant ownership of clientId/clinicianId', () => {
+  const baseDto = {
+    clientId: 'c1',
+    clinicianId: 'cl1',
+    title: 'Anxiety management plan',
+  };
+
+  it('rejects create when clientId is not in the actor organization', async () => {
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue(null) },
+      treatmentPlan: { create: vi.fn() },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(service.create('org1', baseDto)).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.treatmentPlan.create).not.toHaveBeenCalled();
+    expect(prisma.client.findFirst).toHaveBeenCalledWith({
+      where: { id: 'c1', organizationId: 'org1', deletedAt: null },
+      select: { id: true },
+    });
+  });
+
+  it('rejects create when clinicianId is not in the actor organization', async () => {
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+      clinician: { findFirst: vi.fn().mockResolvedValue(null) },
+      treatmentPlan: { create: vi.fn() },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(service.create('org1', baseDto)).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.treatmentPlan.create).not.toHaveBeenCalled();
+  });
+
+  it('creates when client and clinician belong to the organization', async () => {
+    const created = { id: 'p1', title: baseDto.title, goals: [] };
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+      clinician: { findFirst: vi.fn().mockResolvedValue({ id: 'cl1' }) },
+      treatmentPlan: { create: vi.fn().mockResolvedValue(created) },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    const result = await service.create('org1', baseDto);
+    expect(prisma.treatmentPlan.create).toHaveBeenCalled();
+    expect(result).toBe(created);
   });
 });

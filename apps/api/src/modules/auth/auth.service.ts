@@ -61,6 +61,7 @@ export class AuthService {
       name: user.name,
       role: user.role,
       organizationId: user.organizationId,
+      passwordVersion: user.passwordVersion,
     };
 
     const accessToken = await this.jwtService.signAsync(
@@ -71,8 +72,6 @@ export class AuthService {
       },
     );
 
-    // Each refresh token gets a unique jti tracked in the database so it can be
-    // rotated on use and revoked on logout.
     const jti = randomUUID();
     const refreshToken = await this.jwtService.signAsync(
       { ...basePayload, type: 'refresh', jti } satisfies JwtPayload,
@@ -109,7 +108,6 @@ export class AuthService {
 
     const mfa = await this.usersService.getMfaState(user.id);
     if (mfa.mfaEnabled) {
-      // Defer token issuance until the second factor is verified.
       const jwtConfig = this.configService.get('jwt', { infer: true });
       const mfaToken = await this.jwtService.signAsync(
         { sub: user.id, type: 'mfa' } satisfies MfaChallengePayload,
@@ -122,7 +120,6 @@ export class AuthService {
     return { ...tokens, user };
   }
 
-  /** Complete a login after MFA is required: verify the challenge + TOTP code. */
   async loginMfa(mfaToken: string, code: string): Promise<AuthResponseDto> {
     const jwtConfig = this.configService.get('jwt', { infer: true });
     let payload: MfaChallengePayload;
@@ -146,21 +143,19 @@ export class AuthService {
       throw new UnauthorizedException('Invalid authentication code');
     }
 
-    const user = await this.usersService.findById(payload.sub);
+    const user = await this.usersService.findActiveById(payload.sub);
     const tokens = await this.issueTokens(user);
     return { ...tokens, user };
   }
 
-  /** Begin MFA enrollment: generate + store a pending secret, return QR data. */
   async mfaSetup(userId: string): Promise<MfaSetupResponseDto> {
-    const user = await this.usersService.findById(userId);
+    const user = await this.usersService.findActiveById(userId);
     const { secret, otpauthUrl } = this.mfaService.generate(user.email);
     await this.usersService.setMfaSecret(userId, secret);
     const qrDataUrl = await this.mfaService.qrDataUrl(otpauthUrl);
     return { otpauthUrl, qrDataUrl, secret };
   }
 
-  /** Confirm enrollment: verify the first code, then enable MFA. */
   async mfaEnable(userId: string, code: string): Promise<{ enabled: true }> {
     const mfa = await this.usersService.getMfaState(userId);
     if (!mfa.mfaSecret) {
@@ -173,7 +168,6 @@ export class AuthService {
     return { enabled: true };
   }
 
-  /** Disable MFA after verifying a current code. */
   async mfaDisable(userId: string, code: string): Promise<{ enabled: false }> {
     const mfa = await this.usersService.getMfaState(userId);
     if (!mfa.mfaEnabled || !mfa.mfaSecret) {
@@ -205,8 +199,6 @@ export class AuthService {
       where: { jti: payload.jti },
     });
 
-    // Reuse detection: a syntactically valid token whose jti is unknown or
-    // already revoked indicates theft — revoke the whole family.
     if (!stored || stored.revokedAt) {
       await this.prisma.refreshToken.updateMany({
         where: { userId: payload.sub, revokedAt: null },
@@ -222,9 +214,6 @@ export class AuthService {
       throw new UnauthorizedException('Refresh token has expired');
     }
 
-    // A suspended/deactivated (or deleted) account must not be able to
-    // refresh its way to a new token pair, even with an otherwise-valid,
-    // unexpired refresh token.
     let user: UserEntity;
     try {
       user = await this.usersService.findActiveById(payload.sub);
@@ -232,7 +221,6 @@ export class AuthService {
       throw new UnauthorizedException('Account is no longer active');
     }
 
-    // Rotate: revoke the presented token, then issue a fresh pair.
     await this.prisma.refreshToken.update({
       where: { jti: payload.jti },
       data: { revokedAt: new Date() },
@@ -241,7 +229,6 @@ export class AuthService {
     return this.issueTokens(user);
   }
 
-  /** Revoke a refresh token on logout (idempotent, best-effort). */
   async logout(refreshToken: string): Promise<{ success: true }> {
     const jwtConfig = this.configService.get('jwt', { infer: true });
     try {
@@ -256,16 +243,21 @@ export class AuthService {
         });
       }
     } catch {
-      // Already invalid/expired — nothing to revoke.
+      // Already invalid/expired
     }
     return { success: true };
   }
 
   async profile(userId: string): Promise<UserEntity> {
-    return this.usersService.findById(userId);
+    return this.usersService.findActiveById(userId);
   }
 
-  /** One-time bootstrap: create an organization and first ORG_ADMIN when none exist. */
+  /**
+   * One-time platform bootstrap. Gated by ADMIN_BOOTSTRAP_TOKEN and refused
+   * once any ORG_ADMIN exists. Creates a new organization + ORG_ADMIN only
+   * (never SUPER_ADMIN from the public body). Grantor role is SUPER_ADMIN so
+   * the create path's role-authority check allows ORG_ADMIN.
+   */
   async bootstrap(dto: {
     token: string;
     organizationName: string;
@@ -282,13 +274,11 @@ export class AuthService {
       throw new UnauthorizedException('Invalid bootstrap token');
     }
 
-    // Disallow bootstrap if any ORG_ADMIN already exists.
     const existingAdmin = await this.prisma.user.findFirst({ where: { role: 'ORG_ADMIN' } });
     if (existingAdmin) {
       throw new BadRequestException('An organization admin already exists');
     }
 
-    // Create organization and admin user.
     const org = await this.prisma.organization.create({
       data: {
         name: dto.organizationName,
@@ -296,49 +286,77 @@ export class AuthService {
       },
     });
 
-    await this.usersService.create({
-      organizationId: org.id,
+    await this.usersService.create(org.id, Role.SUPER_ADMIN, {
       email: dto.adminEmail,
       password: dto.adminPassword,
       name: 'Administrator',
       role: Role.ORG_ADMIN,
-    } as any);
+    });
 
     return { success: true };
   }
 
-  /** Accept an invite: validate token, create user, mark invite used. */
+  /**
+   * Accept invite: role and organizationId come only from the stored invite
+   * row after token verification. Request body cannot override role or org.
+   * Grant authority was enforced when the invite was created; the stored role
+   * is used as the grantor for the create check (roleSatisfies is reflexive).
+   *
+   * Invite consumption is atomic: only one concurrent caller can claim an
+   * unused, unexpired invite (updateMany where usedAt IS NULL). User creation
+   * and the claim share one transaction so neither partial state nor double
+   * acceptance is possible.
+   */
   async acceptInvite(dto: AcceptInviteDto): Promise<{ success: true }> {
-    const invite = await this.prisma.userInvite.findUnique({ where: { id: dto.inviteId } });
-    if (!invite) throw new BadRequestException('Invalid invite');
-    if (invite.usedAt) throw new BadRequestException('Invite already used');
-    if (invite.expiresAt <= new Date()) throw new BadRequestException('Invite expired');
+    await this.prisma.$transaction(async (tx) => {
+      const invite = await tx.userInvite.findUnique({
+        where: { id: dto.inviteId },
+      });
+      if (!invite) throw new BadRequestException('Invalid invite');
+      if (invite.usedAt) throw new BadRequestException('Invite already used');
+      if (invite.expiresAt <= new Date()) {
+        throw new BadRequestException('Invite expired');
+      }
 
-    const ok = await bcrypt.compare(dto.token, invite.tokenHash);
-    if (!ok) throw new BadRequestException('Invalid invite token');
+      const ok = await bcrypt.compare(dto.token, invite.tokenHash);
+      if (!ok) throw new BadRequestException('Invalid invite token');
 
-    // Create the user in the invited organization with the invited role.
-    await this.usersService.create({
-      organizationId: invite.organizationId,
-      email: invite.email,
-      password: dto.password,
-      name: dto.name,
-      role: invite.role as unknown as Role,
-    } as any);
+      // Atomic single-claimer: second concurrent caller gets count 0.
+      const claimed = await tx.userInvite.updateMany({
+        where: {
+          id: invite.id,
+          usedAt: null,
+          expiresAt: { gt: new Date() },
+        },
+        data: { usedAt: new Date() },
+      });
+      if (claimed.count !== 1) {
+        throw new BadRequestException('Invite already used');
+      }
 
-    await this.prisma.userInvite.update({ where: { id: invite.id }, data: { usedAt: new Date() } });
+      const grantedRole = invite.role as unknown as Role;
+      await this.usersService.create(
+        invite.organizationId,
+        grantedRole,
+        {
+          email: invite.email,
+          password: dto.password,
+          name: dto.name,
+          role: grantedRole,
+        },
+        tx,
+      );
+    });
     return { success: true };
   }
 
-  /** Request a password reset. Silent response regardless of email existence. */
-  async forgotPassword(email: string): Promise<{ success: true; previewLink?: string }>
-  {
+  async forgotPassword(email: string): Promise<{ success: true; previewLink?: string }> {
     const record = await this.prisma.user.findFirst({ where: { email: email.trim().toLowerCase() } });
     if (!record) return { success: true };
 
     const token = crypto.randomBytes(24).toString('hex');
     const tokenHash = await bcrypt.hash(token, 10);
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
     const reset = await this.prisma.passwordReset.create({ data: { userId: record.id, tokenHash, expiresAt } });
 
@@ -349,7 +367,6 @@ export class AuthService {
     return { success: true };
   }
 
-  /** Reset a password using a reset record. */
   async resetPassword(dto: ResetPasswordDto): Promise<{ success: true }> {
     const reset = await this.prisma.passwordReset.findUnique({ where: { id: dto.resetId } });
     if (!reset) throw new BadRequestException('Invalid reset token');
@@ -359,15 +376,26 @@ export class AuthService {
     const ok = await bcrypt.compare(dto.token, reset.tokenHash);
     if (!ok) throw new BadRequestException('Invalid reset token');
 
-    // Update user's password and mark token used. Revoke refresh tokens.
     const passwordHash = await bcrypt.hash(dto.password, 10);
-    await this.prisma.user.update({ where: { id: reset.userId }, data: { passwordHash } });
-    await this.prisma.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } });
-    await this.prisma.refreshToken.deleteMany({ where: { userId: reset.userId } });
+    // Atomic: new hash + bump passwordVersion so outstanding access JWTs fail
+    // validation, then revoke all refresh tokens for the user.
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: reset.userId },
+        data: {
+          passwordHash,
+          passwordVersion: { increment: 1 },
+        },
+      }),
+      this.prisma.passwordReset.update({
+        where: { id: reset.id },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.refreshToken.deleteMany({ where: { userId: reset.userId } }),
+    ]);
     return { success: true };
   }
 
-  /** Exposed for documentation/testing of role constants. */
   get roles(): Role[] {
     return Object.values(Role);
   }

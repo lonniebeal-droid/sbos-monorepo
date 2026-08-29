@@ -9,8 +9,13 @@ import type { SmsProvider } from '../../channels/sms.provider';
 import { RecurrenceFrequencyDto } from './dto/create-recurring.dto';
 
 function makeService(overrides?: { prisma?: Record<string, unknown> }) {
-  const prisma = {
-    client: { findUnique: vi.fn().mockResolvedValue(null) },
+  const defaults = {
+    client: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue({ id: 'c1' }),
+    },
+    clinician: { findFirst: vi.fn().mockResolvedValue({ id: 'cl1' }) },
+    location: { findFirst: vi.fn().mockResolvedValue({ id: 'loc1' }) },
     appointment: {
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([]),
@@ -19,7 +24,15 @@ function makeService(overrides?: { prisma?: Record<string, unknown> }) {
       update: vi.fn(),
       delete: vi.fn(),
     },
-    ...overrides?.prisma,
+  };
+  const o = overrides?.prisma ?? {};
+  const prisma = {
+    ...defaults,
+    ...o,
+    client: { ...defaults.client, ...((o as any).client ?? {}) },
+    clinician: { ...defaults.clinician, ...((o as any).clinician ?? {}) },
+    location: { ...defaults.location, ...((o as any).location ?? {}) },
+    appointment: { ...defaults.appointment, ...((o as any).appointment ?? {}) },
   } as unknown as PrismaService;
   const audit = { record: vi.fn() } as unknown as AuditService;
   const sms = { send: vi.fn().mockResolvedValue({ id: 's1', provider: 'test' }) } as unknown as SmsProvider;
@@ -116,8 +129,6 @@ describe('AppointmentsService.create', () => {
     });
 
     await service.create('org1', 'actor1', validDto);
-    // sendConfirmation is fire-and-forget (not awaited by create()); flush
-    // the microtask queue so its two internal awaits resolve before asserting.
     await Promise.resolve();
     await Promise.resolve();
 
@@ -155,7 +166,6 @@ describe('AppointmentsService.createRecurring', () => {
     let callCount = 0;
     const findFirst = vi.fn().mockImplementation(() => {
       callCount += 1;
-      // Second occurrence conflicts; all others are free.
       return Promise.resolve(callCount === 2 ? { id: 'conflict' } : null);
     });
     const create = vi.fn().mockImplementation(({ data }: { data: Record<string, unknown> }) =>
@@ -187,7 +197,6 @@ describe('AppointmentsService.createRecurring', () => {
 
     const secondCreateData = create.mock.calls[1][0].data;
     expect(secondCreateData.parentAppointmentId).toBe('appt-1');
-    // The first create is the parent itself and must not self-reference.
     const firstCreateData = create.mock.calls[0][0].data;
     expect(firstCreateData.parentAppointmentId).toBeUndefined();
   });
@@ -358,5 +367,124 @@ describe('AppointmentsService.remove', () => {
     );
     expect(prisma.appointment.delete).not.toHaveBeenCalled();
     expect(audit.record).not.toHaveBeenCalled();
+  });
+});
+
+describe('AppointmentsService.create — tenant ownership of clientId/clinicianId', () => {
+  const baseDto = {
+    clientId: 'c1',
+    clinicianId: 'cl1',
+    startTime: '2030-01-15T10:00:00.000Z',
+    endTime: '2030-01-15T11:00:00.000Z',
+    durationMinutes: 60,
+  };
+
+  it('rejects create when clientId is not in the actor organization', async () => {
+    const { service, prisma } = makeService({
+      prisma: {
+        client: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          findFirst: vi.fn().mockResolvedValue(null),
+        },
+        appointment: {
+          findFirst: vi.fn(),
+          findMany: vi.fn(),
+          count: vi.fn(),
+          create: vi.fn(),
+          update: vi.fn(),
+          delete: vi.fn(),
+        },
+      },
+    });
+
+    await expect(service.create('org1', 'actor1', baseDto as never)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.appointment.create).not.toHaveBeenCalled();
+    expect(prisma.client.findFirst).toHaveBeenCalledWith({
+      where: { id: 'c1', organizationId: 'org1', deletedAt: null },
+      select: { id: true },
+    });
+  });
+
+  it('rejects create when clinicianId is not in the actor organization', async () => {
+    const { service, prisma } = makeService({
+      prisma: {
+        client: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          findFirst: vi.fn().mockResolvedValue({ id: 'c1' }),
+        },
+        clinician: { findFirst: vi.fn().mockResolvedValue(null) },
+        appointment: {
+          findFirst: vi.fn(),
+          findMany: vi.fn(),
+          count: vi.fn(),
+          create: vi.fn(),
+          update: vi.fn(),
+          delete: vi.fn(),
+        },
+      },
+    });
+
+    await expect(service.create('org1', 'actor1', baseDto as never)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.appointment.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects create when locationId is not in the actor organization', async () => {
+    const { service, prisma } = makeService({
+      prisma: {
+        client: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          findFirst: vi.fn().mockResolvedValue({ id: 'c1' }),
+        },
+        clinician: { findFirst: vi.fn().mockResolvedValue({ id: 'cl1' }) },
+        location: { findFirst: vi.fn().mockResolvedValue(null) },
+        appointment: {
+          findFirst: vi.fn(),
+          findMany: vi.fn(),
+          count: vi.fn(),
+          create: vi.fn(),
+          update: vi.fn(),
+          delete: vi.fn(),
+        },
+      },
+    });
+
+    await expect(
+      service.create('org1', 'actor1', { ...baseDto, locationId: 'loc-other' } as never),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.appointment.create).not.toHaveBeenCalled();
+  });
+
+  it('creates when client, clinician, and location belong to the organization', async () => {
+    const created = { id: 'appt1', clientId: 'c1', clinicianId: 'cl1', startTime: new Date(baseDto.startTime) };
+    const { service, prisma, audit } = makeService({
+      prisma: {
+        client: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          findFirst: vi.fn().mockResolvedValue({ id: 'c1' }),
+        },
+        clinician: { findFirst: vi.fn().mockResolvedValue({ id: 'cl1' }) },
+        location: { findFirst: vi.fn().mockResolvedValue({ id: 'loc1' }) },
+        appointment: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          findMany: vi.fn(),
+          count: vi.fn(),
+          create: vi.fn().mockResolvedValue(created),
+          update: vi.fn(),
+          delete: vi.fn(),
+        },
+      },
+    });
+
+    const result = await service.create('org1', 'actor1', {
+      ...baseDto,
+      locationId: 'loc1',
+    } as never);
+    expect(prisma.appointment.create).toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalled();
+    expect(result).toBe(created);
   });
 });

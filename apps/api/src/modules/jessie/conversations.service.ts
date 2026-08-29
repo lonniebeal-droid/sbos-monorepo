@@ -34,11 +34,32 @@ export class ConversationsService {
     @Inject(CHAT_PROVIDER) private readonly chat: ChatProvider,
   ) {}
 
+  /**
+   * Optional clientId must belong to this organization.
+   * Prevents cross-tenant client binding on Jessie conversations.
+   */
+  private async ensureClientInOrg(
+    organizationId: string,
+    clientId: string,
+  ): Promise<void> {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+  }
+
   async start(
     organizationId: string,
     userId: string,
     dto: StartConversationDto,
   ) {
+    if (dto.clientId) {
+      await this.ensureClientInOrg(organizationId, dto.clientId);
+    }
+
     const kind = (dto.kind ?? 'RECEPTIONIST') as AssistantKind;
     const conversation = await this.prisma.conversation.create({
       data: {

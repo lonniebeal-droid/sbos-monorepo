@@ -13,7 +13,25 @@ export class DiagnosesService {
     private readonly audit: AuditService,
   ) {}
 
-  create(organizationId: string, dto: CreateDiagnosisDto) {
+  /**
+   * Client-supplied clientId must belong to this organization (and not be
+   * soft-deleted). Prevents cross-tenant diagnosis attachment.
+   */
+  private async ensureClientInOrg(
+    organizationId: string,
+    clientId: string,
+  ): Promise<void> {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+  }
+
+  async create(organizationId: string, dto: CreateDiagnosisDto) {
+    await this.ensureClientInOrg(organizationId, dto.clientId);
     const { clientId, ...rest } = dto;
     return this.prisma.diagnosis.create({
       data: { ...rest, clientId, organizationId },

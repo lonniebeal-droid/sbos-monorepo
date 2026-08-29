@@ -13,7 +13,44 @@ export class TasksService {
     private readonly audit: AuditService,
   ) {}
 
-  create(organizationId: string, createdById: string, dto: CreateTaskDto) {
+  /**
+   * Optional clientId/assigneeId must belong to this organization.
+   * Prevents cross-tenant task attachment.
+   */
+  private async ensureClientInOrg(
+    organizationId: string,
+    clientId: string,
+  ): Promise<void> {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+  }
+
+  private async ensureUserInOrg(
+    organizationId: string,
+    userId: string,
+  ): Promise<void> {
+    const user = await this.prisma.user.findFirst({
+      where: { id: userId, organizationId },
+      select: { id: true },
+    });
+    if (!user) {
+      throw new NotFoundException(`User ${userId} not found`);
+    }
+  }
+
+  async create(organizationId: string, createdById: string, dto: CreateTaskDto) {
+    if (dto.clientId) {
+      await this.ensureClientInOrg(organizationId, dto.clientId);
+    }
+    if (dto.assigneeId) {
+      await this.ensureUserInOrg(organizationId, dto.assigneeId);
+    }
+
     const { dueDate, ...rest } = dto;
     return this.prisma.task.create({
       data: {
@@ -60,6 +97,12 @@ export class TasksService {
 
   async update(organizationId: string, id: string, dto: UpdateTaskDto) {
     await this.ensure(organizationId, id);
+    if (dto.clientId) {
+      await this.ensureClientInOrg(organizationId, dto.clientId);
+    }
+    if (dto.assigneeId) {
+      await this.ensureUserInOrg(organizationId, dto.assigneeId);
+    }
     const { dueDate, status, ...rest } = dto;
     const data: Prisma.TaskUpdateInput = { ...rest };
     if (dueDate) data.dueDate = new Date(dueDate);

@@ -19,6 +19,26 @@ test("roleSatisfies: lower roles do not satisfy higher requirements", () => {
   assert.equal(roleSatisfies("FRONT_DESK", "SUPERVISOR"), false);
 });
 
+
+test("roleSatisfies: functional roles are isolated (CLINICIAN/BILLING/FRONT_DESK)", () => {
+  assert.equal(roleSatisfies("CLINICIAN", "BILLING"), false);
+  assert.equal(roleSatisfies("CLINICIAN", "FRONT_DESK"), false);
+  assert.equal(roleSatisfies("BILLING", "CLINICIAN"), false);
+  assert.equal(roleSatisfies("BILLING", "FRONT_DESK"), false);
+  assert.equal(roleSatisfies("FRONT_DESK", "CLINICIAN"), false);
+  assert.equal(roleSatisfies("FRONT_DESK", "BILLING"), false);
+  assert.equal(roleSatisfies("SUPERVISOR", "BILLING"), false);
+  assert.equal(roleSatisfies("SUPERVISOR", "FRONT_DESK"), false);
+  assert.equal(roleSatisfies("SUPERVISOR", "CLINICIAN"), true);
+});
+
+
+test("roleSatisfies: ORG_ADMIN does not satisfy SUPER_ADMIN", () => {
+  assert.equal(roleSatisfies("ORG_ADMIN", "SUPER_ADMIN"), false);
+  assert.equal(roleSatisfies("SUPER_ADMIN", "SUPER_ADMIN"), true);
+  assert.equal(roleSatisfies("SUPER_ADMIN", "ORG_ADMIN"), true);
+});
+
 test("roleSatisfiesAny: matches when any requirement is met", () => {
   assert.equal(roleSatisfiesAny("BILLING", ["ORG_ADMIN", "BILLING"]), true);
   assert.equal(roleSatisfiesAny("FRONT_DESK", ["CLINICIAN"]), false);
