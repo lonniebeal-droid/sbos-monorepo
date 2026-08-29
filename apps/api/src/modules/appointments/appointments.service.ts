@@ -30,6 +30,18 @@ export class AppointmentsService {
     @Inject(SMS_PROVIDER) private readonly sms: SmsProvider,
   ) {}
 
+  /** Ensure the client exists in this org (and is not soft-deleted). */
+  private async ensureClientInOrg(organizationId: string, clientId: string) {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+    return client;
+  }
+
   /** Best-effort appointment confirmation SMS (no-op with the console provider). */
   private async sendConfirmation(clientId: string, start: Date): Promise<void> {
     const client = await this.prisma.client.findUnique({
@@ -53,6 +65,8 @@ export class AppointmentsService {
     if (end <= start) {
       throw new BadRequestException('endTime must be after startTime');
     }
+
+    await this.ensureClientInOrg(organizationId, dto.clientId);
 
     // Prevent double-booking a clinician for an overlapping window.
     if (await this.hasConflict(organizationId, dto.clinicianId, start, end)) {
@@ -119,6 +133,8 @@ export class AppointmentsService {
     if (end <= start) {
       throw new BadRequestException('endTime must be after startTime');
     }
+
+    await this.ensureClientInOrg(organizationId, dto.clientId);
 
     const windows = expandRecurrence({
       start,
@@ -216,6 +232,9 @@ export class AppointmentsService {
     dto: UpdateAppointmentDto,
   ) {
     await this.findOne(organizationId, id);
+    if (dto.clientId) {
+      await this.ensureClientInOrg(organizationId, dto.clientId);
+    }
     const { startTime, endTime, ...rest } = dto;
     const updated = await this.prisma.appointment.update({
       where: { id },
