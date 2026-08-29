@@ -12,6 +12,26 @@ import { CreateThreadDto, PostMessageDto } from './dto/messaging.dto';
 export class MessagingService {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * Every participant userId must belong to this organization.
+   * Prevents cross-tenant users from being attached to message threads.
+   */
+  private async ensureUsersInOrg(
+    organizationId: string,
+    userIds: string[],
+  ): Promise<void> {
+    const uniqueIds = Array.from(new Set(userIds));
+    const users = await this.prisma.user.findMany({
+      where: { organizationId, id: { in: uniqueIds } },
+      select: { id: true },
+    });
+    if (users.length !== uniqueIds.length) {
+      const found = new Set(users.map((u) => u.id));
+      const missing = uniqueIds.find((id) => !found.has(id));
+      throw new NotFoundException(`User ${missing ?? 'unknown'} not found`);
+    }
+  }
+
   async createThread(
     organizationId: string,
     creatorId: string,
@@ -20,6 +40,8 @@ export class MessagingService {
     const participantIds = Array.from(
       new Set([creatorId, ...dto.participantIds]),
     );
+    await this.ensureUsersInOrg(organizationId, participantIds);
+
     return this.prisma.messageThread.create({
       data: {
         organizationId,
