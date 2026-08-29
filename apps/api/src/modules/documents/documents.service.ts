@@ -19,6 +19,23 @@ export class DocumentsService {
   ) {}
 
   /**
+   * Client-supplied clientId must belong to this organization (and not be
+   * soft-deleted). Prevents cross-tenant document attachment.
+   */
+  private async ensureClientInOrg(
+    organizationId: string,
+    clientId: string,
+  ): Promise<void> {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+  }
+
+  /**
    * Register a document and return a presigned upload target. The client uploads
    * bytes directly to storage, then the record is available for download.
    */
@@ -27,6 +44,10 @@ export class DocumentsService {
     uploadedById: string,
     dto: CreateDocumentDto,
   ) {
+    if (dto.clientId) {
+      await this.ensureClientInOrg(organizationId, dto.clientId);
+    }
+
     const upload = await this.storage.createUpload({
       organizationId,
       fileName: dto.name,
