@@ -142,3 +142,106 @@ describe('validateRuntimeConfig — agent secrets', () => {
     }
   });
 });
+
+describe('validateRuntimeConfig — JWT secrets', () => {
+  const prevNodeEnv = process.env.NODE_ENV;
+  const prevDb = process.env.DATABASE_URL;
+  const prevSecrets = process.env.JESSIE_AGENT_SECRETS;
+
+  afterEach(() => {
+    process.env.NODE_ENV = prevNodeEnv;
+    process.env.DATABASE_URL = prevDb;
+    if (prevSecrets === undefined) delete process.env.JESSIE_AGENT_SECRETS;
+    else process.env.JESSIE_AGENT_SECRETS = prevSecrets;
+  });
+
+  it('rejects empty JWT secrets in production', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.DATABASE_URL = 'postgresql://x';
+    process.env.JESSIE_AGENT_SECRETS = 'org1:agent-sec';
+    expect(() =>
+      validateRuntimeConfig(
+        baseConfig({
+          jwt: {
+            accessSecret: '',
+            refreshSecret: '',
+            accessExpiresIn: '15m',
+            refreshExpiresIn: '7d',
+          },
+        }),
+      ),
+    ).toThrow(/JWT_ACCESS_SECRET is empty/);
+  });
+
+  it('rejects known template placeholder JWT secrets in production', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.DATABASE_URL = 'postgresql://x';
+    process.env.JESSIE_AGENT_SECRETS = 'org1:agent-sec';
+    expect(() =>
+      validateRuntimeConfig(
+        baseConfig({
+          jwt: {
+            accessSecret: 'change-me-access-secret-min-32-chars',
+            refreshSecret: 'change-me-refresh-secret-min-32-chars',
+            accessExpiresIn: '15m',
+            refreshExpiresIn: '7d',
+          },
+        }),
+      ),
+    ).toThrow(/known insecure placeholder/);
+  });
+
+  it('rejects code-default JWT secrets in production', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.DATABASE_URL = 'postgresql://x';
+    process.env.JESSIE_AGENT_SECRETS = 'org1:agent-sec';
+    expect(() =>
+      validateRuntimeConfig(
+        baseConfig({
+          jwt: {
+            accessSecret: 'sbos-dev-access-secret-change-me',
+            refreshSecret: 'sbos-dev-refresh-secret-change-me',
+            accessExpiresIn: '15m',
+            refreshExpiresIn: '7d',
+          },
+        }),
+      ),
+    ).toThrow(/known insecure placeholder/);
+  });
+
+  it('allows strong distinct JWT secrets in production', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.DATABASE_URL = 'postgresql://x';
+    process.env.JESSIE_AGENT_SECRETS = 'org1:agent-sec';
+    expect(() =>
+      validateRuntimeConfig(
+        baseConfig({
+          jwt: {
+            accessSecret: 'prod-access-secret-32chars-min!!',
+            refreshSecret: 'prod-refresh-secret-32chars-min!',
+            accessExpiresIn: '15m',
+            refreshExpiresIn: '7d',
+          },
+        }),
+      ),
+    ).not.toThrow();
+  });
+
+  it('warns but allows empty JWT secrets in non-production', () => {
+    process.env.NODE_ENV = 'development';
+    process.env.DATABASE_URL = 'postgresql://x';
+    delete process.env.JESSIE_AGENT_SECRETS;
+    expect(() =>
+      validateRuntimeConfig(
+        baseConfig({
+          jwt: {
+            accessSecret: '',
+            refreshSecret: '',
+            accessExpiresIn: '15m',
+            refreshExpiresIn: '7d',
+          },
+        }),
+      ),
+    ).not.toThrow();
+  });
+});
