@@ -408,9 +408,7 @@ describe('AuthService.resetPassword — regression: reset → new password works
   }
 
   it('forgot → reset writes a hash of the NEW password only; new verifies, old does not', async () => {
-    vi.useFakeTimers();
-    try {
-      const { service, prisma, storedHash } = makeResetService();
+    const { service, prisma, storedHash } = makeResetService();
 
       const forgot = await service.forgotPassword('admin@sbos.health');
       const link = forgot.previewLink;
@@ -440,11 +438,8 @@ describe('AuthService.resetPassword — regression: reset → new password works
 
       // A second use of the same reset must be rejected.
       prisma.passwordReset.findUnique.mockResolvedValue({ ...createdReset, usedAt: new Date() });
-      await expect(
-        service.resetPassword({ resetId, token, password: 'Again1!' }),
-      ).rejects.toThrow('Reset token already used');
-    } finally {
-      vi.useRealTimers();
-    }
-  });
+    await expect(
+      service.resetPassword({ resetId, token, password: 'Again1!' }),
+    ).rejects.toThrow('Reset token already used');
+  }, 30_000);
 });

@@ -27,6 +27,16 @@ export class DocumentsService {
     uploadedById: string,
     dto: CreateDocumentDto,
   ) {
+    if (dto.clientId) {
+      const client = await this.prisma.client.findFirst({
+        where: { id: dto.clientId, organizationId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!client) {
+        throw new NotFoundException(`Client ${dto.clientId} not found`);
+      }
+    }
+
     const upload = await this.storage.createUpload({
       organizationId,
       fileName: dto.name,

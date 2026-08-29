@@ -99,6 +99,20 @@ export class UsersService {
     return this.toEntity(record);
   }
 
+  /** Resolve a user only within the authenticated caller's organization. */
+  async findByIdInOrganization(
+    id: string,
+    organizationId: string,
+  ): Promise<UserEntity> {
+    const record = await this.prisma.user.findFirst({
+      where: { id, organizationId },
+    });
+    if (!record) {
+      throw new NotFoundException(`User ${id} not found`);
+    }
+    return this.toEntity(record);
+  }
+
   /**
    * Like findById, but treats a non-ACTIVE account the same as a missing one.
    * Use this anywhere a fresh authorization decision is being made (e.g.
@@ -144,10 +158,13 @@ export class UsersService {
     });
   }
 
-  async create(dto: CreateUserDto): Promise<UserEntity> {
+  async create(
+    organizationId: string,
+    dto: CreateUserDto,
+  ): Promise<UserEntity> {
     const existing = await this.prisma.user.findFirst({
       where: {
-        organizationId: dto.organizationId,
+        organizationId,
         email: dto.email.trim().toLowerCase(),
       },
       select: { id: true },
@@ -160,7 +177,7 @@ export class UsersService {
     const [firstName, ...rest] = dto.name.trim().split(' ');
     const record = await this.prisma.user.create({
       data: {
-        organizationId: dto.organizationId,
+        organizationId,
         email: dto.email.trim().toLowerCase(),
         passwordHash,
         firstName: firstName ?? dto.name,
