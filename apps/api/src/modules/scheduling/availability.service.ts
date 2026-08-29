@@ -26,8 +26,24 @@ export class AvailabilityService {
     }
   }
 
+  private async ensureLocationInOrg(
+    organizationId: string,
+    locationId: string,
+  ): Promise<void> {
+    const location = await this.prisma.location.findFirst({
+      where: { id: locationId, organizationId },
+      select: { id: true },
+    });
+    if (!location) {
+      throw new NotFoundException(`Location ${locationId} not found`);
+    }
+  }
+
   async createAvailability(organizationId: string, dto: CreateAvailabilityDto) {
     await this.ensureClinicianInOrg(organizationId, dto.clinicianId);
+    if (dto.locationId) {
+      await this.ensureLocationInOrg(organizationId, dto.locationId);
+    }
     if (minutesFromHHmm(dto.endTime) <= minutesFromHHmm(dto.startTime)) {
       throw new BadRequestException('endTime must be after startTime');
     }
