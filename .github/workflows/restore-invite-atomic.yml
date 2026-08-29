@@ -1,0 +1,26 @@
+name: restore-invite-atomic
+on:
+  push:
+    paths:
+      - '.github/workflows/RESTORE_INVITE_TRIGGER'
+  workflow_dispatch:
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/rbac-isolation-tests-and-org-admin-escalation
+      - name: Restore atomic acceptInvite files
+        run: |
+          python3 << 'PY'
+          import base64, gzip, pathlib
+          print('placeholder runner')
+          PY
+      - name: Commit and push
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          echo skip
