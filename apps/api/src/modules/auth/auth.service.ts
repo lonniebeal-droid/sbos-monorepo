@@ -61,6 +61,7 @@ export class AuthService {
       name: user.name,
       role: user.role,
       organizationId: user.organizationId,
+      passwordVersion: user.passwordVersion,
     };
 
     const accessToken = await this.jwtService.signAsync(
@@ -350,9 +351,22 @@ export class AuthService {
     if (!ok) throw new BadRequestException('Invalid reset token');
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
-    await this.prisma.user.update({ where: { id: reset.userId }, data: { passwordHash } });
-    await this.prisma.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } });
-    await this.prisma.refreshToken.deleteMany({ where: { userId: reset.userId } });
+    // Atomic: new hash + bump passwordVersion so outstanding access JWTs fail
+    // validation, then revoke all refresh tokens for the user.
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: reset.userId },
+        data: {
+          passwordHash,
+          passwordVersion: { increment: 1 },
+        },
+      }),
+      this.prisma.passwordReset.update({
+        where: { id: reset.id },
+        data: { usedAt: new Date() },
+      }),
+      this.prisma.refreshToken.deleteMany({ where: { userId: reset.userId } }),
+    ]);
     return { success: true };
   }
 
