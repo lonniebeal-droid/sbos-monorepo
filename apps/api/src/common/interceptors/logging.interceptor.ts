@@ -16,9 +16,11 @@ import type { AuthenticatedUser } from '../interfaces/authenticated-user.interfa
  * duration, and (when authenticated) the acting user + organization — useful for
  * observability without leaking request bodies (which may contain PHI).
  *
- * Agent-tool requests (X-SBOS-Agent-Secret) attach agentOrganizationId on the
- * request; that org id is logged instead of a user so first live webhook calls
- * are diagnosable without logging the secret.
+ * Agent-tool requests: AgentToolsGuard resolves X-SBOS-Agent-Secret server-side
+ * and attaches `req.agentOrganizationId` from the trusted config map only.
+ * This interceptor logs that org id as `agentOrg=…` so live webhook calls are
+ * diagnosable. It never reads organizationId from the body, query, or headers,
+ * and never logs secrets, Authorization, JWT, API keys, passwords, or bodies.
  */
 @Injectable()
 export class LoggingInterceptor implements NestInterceptor {
