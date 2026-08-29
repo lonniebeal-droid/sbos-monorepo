@@ -72,7 +72,7 @@ export class TreatmentPlansController {
     @Param('goalId') goalId: string,
     @Body() dto: UpdateGoalDto,
   ) {
-    return this.service.updateGoal(user.organizationId, id, goalId, dto);
+    return this.service.updateGoal(user.organizationId, user.id, id, goalId, dto);
   }
 
   @Delete(':id')
