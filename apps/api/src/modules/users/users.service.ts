@@ -43,6 +43,7 @@ export class UsersService {
       name: `${record.firstName} ${record.lastName}`.trim(),
       role: record.role as unknown as Role,
       organizationId: record.organizationId,
+      passwordVersion: record.passwordVersion,
       createdAt: record.createdAt.toISOString(),
     };
   }
@@ -83,94 +84,70 @@ export class UsersService {
       action: AuditAction.CREATE,
       entityType: 'UserInvite',
       entityId: record.id,
-      metadata: {
-        email: record.email,
-        role: record.role,
-        expiresAt: record.expiresAt.toISOString(),
-      },
+      metadata: { email: record.email, role: record.role },
     });
 
-    // Only reveal the raw token in non-production for dev/test convenience.
-    if (process.env.NODE_ENV !== 'production') {
-      const previewLink = `/auth/invite/accept?inviteId=${record.id}&token=${token}`;
-      return { id: record.id, previewLink };
-    }
-    return { id: record.id };
+    // In production the token is emailed; in development we surface a preview link.
+    const previewLink =
+      process.env.NODE_ENV !== 'production'
+        ? `/invite/accept?id=${record.id}&token=${token}`
+        : undefined;
+
+    return { id: record.id, previewLink };
   }
 
-  /** Validate email/password. Email lookup is global (first match) for login. */
-  async validateCredentials(
+  async findActiveById(id: string): Promise<UserEntity> {
+    const record = await this.prisma.user.findFirst({
+      where: { id, status: 'ACTIVE' },
+    });
+    if (!record) {
+      throw new NotFoundException('User not found');
+    }
+    return this.toEntity(record);
+  }
+
+  async findByEmail(
+    email: string,
+    organizationId?: string,
+  ): Promise<(UserEntity & { passwordHash: string }) | null> {
+    const record = await this.prisma.user.findFirst({
+      where: {
+        email: email.trim().toLowerCase(),
+        ...(organizationId ? { organizationId } : {}),
+      },
+    });
+    if (!record) return null;
+    return { ...this.toEntity(record), passwordHash: record.passwordHash };
+  }
+
+  async validatePassword(
     email: string,
     password: string,
+    organizationId?: string,
   ): Promise<UserEntity | null> {
     const record = await this.prisma.user.findFirst({
-      where: { email: email.trim().toLowerCase() },
+      where: {
+        email: email.trim().toLowerCase(),
+        status: 'ACTIVE',
+        ...(organizationId ? { organizationId } : {}),
+      },
     });
     if (!record) return null;
     const valid = await bcrypt.compare(password, record.passwordHash);
     if (!valid) return null;
-    // A correct password must not be enough on its own: suspended/deactivated/
-    // not-yet-onboarded accounts must never be able to log in.
-    if (record.status !== 'ACTIVE') return null;
     return this.toEntity(record);
   }
 
-  async findById(id: string): Promise<UserEntity> {
-    const record = await this.prisma.user.findUnique({ where: { id } });
-    if (!record) {
-      throw new NotFoundException(`User ${id} not found`);
-    }
-    return this.toEntity(record);
-  }
-
-  /**
-   * Like findById, but treats a non-ACTIVE account the same as a missing one.
-   * Use this anywhere a fresh authorization decision is being made (e.g.
-   * reissuing tokens on refresh) so a suspended/deactivated account can't
-   * silently keep itself signed in -- mirrors the ACTIVE-only gate in
-   * validateCredentials.
-   */
-  async findActiveById(id: string): Promise<UserEntity> {
-    const record = await this.prisma.user.findUnique({ where: { id } });
-    if (!record || record.status !== 'ACTIVE') {
-      throw new NotFoundException(`User ${id} not found`);
-    }
-    return this.toEntity(record);
-  }
-
-  /** Read a user's MFA state (used by the auth flow). */
-  async getMfaState(
-    userId: string,
-  ): Promise<{ mfaEnabled: boolean; mfaSecret: string | null }> {
-    const record = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: { mfaEnabled: true, mfaSecret: true },
-    });
-    if (!record) {
-      throw new NotFoundException(`User ${userId} not found`);
-    }
-    return record;
-  }
-
-  /** Store a pending TOTP secret (enrollment step; not yet enabled). */
-  async setMfaSecret(userId: string, secret: string): Promise<void> {
+  async recordLogin(userId: string): Promise<void> {
     await this.prisma.user.update({
       where: { id: userId },
-      data: { mfaSecret: secret, mfaEnabled: false },
-    });
-  }
-
-  /** Enable or disable MFA. Disabling clears the stored secret. */
-  async setMfaEnabled(userId: string, enabled: boolean): Promise<void> {
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { mfaEnabled: enabled, ...(enabled ? {} : { mfaSecret: null }) },
+      data: { lastLoginAt: new Date() },
     });
   }
 
   /**
-   * Create a user. `actorId` is the admin performing the action when known
-   * (ORG_ADMIN create). Bootstrap / invite-accept may omit it.
+   * Create a user directly (admin/bootstrap path). Prefer invites for normal
+   * onboarding so the password is chosen by the invitee.
    */
   async create(dto: CreateUserDto, actorId?: string): Promise<UserEntity> {
     const existing = await this.prisma.user.findFirst({
