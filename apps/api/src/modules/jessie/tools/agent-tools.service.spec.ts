@@ -30,7 +30,8 @@ function makeService(overrides?: {
     task: { create: vi.fn() },
     auditLog: {
       findFirst: vi.fn().mockResolvedValue(null),
-      create: vi.fn().mockResolvedValue({}),
+      create: vi.fn().mockResolvedValue({ id: 'claim-1' }),
+      update: vi.fn().mockResolvedValue({}),
     },
     ...overrides?.prisma,
   };
@@ -368,26 +369,13 @@ describe('AgentToolsService', () => {
       tool: 'send_sms',
       data: { messageId: 'prior' },
     };
-    const { service, prisma, sms } = makeService({
-      prisma: {
-        client: {
-          findFirst: vi.fn(),
-          findMany: vi.fn(),
-          create: vi.fn(),
-          update: vi.fn(),
-        },
-        clinician: { findFirst: vi.fn() },
-        location: { findFirst: vi.fn() },
-        user: { findFirst: vi.fn() },
-        conversation: { findFirst: vi.fn() },
-        task: { create: vi.fn() },
-        auditLog: {
-          findFirst: vi.fn().mockResolvedValue({
-            metadata: { result: prior },
-          }),
-          create: vi.fn(),
-        },
-      },
+    const { service, prisma, sms } = makeService();
+    prisma.auditLog.create.mockRejectedValue(
+      Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }),
+    );
+    prisma.auditLog.findFirst.mockResolvedValue({
+      id: 'prior-claim',
+      metadata: { status: 'completed', result: prior },
     });
     const res = await service.sendSms(org, {
       to: '+1555',
@@ -398,10 +386,9 @@ describe('AgentToolsService', () => {
     expect(res.idempotentReplay).toBe(true);
     expect(res.data?.messageId).toBe('prior');
     expect(sms.send).not.toHaveBeenCalled();
-    expect(prisma.auditLog.create).not.toHaveBeenCalled();
   });
 
-  it('stores idempotency record after successful side effect', async () => {
+  it('claims then completes idempotency record after successful side effect', async () => {
     const { service, prisma } = makeService();
     await service.sendSms(org, {
       to: '+15552001010',
@@ -414,6 +401,21 @@ describe('AgentToolsService', () => {
           organizationId: org,
           entityType: 'JessieAgentTool',
           entityId: 'send_sms:k2',
+          metadata: expect.objectContaining({
+            status: 'pending',
+            tool: 'send_sms',
+          }),
+        }),
+      }),
+    );
+    expect(prisma.auditLog.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'claim-1' },
+        data: expect.objectContaining({
+          metadata: expect.objectContaining({
+            status: 'completed',
+            ok: true,
+          }),
         }),
       }),
     );
@@ -471,7 +473,7 @@ describe('AgentToolsService — conversation context', () => {
             tool: 'lookup_client',
             conversationId: 'conv1',
             idempotencyKey: 'k-conv-1',
-            ok: true,
+            status: 'pending',
           }),
         }),
       }),
@@ -545,8 +547,13 @@ describe('AgentToolsService — conversation context', () => {
 
   it('idempotent replay remains scoped and skips side effects', async () => {
     const { service, prisma, appointments } = makeService();
+    prisma.auditLog.create.mockRejectedValue(
+      Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }),
+    );
     prisma.auditLog.findFirst.mockResolvedValue({
+      id: 'replay-claim',
       metadata: {
+        status: 'completed',
         result: {
           ok: true,
           tool: 'schedule_appointment',
@@ -592,5 +599,175 @@ describe('AgentToolsGuard — secret hygiene', () => {
       expect(msg).not.toContain(presented);
       expect(msg).toMatch(/Invalid agent credentials|Unauthorized/i);
     }
+  });
+});
+
+describe('AgentToolsService — atomic idempotency concurrency', () => {
+  it('two concurrent same-key requests invoke SMS side effect only once', async () => {
+    const { service, prisma, sms } = makeService();
+    let createCalls = 0;
+    prisma.auditLog.create.mockImplementation(async () => {
+      createCalls += 1;
+      if (createCalls === 1) return { id: 'claim-winner' };
+      const err = new Error('Unique constraint failed on AuditLog');
+      (err as { code?: string }).code = 'P2002';
+      throw err;
+    });
+    prisma.auditLog.findFirst.mockResolvedValue({
+      id: 'claim-winner',
+      metadata: {
+        status: 'completed',
+        result: {
+          ok: true,
+          tool: 'send_sms',
+          data: { messageId: 'sms1', provider: 'console', to: '+1555' },
+        },
+      },
+    });
+
+    const key = 'concurrent-key-1';
+    const [a, b] = await Promise.all([
+      service.sendSms(org, { to: '+1555', body: 'hi', idempotencyKey: key }),
+      service.sendSms(org, { to: '+1555', body: 'hi', idempotencyKey: key }),
+    ]);
+
+    expect(sms.send).toHaveBeenCalledTimes(1);
+    expect(a.ok || b.ok).toBe(true);
+  });
+
+  it('different idempotency keys execute independently', async () => {
+    const { service, prisma, sms } = makeService();
+    let n = 0;
+    prisma.auditLog.create.mockImplementation(async () => {
+      n += 1;
+      return { id: `claim-${n}` };
+    });
+    await service.sendSms(org, { to: '+1555', body: 'a', idempotencyKey: 'k-a' });
+    await service.sendSms(org, { to: '+1555', body: 'b', idempotencyKey: 'k-b' });
+    expect(sms.send).toHaveBeenCalledTimes(2);
+  });
+
+  it('agent schedule_appointment passes null actor and agent audit metadata', async () => {
+    const { service, prisma, appointments } = makeService();
+    prisma.client.findFirst.mockResolvedValue({
+      id: 'c1',
+      firstName: 'J',
+      lastName: 'L',
+      email: null,
+      phone: null,
+      status: 'ACTIVE',
+    });
+    prisma.clinician.findFirst.mockResolvedValue({ id: 'cl1' });
+    await service.scheduleAppointment(org, {
+      clientId: 'c1',
+      clinicianId: 'cl1',
+      startTime: '2026-09-01T14:00:00.000Z',
+      endTime: '2026-09-01T14:50:00.000Z',
+      durationMinutes: 50,
+      idempotencyKey: 'book-1',
+    });
+    expect(appointments.create).toHaveBeenCalledWith(
+      org,
+      null,
+      expect.objectContaining({ clientId: 'c1', clinicianId: 'cl1' }),
+      expect.objectContaining({
+        actorType: 'jessie_agent',
+        tool: 'schedule_appointment',
+        idempotencyKey: 'book-1',
+      }),
+    );
+  });
+
+  it('pending claim returns idempotency_in_progress without side effect', async () => {
+    const { service, prisma, sms } = makeService();
+    prisma.auditLog.create.mockRejectedValue(
+      Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }),
+    );
+    prisma.auditLog.findFirst.mockResolvedValue({
+      id: 'claim-pending',
+      metadata: { status: 'pending', tool: 'send_sms', idempotencyKey: 'k-pending' },
+    });
+    const res = await service.sendSms(org, {
+      to: '+1555',
+      body: 'hi',
+      idempotencyKey: 'k-pending',
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('idempotency_in_progress');
+    expect(sms.send).not.toHaveBeenCalled();
+  });
+
+  it('failed provider result is stored and replayed for the same key', async () => {
+    const { service, prisma, sms } = makeService();
+    sms.send.mockRejectedValueOnce(new Error('twilio down'));
+    prisma.auditLog.create.mockResolvedValue({ id: 'claim-fail' });
+    const first = await service.sendSms(org, {
+      to: '+1555',
+      body: 'hi',
+      idempotencyKey: 'k-fail-1',
+    });
+    expect(first.ok).toBe(false);
+    expect(first.error).toBe('provider_error');
+    expect(prisma.auditLog.update).toHaveBeenCalled();
+    expect(sms.send).toHaveBeenCalledTimes(1);
+
+    prisma.auditLog.create.mockRejectedValue(
+      Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }),
+    );
+    prisma.auditLog.findFirst.mockResolvedValue({
+      id: 'claim-fail',
+      metadata: {
+        status: 'failed',
+        result: { ok: false, tool: 'send_sms', error: 'provider_error', message: 'twilio down' },
+      },
+    });
+    const second = await service.sendSms(org, {
+      to: '+1555',
+      body: 'hi',
+      idempotencyKey: 'k-fail-1',
+    });
+    expect(second.ok).toBe(false);
+    expect(second.error).toBe('provider_error');
+    expect(second.idempotentReplay).toBe(true);
+    expect(sms.send).toHaveBeenCalledTimes(1);
+  });
+
+  it('new idempotency key retries after provider failure', async () => {
+    const { service, prisma, sms } = makeService();
+    let n = 0;
+    prisma.auditLog.create.mockImplementation(async () => {
+      n += 1;
+      return { id: `claim-${n}` };
+    });
+    sms.send.mockRejectedValueOnce(new Error('twilio down'));
+    const fail = await service.sendSms(org, {
+      to: '+1555',
+      body: 'a',
+      idempotencyKey: 'k-old',
+    });
+    expect(fail.ok).toBe(false);
+
+    sms.send.mockResolvedValueOnce({ id: 'sms-retry', provider: 'console' });
+    const ok = await service.sendSms(org, {
+      to: '+1555',
+      body: 'a',
+      idempotencyKey: 'k-new',
+    });
+    expect(ok.ok).toBe(true);
+    expect(ok.data?.messageId).toBe('sms-retry');
+    expect(sms.send).toHaveBeenCalledTimes(2);
+  });
+
+  it('same idempotency key is isolated across organizations', async () => {
+    const { service, prisma, sms } = makeService();
+    let creates: string[] = [];
+    prisma.auditLog.create.mockImplementation(async (args: { data: { organizationId: string } }) => {
+      creates.push(args.data.organizationId);
+      return { id: `claim-${args.data.organizationId}` };
+    });
+    await service.sendSms(org, { to: '+1555', body: 'a', idempotencyKey: 'shared-key' });
+    await service.sendSms(otherOrg, { to: '+1555', body: 'b', idempotencyKey: 'shared-key' });
+    expect(sms.send).toHaveBeenCalledTimes(2);
+    expect(creates).toEqual([org, otherOrg]);
   });
 });
