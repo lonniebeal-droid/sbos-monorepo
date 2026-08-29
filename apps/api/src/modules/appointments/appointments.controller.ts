@@ -73,14 +73,14 @@ export class AppointmentsController {
   @Roles(Role.FRONT_DESK)
   @ApiOperation({ summary: 'Check a client in for their appointment' })
   checkIn(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.appointmentsService.checkIn(user.organizationId, id);
+    return this.appointmentsService.checkIn(user.organizationId, user.id, id);
   }
 
   @Post(':id/check-out')
   @Roles(Role.FRONT_DESK)
   @ApiOperation({ summary: 'Check a client out and complete the appointment' })
   checkOut(@CurrentUser() user: AuthenticatedUser, @Param('id') id: string) {
-    return this.appointmentsService.checkOut(user.organizationId, id);
+    return this.appointmentsService.checkOut(user.organizationId, user.id, id);
   }
 
   @Post(':id/cancel')
