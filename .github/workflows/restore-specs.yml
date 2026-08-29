@@ -6,7 +6,7 @@ on:
       - fix/rbac-isolation-tests-and-org-admin-escalation
     paths:
       - '.github/workflows/restore-specs.yml'
-      - '.github/workflows/RESTORE_SPECS_TRIGGER'
+      - 'tmp-restore/**'
   workflow_dispatch:
 
 permissions:
@@ -25,14 +25,40 @@ jobs:
           ref: fix/rbac-isolation-tests-and-org-admin-escalation
           fetch-depth: 0
 
-      - name: Write verified passwordVersion specs
+      - name: Decode and write verified specs
         run: |
           set -euo pipefail
           python3 <<'PY'
           import base64, gzip
           from pathlib import Path
-          files = {
-            "apps/api/src/modules/auth/auth.service.spec.ts": open('/home/runner/work/_temp/auth_b64.txt').read() if False else """PLACEHOLDER""",
-            "apps/api/src/modules/users/users.service.spec.ts": """PLACEHOLDER2""",
+          mapping = {
+            "tmp-restore/auth.service.spec.ts.gz.b64": "apps/api/src/modules/auth/auth.service.spec.ts",
+            "tmp-restore/users.service.spec.ts.gz.b64": "apps/api/src/modules/users/users.service.spec.ts",
           }
+          for src, dest in mapping.items():
+              b64 = Path(src).read_text().strip()
+              data = gzip.decompress(base64.b64decode(b64))
+              Path(dest).write_bytes(data)
+              print(dest, len(data))
           PY
+
+      - name: Remove temporary restore machinery
+        run: |
+          rm -rf tmp-restore
+          rm -f .github/workflows/restore-schema.yml \
+                .github/workflows/RESTORE_SCHEMA_TRIGGER \
+                .github/workflows/restore-specs.yml \
+                .github/workflows/RESTORE_SPECS_TRIGGER
+
+      - name: Commit and push
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "Nothing to commit"
+            exit 0
+          fi
+          git commit -m "test(auth): passwordVersion session invalidation regressions"
+          git push origin HEAD:fix/rbac-isolation-tests-and-org-admin-escalation
