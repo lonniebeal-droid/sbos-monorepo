@@ -13,26 +13,24 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: fix/rbac-isolation-tests-and-org-admin-escalation
-      - name: Decode and restore
+          fetch-depth: 0
+      - name: Restore from c2fb089 and apply patches
         run: |
-          python3 << 'PY'
-          import base64, gzip, pathlib
-          mapping = {
-            "tmp-restore/auth.service.ts.gz.b64": "apps/api/src/modules/auth/auth.service.ts",
-            "tmp-restore/users.service.ts.gz.b64": "apps/api/src/modules/users/users.service.ts",
-            "tmp-restore/auth.service.spec.ts.gz.b64": "apps/api/src/modules/auth/auth.service.spec.ts",
-          }
-          for src, dest in mapping.items():
-              b64 = pathlib.Path(src).read_text().strip()
-              data = gzip.decompress(base64.b64decode(b64))
-              pathlib.Path(dest).write_bytes(data)
-              print(dest, len(data))
-          PY
-      - name: Commit restore and remove temp
+          git show c2fb089:apps/api/src/modules/auth/auth.service.ts > apps/api/src/modules/auth/auth.service.ts
+          git show c2fb089:apps/api/src/modules/users/users.service.ts > apps/api/src/modules/users/users.service.ts
+          git show c2fb089:apps/api/src/modules/auth/auth.service.spec.ts > apps/api/src/modules/auth/auth.service.spec.ts
+          patch -p1 < tmp-restore/auth.fixed.patch
+          patch -p1 < tmp-restore/users.fixed.patch
+          patch -p1 < tmp-restore/spec.fixed.patch
+          wc -c apps/api/src/modules/auth/auth.service.ts apps/api/src/modules/users/users.service.ts apps/api/src/modules/auth/auth.service.spec.ts
+          grep -n 'updateMany' apps/api/src/modules/auth/auth.service.ts | head
+          grep -n 'TransactionClient' apps/api/src/modules/users/users.service.ts | head
+      - name: Commit restore and cleanup
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add apps/api/src/modules/auth/auth.service.ts apps/api/src/modules/users/users.service.ts apps/api/src/modules/auth/auth.service.spec.ts
-          git rm -f tmp-restore/*.gz.b64 .github/workflows/restore-invite-atomic.yml .github/workflows/RESTORE_INVITE_TRIGGER || true
+          git rm -rf tmp-restore .github/workflows/restore-invite-atomic.yml .github/workflows/RESTORE_INVITE_TRIGGER || true
+          git status
           git commit -m "fix(auth): atomic invite claim in acceptInvite (TOCTOU)"
           git push origin HEAD:fix/rbac-isolation-tests-and-org-admin-escalation

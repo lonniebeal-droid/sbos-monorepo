@@ -1,0 +1,69 @@
+--- a/apps/api/src/modules/auth/auth.service.ts
++++ b/apps/api/src/modules/auth/auth.service.ts
+@@ -301,26 +301,52 @@
+    * row after token verification. Request body cannot override role or org.
+    * Grant authority was enforced when the invite was created; the stored role
+    * is used as the grantor for the create check (roleSatisfies is reflexive).
++   *
++   * Invite consumption is atomic: only one concurrent caller can claim an
++   * unused, unexpired invite (updateMany where usedAt IS NULL). User creation
++   * and the claim share one transaction so neither partial state nor double
++   * acceptance is possible.
+    */
+   async acceptInvite(dto: AcceptInviteDto): Promise<{ success: true }> {
+-    const invite = await this.prisma.userInvite.findUnique({ where: { id: dto.inviteId } });
+-    if (!invite) throw new BadRequestException('Invalid invite');
+-    if (invite.usedAt) throw new BadRequestException('Invite already used');
+-    if (invite.expiresAt <= new Date()) throw new BadRequestException('Invite expired');
++    await this.prisma.$transaction(async (tx) => {
++      const invite = await tx.userInvite.findUnique({
++        where: { id: dto.inviteId },
++      });
++      if (!invite) throw new BadRequestException('Invalid invite');
++      if (invite.usedAt) throw new BadRequestException('Invite already used');
++      if (invite.expiresAt <= new Date()) {
++        throw new BadRequestException('Invite expired');
++      }
+ 
+-    const ok = await bcrypt.compare(dto.token, invite.tokenHash);
+-    if (!ok) throw new BadRequestException('Invalid invite token');
++      const ok = await bcrypt.compare(dto.token, invite.tokenHash);
++      if (!ok) throw new BadRequestException('Invalid invite token');
+ 
+-    const grantedRole = invite.role as unknown as Role;
++      // Atomic single-claimer: second concurrent caller gets count 0.
++      const claimed = await tx.userInvite.updateMany({
++        where: {
++          id: invite.id,
++          usedAt: null,
++          expiresAt: { gt: new Date() },
++        },
++        data: { usedAt: new Date() },
++      });
++      if (claimed.count !== 1) {
++        throw new BadRequestException('Invite already used');
++      }
+ 
+-    await this.usersService.create(invite.organizationId, grantedRole, {
+-      email: invite.email,
+-      password: dto.password,
+-      name: dto.name,
+-      role: grantedRole,
++      const grantedRole = invite.role as unknown as Role;
++      await this.usersService.create(
++        invite.organizationId,
++        grantedRole,
++        {
++          email: invite.email,
++          password: dto.password,
++          name: dto.name,
++          role: grantedRole,
++        },
++        tx,
++      );
+     });
+-
+-    await this.prisma.userInvite.update({ where: { id: invite.id }, data: { usedAt: new Date() } });
+     return { success: true };
+   }
+ 
