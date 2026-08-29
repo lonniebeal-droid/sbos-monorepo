@@ -12,6 +12,88 @@ function makeService(overrides?: { prisma?: Partial<PrismaService> }) {
   return { service: new TreatmentPlansService(prisma, audit), audit };
 }
 
+describe('TreatmentPlansService.create', () => {
+  it('creates a plan only after confirming the client belongs to the org', async () => {
+    const created = {
+      id: 'p1',
+      organizationId: 'org1',
+      clientId: 'c1',
+      title: 'Anxiety management',
+      goals: [],
+    };
+    const prisma = {
+      client: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'c1' }),
+      },
+      treatmentPlan: {
+        create: vi.fn().mockResolvedValue(created),
+      },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    const result = await service.create('org1', {
+      clientId: 'c1',
+      clinicianId: 'cl1',
+      title: 'Anxiety management',
+    });
+
+    expect(prisma.client.findFirst).toHaveBeenCalledWith({
+      where: { id: 'c1', organizationId: 'org1', deletedAt: null },
+      select: { id: true },
+    });
+    expect(prisma.treatmentPlan.create).toHaveBeenCalled();
+    expect(result).toEqual(created);
+  });
+
+  it('throws NotFoundException and never inserts when clientId is outside the org', async () => {
+    const prisma = {
+      client: {
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+      treatmentPlan: {
+        create: vi.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(
+      service.create('org1', {
+        clientId: 'foreign-client',
+        clinicianId: 'cl1',
+        title: 'Spoofed plan',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(prisma.treatmentPlan.create).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundException and never inserts when client is soft-deleted', async () => {
+    const prisma = {
+      client: {
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+      treatmentPlan: {
+        create: vi.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(
+      service.create('org1', {
+        clientId: 'deleted-client',
+        clinicianId: 'cl1',
+        title: 'Deleted client plan',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(prisma.client.findFirst).toHaveBeenCalledWith({
+      where: { id: 'deleted-client', organizationId: 'org1', deletedAt: null },
+      select: { id: true },
+    });
+    expect(prisma.treatmentPlan.create).not.toHaveBeenCalled();
+  });
+});
+
 describe('TreatmentPlansService.remove', () => {
   it('deletes a DRAFT plan and records a DELETE audit entry with goal count', async () => {
     const existing = {
