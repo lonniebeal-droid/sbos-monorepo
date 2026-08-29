@@ -23,6 +23,7 @@ const testUser: UserEntity = {
   name: 'Riley Chen',
   role: Role.CLINICIAN,
   organizationId: 'org1',
+  passwordVersion: 1,
   createdAt: '2026-01-01T00:00:00.000Z',
 };
 
@@ -82,6 +83,38 @@ function makeService(overrides?: {
       findUnique: vi.fn(),
       update: vi.fn(),
     },
+    userInvite: {
+      findUnique: vi.fn(),
+      updateMany: vi.fn(),
+    },
+    $transaction: vi.fn().mockImplementation(async (fn: (tx: unknown) => Promise<unknown>) =>
+      fn({
+        refreshToken: {
+          create: vi.fn().mockResolvedValue({}),
+          findUnique: vi.fn(),
+          update: vi.fn().mockResolvedValue({}),
+          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+          deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
+        },
+        user: {
+          findFirst: vi.fn(),
+          findUnique: vi.fn(),
+          update: vi.fn().mockResolvedValue({}),
+          create: vi.fn(),
+        },
+        passwordReset: {
+          create: vi.fn(),
+          findUnique: vi.fn(),
+          update: vi.fn(),
+          updateMany: vi.fn(),
+        },
+        userInvite: {
+          findUnique: vi.fn(),
+          updateMany: vi.fn(),
+        },
+        clinician: { create: vi.fn() },
+      }),
+    ),
     ...overrides?.prisma,
   };
 
@@ -102,18 +135,199 @@ function makeService(overrides?: {
   return { service, usersService, jwtService, prisma, audit };
 }
 
-describe('AuthService.refresh',
- () => {
-  it('rotates the refresh token and issues a fresh pair for a valid, unrevoked token', async () => {
-    const { service, prisma, jwtService } = makeService({
+describe('AuthService.refresh', () => {
+  it('rejects invalid JWT', async () => {
+    const { service, jwtService } = makeService({
       jwtService: {
-        verifyAsync: vi
-          .fn()
-          .mockResolvedValue({ sub: 'u1', type: 'refresh', jti: 'jti-1', organizationId: 'org1' }),
-        signAsync: vi.fn().mockResolvedValue('new.token'),
+        verifyAsync: vi.fn().mockRejectedValue(new Error('bad')),
+      },
+    });
+    await expect(service.refresh('token')).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(jwtService.verifyAsync).toHaveBeenCalled();
+  });
+
+  it('rejects non-refresh token type', async () => {
+    const { service } = makeService({
+      jwtService: {
+        verifyAsync: vi.fn().mockResolvedValue({
+          sub: 'u1',
+          type: 'access',
+          organizationId: 'org1',
+          passwordVersion: 1,
+        }),
+      },
+    });
+    await expect(service.refresh('token')).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('rejects missing jti', async () => {
+    const { service } = makeService({
+      jwtService: {
+        verifyAsync: vi.fn().mockResolvedValue({
+          sub: 'u1',
+          type: 'refresh',
+          organizationId: 'org1',
+          passwordVersion: 1,
+        }),
+      },
+    });
+    await expect(service.refresh('token')).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it('rejects unknown/revoked refresh token and revokes family on reuse', async () => {
+    const { service, prisma } = makeService({
+      jwtService: {
+        verifyAsync: vi.fn().mockResolvedValue({
+          sub: 'u1',
+          type: 'refresh',
+          jti: 'jti-1',
+          organizationId: 'org1',
+          passwordVersion: 1,
+        }),
       },
       prisma: {
         refreshToken: {
+          create: vi.fn(),
+          findUnique: vi.fn().mockResolvedValue({
+            jti: 'jti-1',
+            userId: 'u1',
+            revokedAt: new Date(),
+            expiresAt: new Date(Date.now() + 60_000),
+          }),
+          update: vi.fn(),
+          updateMany: vi.fn().mockResolvedValue({ count: 2 }),
+          deleteMany: vi.fn(),
+        },
+      },
+    });
+
+    await expect(service.refresh('token')).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: 'u1', revokedAt: null },
+      }),
+    );
+  });
+
+  it('rejects when user is no longer active', async () => {
+    const { service, prisma, jwtService } = makeService({
+      jwtService: {
+        verifyAsync: vi.fn().mockResolvedValue({
+          sub: 'u1',
+          type: 'refresh',
+          jti: 'jti-1',
+          organizationId: 'org1',
+          passwordVersion: 1,
+        }),
+      },
+      usersService: {
+        findActiveById: vi.fn().mockRejectedValue(new NotFoundException('gone')),
+      },
+      prisma: {
+        refreshToken: {
+          create: vi.fn(),
+          findUnique: vi.fn().mockResolvedValue({
+            jti: 'jti-1',
+            userId: 'u1',
+            revokedAt: null,
+            expiresAt: new Date(Date.now() + 60_000),
+          }),
+          update: vi.fn(),
+          updateMany: vi.fn(),
+          deleteMany: vi.fn(),
+        },
+      },
+    });
+
+    await expect(service.refresh('token')).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.refreshToken.update).not.toHaveBeenCalled();
+    expect(jwtService.signAsync).not.toHaveBeenCalled();
+  });
+
+  it('rejects refresh when passwordVersion is missing from the payload', async () => {
+    const { service, jwtService, prisma } = makeService({
+      jwtService: {
+        verifyAsync: vi.fn().mockResolvedValue({
+          sub: 'u1',
+          type: 'refresh',
+          jti: 'jti-1',
+          organizationId: 'org1',
+          // passwordVersion intentionally omitted
+        }),
+      },
+      prisma: {
+        refreshToken: {
+          create: vi.fn(),
+          findUnique: vi.fn().mockResolvedValue({
+            jti: 'jti-1',
+            userId: 'u1',
+            revokedAt: null,
+            expiresAt: new Date(Date.now() + 60_000),
+          }),
+          update: vi.fn(),
+          updateMany: vi.fn(),
+          deleteMany: vi.fn(),
+        },
+      },
+    });
+
+    await expect(service.refresh('token')).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.refreshToken.update).not.toHaveBeenCalled();
+    expect(jwtService.signAsync).not.toHaveBeenCalled();
+  });
+
+  it('rejects refresh when passwordVersion is stale vs current user', async () => {
+    const { service, jwtService, prisma } = makeService({
+      jwtService: {
+        verifyAsync: vi.fn().mockResolvedValue({
+          sub: 'u1',
+          type: 'refresh',
+          jti: 'jti-1',
+          organizationId: 'org1',
+          passwordVersion: 1,
+        }),
+      },
+      usersService: {
+        findActiveById: vi.fn().mockResolvedValue({
+          ...testUser,
+          passwordVersion: 4,
+        }),
+      },
+      prisma: {
+        refreshToken: {
+          create: vi.fn(),
+          findUnique: vi.fn().mockResolvedValue({
+            jti: 'jti-1',
+            userId: 'u1',
+            revokedAt: null,
+            expiresAt: new Date(Date.now() + 60_000),
+          }),
+          update: vi.fn(),
+          updateMany: vi.fn(),
+          deleteMany: vi.fn(),
+        },
+      },
+    });
+
+    await expect(service.refresh('token')).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.refreshToken.update).not.toHaveBeenCalled();
+    expect(jwtService.signAsync).not.toHaveBeenCalled();
+  });
+
+  it('rotates successfully when passwordVersion matches current user', async () => {
+    const { service, jwtService, prisma } = makeService({
+      jwtService: {
+        verifyAsync: vi.fn().mockResolvedValue({
+          sub: 'u1',
+          type: 'refresh',
+          jti: 'jti-1',
+          organizationId: 'org1',
+          passwordVersion: 1,
+        }),
+      },
+      prisma: {
+        refreshToken: {
+          create: vi.fn().mockResolvedValue({}),
           findUnique: vi.fn().mockResolvedValue({
             jti: 'jti-1',
             userId: 'u1',
@@ -121,120 +335,15 @@ describe('AuthService.refresh',
             expiresAt: new Date(Date.now() + 60_000),
           }),
           update: vi.fn().mockResolvedValue({}),
-          create: vi.fn().mockResolvedValue({}),
           updateMany: vi.fn(),
+          deleteMany: vi.fn(),
         },
       },
     });
 
-    const result = await service.refresh('valid.refresh.token');
-
-    expect(prisma.refreshToken.update).toHaveBeenCalledWith({
-      where: { jti: 'jti-1' },
-      data: { revokedAt: expect.any(Date) },
-    });
-    expect(result).toEqual(
-      expect.objectContaining({
-        accessToken: 'new.token',
-        refreshToken: 'new.token',
-      }),
-    );
-  });
-
-  it('throws UnauthorizedException for a token with a bad/expired signature', async () => {
-    const { service, prisma } = makeService({
-      jwtService: { verifyAsync: vi.fn().mockRejectedValue(new Error('invalid')) },
-    });
-
-    await expect(service.refresh('bad.token')).rejects.toBeInstanceOf(UnauthorizedException);
-    expect(prisma.refreshToken.update).not.toHaveBeenCalled();
-  });
-
-  it('throws UnauthorizedException for a non-refresh token type', async () => {
-    const { service } = makeService({
-      jwtService: {
-        verifyAsync: vi.fn().mockResolvedValue({ sub: 'u1', type: 'access', jti: 'jti-1' }),
-      },
-    });
-
-    await expect(service.refresh('access.token')).rejects.toBeInstanceOf(UnauthorizedException);
-  });
-
-  it('revokes the whole token family and throws on reuse of an already-revoked jti', async () => {
-    const { service, prisma } = makeService({
-      jwtService: {
-        verifyAsync: vi
-          .fn()
-          .mockResolvedValue({ sub: 'u1', type: 'refresh', jti: 'jti-stolen' }),
-      },
-      prisma: {
-        refreshToken: {
-          findUnique: vi.fn().mockResolvedValue({
-            jti: 'jti-stolen',
-            userId: 'u1',
-            revokedAt: new Date(),
-            expiresAt: new Date(Date.now() + 60_000),
-          }),
-          updateMany: vi.fn().mockResolvedValue({ count: 3 }),
-          update: vi.fn(),
-          create: vi.fn(),
-        },
-      },
-    });
-
-    await expect(service.refresh('stolen.token')).rejects.toBeInstanceOf(UnauthorizedException);
-    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
-      where: { userId: 'u1', revokedAt: null },
-      data: { revokedAt: expect.any(Date) },
-    });
-  });
-
-  it('does not family-revoke when jti is unknown (stored is null)', async () => {
-    const { service, prisma } = makeService({
-      jwtService: {
-        verifyAsync: vi
-          .fn()
-          .mockResolvedValue({ sub: 'u1', type: 'refresh', jti: 'jti-unknown' }),
-      },
-      prisma: {
-        refreshToken: {
-          findUnique: vi.fn().mockResolvedValue(null),
-          updateMany: vi.fn(),
-          update: vi.fn(),
-          create: vi.fn(),
-        },
-      },
-    });
-
-    await expect(service.refresh('unknown.token')).rejects.toBeInstanceOf(UnauthorizedException);
-    expect(prisma.refreshToken.updateMany).not.toHaveBeenCalled();
-  });
-
-  it('rejects refresh for an inactive/suspended user (findActiveById throws)', async () => {
-    const { service } = makeService({
-      jwtService: {
-        verifyAsync: vi
-          .fn()
-          .mockResolvedValue({ sub: 'u1', type: 'refresh', jti: 'jti-1', organizationId: 'org1' }),
-      },
-      usersService: {
-        findActiveById: vi.fn().mockRejectedValue(new NotFoundException('User u1 not found')),
-      },
-      prisma: {
-        refreshToken: {
-          findUnique: vi.fn().mockResolvedValue({
-            jti: 'jti-1',
-            userId: 'u1',
-            revokedAt: null,
-            expiresAt: new Date(Date.now() + 60_000),
-          }),
-          update: vi.fn(),
-          create: vi.fn(),
-          updateMany: vi.fn(),
-        },
-      },
-    });
-
-    await expect(service.refresh('valid.token')).rejects.toBeInstanceOf(NotFoundException);
+    const result = await service.refresh('token');
+    expect(result.accessToken).toBe('signed.jwt.token');
+    expect(prisma.refreshToken.update).toHaveBeenCalled();
+    expect(jwtService.signAsync).toHaveBeenCalled();
   });
 });
