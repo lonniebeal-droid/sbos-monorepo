@@ -13,7 +13,6 @@ import type { AuthenticatedUser } from '../../common/interfaces/authenticated-us
 import { CreateUserDto } from './dto/create-user.dto';
 import { UsersService } from './users.service';
 import { InviteUserDto } from './dto/invite-user.dto';
-import { AuthService } from '../auth/auth.service';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -29,8 +28,12 @@ export class UsersController {
     @Body() dto: InviteUserDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    // Delegate to AuthService for token creation and persistence.
-    return this.usersService.createInvite(dto.email, dto.role, user.id, user.organizationId);
+    return this.usersService.createInvite(
+      dto.email,
+      dto.role,
+      user.id,
+      user.organizationId,
+    );
   }
 
   @Get()
@@ -46,20 +49,26 @@ export class UsersController {
   @Get('me')
   @ApiOperation({ summary: 'Get the current authenticated user' })
   me(@CurrentUser() user: AuthenticatedUser) {
-    return this.usersService.findById(user.id);
+    return this.usersService.findActiveById(user.id);
   }
 
   @Get(':id')
   @Roles(Role.SUPERVISOR)
-  @ApiOperation({ summary: 'Get a user by id' })
-  findOne(@Param('id') id: string) {
-    return this.usersService.findById(id);
+  @ApiOperation({ summary: 'Get a user by id within the current organization' })
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.usersService.findByIdInOrg(user.organizationId, id);
   }
 
   @Post()
   @Roles(Role.ORG_ADMIN)
-  @ApiOperation({ summary: 'Create a new user' })
-  create(@Body() dto: CreateUserDto) {
-    return this.usersService.create(dto);
+  @ApiOperation({ summary: 'Create a new user in the current organization' })
+  create(
+    @Body() dto: CreateUserDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.usersService.create(user.organizationId, dto);
   }
 }
