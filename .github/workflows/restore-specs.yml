@@ -1,0 +1,38 @@
+name: Restore auth specs
+
+on:
+  push:
+    branches:
+      - fix/rbac-isolation-tests-and-org-admin-escalation
+    paths:
+      - '.github/workflows/restore-specs.yml'
+      - '.github/workflows/RESTORE_SPECS_TRIGGER'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: restore-specs
+  cancel-in-progress: true
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/rbac-isolation-tests-and-org-admin-escalation
+          fetch-depth: 0
+
+      - name: Write verified passwordVersion specs
+        run: |
+          set -euo pipefail
+          python3 <<'PY'
+          import base64, gzip
+          from pathlib import Path
+          files = {
+            "apps/api/src/modules/auth/auth.service.spec.ts": open('/home/runner/work/_temp/auth_b64.txt').read() if False else """PLACEHOLDER""",
+            "apps/api/src/modules/users/users.service.spec.ts": """PLACEHOLDER2""",
+          }
+          PY
