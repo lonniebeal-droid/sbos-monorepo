@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { AuditAction } from '@sbos/database';
 import { minutesFromHHmm, windowsOverlap, type TimeWindow } from '@sbos/core';
 
@@ -13,7 +13,21 @@ export class AvailabilityService {
     private readonly audit: AuditService,
   ) {}
 
-  createAvailability(organizationId: string, dto: CreateAvailabilityDto) {
+  private async ensureClinicianInOrg(
+    organizationId: string,
+    clinicianId: string,
+  ): Promise<void> {
+    const clinician = await this.prisma.clinician.findFirst({
+      where: { id: clinicianId, organizationId },
+      select: { id: true },
+    });
+    if (!clinician) {
+      throw new NotFoundException(`Clinician ${clinicianId} not found`);
+    }
+  }
+
+  async createAvailability(organizationId: string, dto: CreateAvailabilityDto) {
+    await this.ensureClinicianInOrg(organizationId, dto.clinicianId);
     if (minutesFromHHmm(dto.endTime) <= minutesFromHHmm(dto.startTime)) {
       throw new BadRequestException('endTime must be after startTime');
     }
@@ -50,7 +64,8 @@ export class AvailabilityService {
     return { success: true };
   }
 
-  createTimeOff(organizationId: string, dto: CreateTimeOffDto) {
+  async createTimeOff(organizationId: string, dto: CreateTimeOffDto) {
+    await this.ensureClinicianInOrg(organizationId, dto.clinicianId);
     const startsAt = new Date(dto.startsAt);
     const endsAt = new Date(dto.endsAt);
     if (endsAt <= startsAt) {
