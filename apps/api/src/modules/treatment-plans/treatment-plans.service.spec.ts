@@ -180,3 +180,71 @@ describe('TreatmentPlansService.remove', () => {
     );
   });
 });
+
+describe('TreatmentPlansService.updateGoal', () => {
+  it('updates goal status/progress and records UPDATE audit', async () => {
+    const plan = { id: 'p1', organizationId: 'org1', goals: [] };
+    const goal = {
+      id: 'g1',
+      treatmentPlanId: 'p1',
+      status: 'NOT_STARTED',
+      progressPercent: 0,
+    };
+    const updated = { ...goal, status: 'IN_PROGRESS', progressPercent: 25 };
+    const prisma = {
+      treatmentPlan: { findFirst: vi.fn().mockResolvedValue(plan) },
+      goal: {
+        findFirst: vi.fn().mockResolvedValue(goal),
+        update: vi.fn().mockResolvedValue(updated),
+      },
+    } as unknown as PrismaService;
+    const { service, audit } = makeService({ prisma });
+
+    const result = await service.updateGoal('org1', 'actor1', 'p1', 'g1', {
+      status: 'IN_PROGRESS' as never,
+      progressPercent: 25,
+    });
+
+    expect(prisma.goal.update).toHaveBeenCalledWith({
+      where: { id: 'g1' },
+      data: { status: 'IN_PROGRESS', progressPercent: 25 },
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org1',
+        actorId: 'actor1',
+        action: AuditAction.UPDATE,
+        entityType: 'Goal',
+        entityId: 'g1',
+        metadata: expect.objectContaining({
+          treatmentPlanId: 'p1',
+          previousStatus: 'NOT_STARTED',
+          newStatus: 'IN_PROGRESS',
+          previousProgressPercent: 0,
+          newProgressPercent: 25,
+        }),
+      }),
+    );
+    expect(result).toEqual(updated);
+  });
+
+  it('throws NotFoundException and never writes/audits when goal is missing', async () => {
+    const plan = { id: 'p1', organizationId: 'org1', goals: [] };
+    const prisma = {
+      treatmentPlan: { findFirst: vi.fn().mockResolvedValue(plan) },
+      goal: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        update: vi.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service, audit } = makeService({ prisma });
+
+    await expect(
+      service.updateGoal('org1', 'actor1', 'p1', 'missing', {
+        status: 'ACHIEVED' as never,
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.goal.update).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+});
