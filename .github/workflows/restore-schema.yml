@@ -1,0 +1,48 @@
+name: Restore schema
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/rbac-isolation-tests-and-org-admin-escalation
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Rebuild schema from 4e2eba7 + passwordVersion
+        run: |
+          set -euo pipefail
+          git show 4e2eba7f1c6695de4f69b183f3345531be47d69b:packages/database/prisma/schema.prisma > /tmp/schema.prisma
+          python3 <<'PY'
+          from pathlib import Path
+          src = Path('/tmp/schema.prisma').read_text()
+          old = """  mfaEnabled     Boolean    @default(false)\n  mfaSecret      String?\n  lastLoginAt    DateTime?\n  createdAt      DateTime   @default(now())\n  updatedAt      DateTime   @updatedAt"""
+          new = """  mfaEnabled     Boolean    @default(false)\n  mfaSecret      String?\n  lastLoginAt    DateTime?\n  /// Incremented on password change/reset so existing access JWTs become invalid.\n  passwordVersion Int       @default(1)\n  createdAt      DateTime   @default(now())\n  updatedAt      DateTime   @updatedAt"""
+          if old not in src:
+              raise SystemExit('anchor not found in 4e2eba7 schema')
+          out = src.replace(old, new, 1)
+          Path('packages/database/prisma/schema.prisma').write_text(out)
+          print('bytes', len(out))
+          print('models', out.count('model '))
+          assert 'passwordVersion Int       @default(1)' in out
+          PY
+
+      - name: Commit and push if changed
+        run: |
+          set -euo pipefail
+          git config user.name "lonniebeal-droid"
+          git config user.email "lonniebeal@gmail.com"
+          git add packages/database/prisma/schema.prisma
+          if git diff --cached --quiet; then
+            echo "No schema changes to commit"
+            exit 0
+          fi
+          git commit -m "fix(db): restore complete Prisma schema with password version"
+          git push origin HEAD:fix/rbac-isolation-tests-and-org-admin-escalation
