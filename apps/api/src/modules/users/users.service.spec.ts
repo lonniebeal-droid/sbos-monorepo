@@ -18,6 +18,7 @@ const baseRecord = {
   lastName: 'Chen',
   role: 'CLINICIAN',
   organizationId: 'org1',
+  passwordVersion: 1,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
 };
 
@@ -153,7 +154,7 @@ describe('UsersService.findActiveById', () => {
 
 describe('UsersService.create — clinician profile regression', () => {
   it('creates a Clinician profile row when the new user is a CLINICIAN (appointments/notes reference the profile, not the user row)', async () => {
-    const created = { id: 'u2', organizationId: 'org1', role: 'CLINICIAN', createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date() };
+    const created = { id: 'u2', organizationId: 'org1', role: 'CLINICIAN', passwordVersion: 1, createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date() };
     const clinicianCreate = vi.fn().mockResolvedValue({ id: 'c1', userId: 'u2' });
     const prisma = {
       user: {
@@ -177,7 +178,7 @@ describe('UsersService.create — clinician profile regression', () => {
   });
 
   it('does not create a Clinician profile for non-clinician roles', async () => {
-    const created = { id: 'u3', organizationId: 'org1', role: 'FRONT_DESK', createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date() };
+    const created = { id: 'u3', organizationId: 'org1', role: 'FRONT_DESK', passwordVersion: 1, createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date() };
     const clinicianCreate = vi.fn();
     const prisma = {
       user: {
@@ -232,6 +233,7 @@ describe('UsersService.create — tenant organizationId from actor only', () => 
     const created = {
       id: 'u4',
       organizationId: 'org-actor',
+      passwordVersion: 1,
       email: 'x@sbos.health',
       firstName: 'X',
       lastName: 'Y',
@@ -286,6 +288,7 @@ describe('UsersService.create — role grant authority', () => {
     const created = {
       id: 'u-sa',
       organizationId: 'org1',
+      passwordVersion: 1,
       email: 'sa@sbos.health',
       firstName: 'Super',
       lastName: 'Admin',
@@ -316,6 +319,7 @@ describe('UsersService.create — role grant authority', () => {
     const created = {
       id: 'u-cl',
       organizationId: 'org1',
+      passwordVersion: 1,
       email: 'cl@sbos.health',
       firstName: 'C',
       lastName: 'L',
