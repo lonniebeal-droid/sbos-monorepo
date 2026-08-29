@@ -32,16 +32,36 @@ export class WaitlistService {
     });
   }
 
-  async updateStatus(organizationId: string, id: string, dto: UpdateWaitlistDto) {
+  async updateStatus(
+    organizationId: string,
+    actorId: string,
+    id: string,
+    dto: UpdateWaitlistDto,
+  ) {
     const entry = await this.prisma.waitlistEntry.findFirst({
       where: { id, organizationId },
-      select: { id: true },
+      select: { id: true, status: true, clientId: true },
     });
     if (!entry) throw new NotFoundException(`Waitlist entry ${id} not found`);
-    return this.prisma.waitlistEntry.update({
+    const updated = await this.prisma.waitlistEntry.update({
       where: { id },
       data: { status: dto.status as WaitlistStatus },
     });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.UPDATE,
+      entityType: 'WaitlistEntry',
+      entityId: id,
+      metadata: {
+        previousStatus: entry.status,
+        newStatus: dto.status,
+        clientId: entry.clientId,
+      },
+    });
+
+    return updated;
   }
 
   async remove(organizationId: string, actorId: string, id: string) {
