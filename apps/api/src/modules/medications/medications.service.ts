@@ -55,8 +55,13 @@ export class MedicationsService {
     return medication;
   }
 
-  async update(organizationId: string, id: string, dto: UpdateMedicationDto) {
-    await this.ensure(organizationId, id);
+  async update(
+    organizationId: string,
+    actorId: string,
+    id: string,
+    dto: UpdateMedicationDto,
+  ) {
+    const existing = await this.ensure(organizationId, id);
     const { startDate, ...rest } = dto;
     const data: Prisma.MedicationUpdateInput = { ...rest };
     if (startDate) {
@@ -65,7 +70,24 @@ export class MedicationsService {
     if (dto.status === 'DISCONTINUED' || dto.status === 'COMPLETED') {
       data.endDate = new Date();
     }
-    return this.prisma.medication.update({ where: { id }, data });
+    const updated = await this.prisma.medication.update({ where: { id }, data });
+
+    if (dto.status && dto.status !== existing.status) {
+      await this.audit.record({
+        organizationId,
+        actorId,
+        action: AuditAction.UPDATE,
+        entityType: 'Medication',
+        entityId: id,
+        metadata: {
+          previousStatus: existing.status,
+          newStatus: dto.status,
+          clientId: existing.clientId,
+        },
+      });
+    }
+
+    return updated;
   }
 
   async remove(organizationId: string, actorId: string, id: string) {
