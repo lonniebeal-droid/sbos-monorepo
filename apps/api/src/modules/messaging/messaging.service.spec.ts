@@ -6,8 +6,8 @@ import { MessagingService } from './messaging.service';
 import { MessageThreadTypeDto } from './dto/messaging.dto';
 import type { PrismaService } from '../../prisma/prisma.service';
 
-function makeService(overrides?: { prisma?: Record<string, unknown> }) {
-  const prisma = {
+function makeService(overrides?: { prisma?: Partial<PrismaService> }) {
+  const base = {
     user: {
       findMany: vi.fn().mockImplementation(({ where }: { where: { id: { in: string[] } } }) =>
         Promise.resolve((where.id.in as string[]).map((id) => ({ id }))),
@@ -26,20 +26,23 @@ function makeService(overrides?: { prisma?: Record<string, unknown> }) {
     message: {
       create: vi.fn(),
     },
-    ...overrides?.prisma,
+  };
+  const prisma = {
+    ...base,
+    ...(overrides?.prisma ?? {}),
   } as unknown as PrismaService;
   return { service: new MessagingService(prisma), prisma };
 }
 
 describe('MessagingService.createThread — tenant ownership of participantIds', () => {
   it('rejects when any participant is not in the actor organization and never creates', async () => {
-    const prisma = {
+    const prismaOverride = {
       user: {
         findMany: vi.fn().mockResolvedValue([{ id: 'creator1' }]),
       },
       messageThread: { create: vi.fn() },
-    } as unknown as PrismaService;
-    const { service } = makeService({ prisma });
+    } as unknown as Partial<PrismaService>;
+    const { service, prisma } = makeService({ prisma: prismaOverride });
 
     await expect(
       service.createThread('org1', 'creator1', {
