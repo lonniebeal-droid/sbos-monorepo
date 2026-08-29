@@ -8,6 +8,11 @@ import type { PrismaService } from '../../prisma/prisma.service';
 
 function makeService(overrides?: { prisma?: Record<string, unknown> }) {
   const prisma = {
+    user: {
+      findMany: vi.fn().mockImplementation(({ where }: { where: { id: { in: string[] } } }) =>
+        Promise.resolve(where.id.in.map((id) => ({ id }))),
+      ),
+    },
     messageThread: {
       create: vi.fn(),
       findMany: vi.fn(),
@@ -70,6 +75,17 @@ describe('MessagingService.createThread', () => {
         }),
       }),
     );
+  });
+
+  it('rejects a participant that is not an active user in the current organization', async () => {
+    const { service, prisma } = makeService({
+      prisma: { user: { findMany: vi.fn().mockResolvedValue([{ id: 'creator1' }]) } },
+    });
+
+    await expect(
+      service.createThread('org1', 'creator1', { participantIds: ['other-org-user'] }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.messageThread.create).not.toHaveBeenCalled();
   });
 });
 

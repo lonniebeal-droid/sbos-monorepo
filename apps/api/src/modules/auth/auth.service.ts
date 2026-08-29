@@ -296,8 +296,7 @@ export class AuthService {
       },
     });
 
-    await this.usersService.create({
-      organizationId: org.id,
+    await this.usersService.create(org.id, {
       email: dto.adminEmail,
       password: dto.adminPassword,
       name: 'Administrator',
@@ -318,8 +317,7 @@ export class AuthService {
     if (!ok) throw new BadRequestException('Invalid invite token');
 
     // Create the user in the invited organization with the invited role.
-    await this.usersService.create({
-      organizationId: invite.organizationId,
+    await this.usersService.create(invite.organizationId, {
       email: invite.email,
       password: dto.password,
       name: dto.name,
