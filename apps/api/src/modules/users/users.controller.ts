@@ -21,6 +21,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   // Admin-only invite: create a single-use invite token scoped to the org.
+  // Grant authority is enforced in the service against the inviter's stored role.
   @Post('invite')
   @Roles(Role.ORG_ADMIN)
   @ApiOperation({ summary: 'Invite a user to the organization' })
@@ -69,6 +70,6 @@ export class UsersController {
     @Body() dto: CreateUserDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.usersService.create(user.organizationId, dto);
+    return this.usersService.create(user.organizationId, user.role, dto);
   }
 }
