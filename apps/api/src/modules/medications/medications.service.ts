@@ -13,7 +13,42 @@ export class MedicationsService {
     private readonly audit: AuditService,
   ) {}
 
-  create(organizationId: string, dto: CreateMedicationDto) {
+  /**
+   * Client-supplied ownership IDs must belong to this organization.
+   * Prevents cross-tenant medication attachment via clientId/prescriberId.
+   */
+  private async ensureClientInOrg(
+    organizationId: string,
+    clientId: string,
+  ): Promise<void> {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+  }
+
+  private async ensureClinicianInOrg(
+    organizationId: string,
+    clinicianId: string,
+  ): Promise<void> {
+    const clinician = await this.prisma.clinician.findFirst({
+      where: { id: clinicianId, organizationId },
+      select: { id: true },
+    });
+    if (!clinician) {
+      throw new NotFoundException(`Clinician ${clinicianId} not found`);
+    }
+  }
+
+  async create(organizationId: string, dto: CreateMedicationDto) {
+    await this.ensureClientInOrg(organizationId, dto.clientId);
+    if (dto.prescriberId) {
+      await this.ensureClinicianInOrg(organizationId, dto.prescriberId);
+    }
+
     const { clientId, startDate, ...rest } = dto;
     return this.prisma.medication.create({
       data: {
