@@ -164,13 +164,12 @@ describe('UsersService.create — clinician profile regression', () => {
     } as unknown as PrismaService;
     const { service } = makeService({ prisma });
 
-    await service.create({
-      organizationId: 'org1',
+    await service.create('org1', {
       email: 'new-clinician@sbos.health',
       password: 'Password123!',
       name: 'Jordan Fox',
       role: Role.CLINICIAN,
-    } as never);
+    });
 
     expect(clinicianCreate).toHaveBeenCalledWith({
       data: { organizationId: 'org1', userId: 'u2' },
@@ -189,14 +188,76 @@ describe('UsersService.create — clinician profile regression', () => {
     } as unknown as PrismaService;
     const { service } = makeService({ prisma });
 
-    await service.create({
-      organizationId: 'org1',
+    await service.create('org1', {
       email: 'fd@sbos.health',
       password: 'Password123!',
       name: 'Peyton Park',
       role: Role.FRONT_DESK,
-    } as never);
+    });
 
     expect(clinicianCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe('UsersService.findByIdInOrg — tenant isolation', () => {
+  it('returns the user when id and organizationId match', async () => {
+    const record = { ...baseRecord, passwordHash: 'x', status: 'ACTIVE' };
+    const findFirst = vi.fn().mockResolvedValue(record);
+    const prisma = { user: { findFirst } } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    const result = await service.findByIdInOrg('org1', 'u1');
+    expect(result.id).toBe('u1');
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { id: 'u1', organizationId: 'org1' },
+    });
+  });
+
+  it('throws NotFoundException for a user in a different organization', async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const prisma = { user: { findFirst } } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(service.findByIdInOrg('org-other', 'u1')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(findFirst).toHaveBeenCalledWith({
+      where: { id: 'u1', organizationId: 'org-other' },
+    });
+  });
+});
+
+describe('UsersService.create — tenant organizationId from actor only', () => {
+  it('persists organizationId from the service argument, not from any client field', async () => {
+    const created = {
+      id: 'u4',
+      organizationId: 'org-actor',
+      email: 'x@sbos.health',
+      firstName: 'X',
+      lastName: 'Y',
+      role: 'CLINICIAN',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date(),
+    };
+    const userCreate = vi.fn().mockResolvedValue(created);
+    const prisma = {
+      user: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        create: userCreate,
+      },
+      clinician: { create: vi.fn().mockResolvedValue({}) },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await service.create('org-actor', {
+      email: 'x@sbos.health',
+      password: 'Password123!',
+      name: 'X Y',
+      role: Role.CLINICIAN,
+    });
+
+    expect(userCreate).toHaveBeenCalledWith({
+      data: expect.objectContaining({ organizationId: 'org-actor' }),
+    });
   });
 });
