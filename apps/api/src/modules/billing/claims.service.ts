@@ -20,7 +20,7 @@ export class ClaimsService {
   }
 
   /**
-   * Ensure the client (and optional appointment) belong to this tenant.
+   * Ensure related records belong to this tenant.
    * Client-supplied IDs must never cross organization boundaries.
    */
   private async ensureClientInOrg(
@@ -49,10 +49,26 @@ export class ClaimsService {
     }
   }
 
+  private async ensureInsurancePolicyInOrg(
+    organizationId: string,
+    insurancePolicyId: string,
+  ): Promise<void> {
+    const policy = await this.prisma.insurancePolicy.findFirst({
+      where: { id: insurancePolicyId, organizationId },
+      select: { id: true },
+    });
+    if (!policy) {
+      throw new NotFoundException(`Insurance policy ${insurancePolicyId} not found`);
+    }
+  }
+
   async create(organizationId: string, actorId: string, dto: CreateClaimDto) {
     await this.ensureClientInOrg(organizationId, dto.clientId);
     if (dto.appointmentId) {
       await this.ensureAppointmentInOrg(organizationId, dto.appointmentId);
+    }
+    if (dto.insurancePolicyId) {
+      await this.ensureInsurancePolicyInOrg(organizationId, dto.insurancePolicyId);
     }
 
     const claim = await this.prisma.claim.create({
