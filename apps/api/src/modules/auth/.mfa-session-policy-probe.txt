@@ -1,1 +1,2 @@
-probe-ok-sessionsInvalidated
+type X = Promise<{ enabled: true }>;
+const y = a < b;
