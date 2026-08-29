@@ -20,6 +20,15 @@ export class MessagingService {
     const participantIds = Array.from(
       new Set([creatorId, ...dto.participantIds]),
     );
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: participantIds }, organizationId, status: 'ACTIVE' },
+      select: { id: true },
+    });
+    if (users.length !== participantIds.length) {
+      throw new ForbiddenException(
+        'All message participants must be active users in the current organization',
+      );
+    }
     return this.prisma.messageThread.create({
       data: {
         organizationId,

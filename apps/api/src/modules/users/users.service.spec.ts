@@ -164,8 +164,7 @@ describe('UsersService.create — clinician profile regression', () => {
     } as unknown as PrismaService;
     const { service } = makeService({ prisma });
 
-    await service.create({
-      organizationId: 'org1',
+    await service.create('org1', {
       email: 'new-clinician@sbos.health',
       password: 'Password123!',
       name: 'Jordan Fox',
@@ -189,8 +188,7 @@ describe('UsersService.create — clinician profile regression', () => {
     } as unknown as PrismaService;
     const { service } = makeService({ prisma });
 
-    await service.create({
-      organizationId: 'org1',
+    await service.create('org1', {
       email: 'fd@sbos.health',
       password: 'Password123!',
       name: 'Peyton Park',

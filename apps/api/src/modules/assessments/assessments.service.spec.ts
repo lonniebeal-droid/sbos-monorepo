@@ -16,7 +16,10 @@ describe('AssessmentsService', () => {
     it('creates assessment with JSON responses and returns it', async () => {
       const expected = { id: 'a1', instrument: 'PHQ-9', score: 12 };
       const create = vi.fn().mockResolvedValue(expected);
-      const prisma = { assessment: { create } } as unknown as PrismaService;
+      const prisma = {
+        client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+        assessment: { create },
+      } as unknown as PrismaService;
       const { service } = makeService(prisma);
 
       const result = await service.create('org1', 'actor1', {
@@ -43,7 +46,10 @@ describe('AssessmentsService', () => {
 
     it('defaults administeredAt to now when omitted', async () => {
       const create = vi.fn().mockResolvedValue({ id: 'a2' });
-      const prisma = { assessment: { create } } as unknown as PrismaService;
+      const prisma = {
+        client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+        assessment: { create },
+      } as unknown as PrismaService;
       const { service } = makeService(prisma);
 
       await service.create('org1', 'actor1', {
@@ -57,6 +63,20 @@ describe('AssessmentsService', () => {
       expect(callData.administeredAt).toBeInstanceOf(Date);
       expect(callData.responses).toBeUndefined();
     });
+  });
+
+  it('rejects an assessment for a client in another organization', async () => {
+    const create = vi.fn();
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue(null) },
+      assessment: { create },
+    } as unknown as PrismaService;
+    const { service } = makeService(prisma);
+
+    await expect(
+      service.create('org1', 'actor1', { clientId: 'other-org-client', instrument: 'PHQ-9' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(create).not.toHaveBeenCalled();
   });
 
   describe('findForClient', () => {

@@ -7,7 +7,17 @@ import type { AppConfig } from '../../../config/configuration';
 import { Role } from '../../../common/enums/role.enum';
 import type { JwtPayload } from '../../../common/interfaces/authenticated-user.interface';
 
-function makeStrategy(): JwtStrategy {
+function makeStrategy(
+  usersService = {
+    findActiveById: vi.fn().mockResolvedValue({
+      id: 'u1',
+      email: 'clinician@sbos.health',
+      name: 'Riley Chen',
+      role: Role.CLINICIAN,
+      organizationId: 'org1',
+    }),
+  },
+): JwtStrategy {
   const configService = {
     get: vi.fn().mockReturnValue({
       accessSecret: 'test-access-secret',
@@ -16,7 +26,7 @@ function makeStrategy(): JwtStrategy {
       refreshExpiresIn: '7d',
     }),
   } as unknown as ConfigService<AppConfig, true>;
-  return new JwtStrategy(configService);
+  return new JwtStrategy(configService, usersService as never);
 }
 
 const basePayload: JwtPayload = {
@@ -28,21 +38,13 @@ const basePayload: JwtPayload = {
   type: 'access',
 };
 
-/**
- * JwtStrategy runs after passport-jwt has already verified the token's
- * signature and expiry against jwt.accessSecret. Its own validate() owns
- * exactly two things: rejecting a syntactically-valid token whose `type`
- * claim isn't 'access' (so a refresh or MFA-challenge token can't be reused
- * as an access token), and mapping the trusted payload claims onto
- * AuthenticatedUser. It does NOT look up the user in the database, so there
- * is no "missing user" / "invalid user id" rejection to test here -- see the
- * flagged gap below for the consequence of that design.
- */
+/** Passport verifies signature/expiry; this strategy rejects non-access
+ * tokens and resolves the current active account before authorizing a route. */
 describe('JwtStrategy.validate', () => {
-  it('maps a valid access-token payload onto AuthenticatedUser', () => {
+  it('resolves a valid access-token payload to the current active user', async () => {
     const strategy = makeStrategy();
 
-    const result = strategy.validate(basePayload);
+    const result = await strategy.validate(basePayload);
 
     expect(result).toEqual({
       id: 'u1',
@@ -53,22 +55,22 @@ describe('JwtStrategy.validate', () => {
     });
   });
 
-  it('throws UnauthorizedException for a refresh token presented as an access token', () => {
+  it('throws UnauthorizedException for a refresh token presented as an access token', async () => {
     const strategy = makeStrategy();
     const refreshPayload = { ...basePayload, type: 'refresh' as const, jti: 'jti-1' };
 
-    expect(() => strategy.validate(refreshPayload)).toThrow(UnauthorizedException);
+    await expect(strategy.validate(refreshPayload)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
   });
 
-  it('KNOWN GAP: does not reject a well-formed payload for a user that no longer exists or is inactive', () => {
-    // JwtStrategy performs no database lookup at all -- it trusts every claim
-    // in an already-signature-verified access token. If this test starts
-    // failing because validate() now rejects such a payload, that's a
-    // deliberate enforcement change; update/remove this test to match.
-    const strategy = makeStrategy();
+  it('rejects a signed token after its account is deactivated or deleted', async () => {
+    const strategy = makeStrategy({
+      findActiveById: vi.fn().mockRejectedValue(new Error('inactive')),
+    });
 
-    const result = strategy.validate(basePayload);
-
-    expect(result.id).toBe('u1');
+    await expect(strategy.validate(basePayload)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
   });
 });
