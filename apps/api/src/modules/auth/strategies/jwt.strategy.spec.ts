@@ -24,6 +24,7 @@ function makeStrategy(usersService?: Partial<UsersService>): JwtStrategy {
       name: 'Riley Chen',
       role: Role.CLINICIAN,
       organizationId: 'org1',
+      passwordVersion: 1,
     }),
     ...usersService,
   } as unknown as UsersService;
@@ -37,6 +38,7 @@ const basePayload: JwtPayload = {
   role: Role.CLINICIAN,
   organizationId: 'org1',
   type: 'access',
+  passwordVersion: 1,
 };
 
 describe('JwtStrategy.validate', () => {
@@ -52,6 +54,29 @@ describe('JwtStrategy.validate', () => {
       role: Role.CLINICIAN,
       organizationId: 'org1',
     });
+  });
+
+  it('returns current DB role/org instead of stale JWT claims', async () => {
+    const strategy = makeStrategy({
+      findActiveById: vi.fn().mockResolvedValue({
+        id: 'u1',
+        email: 'clinician@sbos.health',
+        name: 'Riley Chen',
+        role: Role.SUPERVISOR,
+        organizationId: 'org-moved',
+        passwordVersion: 1,
+      }),
+    });
+    const stale = {
+      ...basePayload,
+      role: Role.CLINICIAN,
+      organizationId: 'org1',
+    };
+
+    const result = await strategy.validate(stale);
+
+    expect(result.role).toBe(Role.SUPERVISOR);
+    expect(result.organizationId).toBe('org-moved');
   });
 
   it('throws UnauthorizedException for a refresh token presented as an access token', async () => {
@@ -77,5 +102,48 @@ describe('JwtStrategy.validate', () => {
     await expect(strategy.validate(basePayload)).rejects.toThrow(
       UnauthorizedException,
     );
+  });
+
+  it('rejects when passwordVersion is missing from the token', async () => {
+    const strategy = makeStrategy();
+    const { passwordVersion: _drop, ...noVersion } = basePayload;
+
+    await expect(
+      strategy.validate(noVersion as JwtPayload),
+    ).rejects.toThrow(UnauthorizedException);
+  });
+
+  it('rejects when token passwordVersion does not match DB', async () => {
+    const strategy = makeStrategy({
+      findActiveById: vi.fn().mockResolvedValue({
+        id: 'u1',
+        email: 'clinician@sbos.health',
+        name: 'Riley Chen',
+        role: Role.CLINICIAN,
+        organizationId: 'org1',
+        passwordVersion: 3,
+      }),
+    });
+    const stale = { ...basePayload, passwordVersion: 1 };
+
+    await expect(strategy.validate(stale)).rejects.toThrow(
+      UnauthorizedException,
+    );
+  });
+
+  it('accepts matching passwordVersion', async () => {
+    const strategy = makeStrategy({
+      findActiveById: vi.fn().mockResolvedValue({
+        id: 'u1',
+        email: 'clinician@sbos.health',
+        name: 'Riley Chen',
+        role: Role.CLINICIAN,
+        organizationId: 'org1',
+        passwordVersion: 5,
+      }),
+    });
+    const ok = { ...basePayload, passwordVersion: 5 };
+
+    await expect(strategy.validate(ok)).resolves.toMatchObject({ id: 'u1' });
   });
 });
