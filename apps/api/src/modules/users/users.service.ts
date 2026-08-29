@@ -1,9 +1,11 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
+import { roleSatisfies, type RoleName } from '@sbos/core';
 import { Role as PrismaRole, type Prisma, type User } from '@sbos/database';
 
 import { Role } from '../../common/enums/role.enum';
@@ -38,19 +40,39 @@ export class UsersService {
     };
   }
 
+  /**
+   * An actor may only grant a role they themselves satisfy under ROLE_SATISFIES.
+   * ORG_ADMIN cannot grant SUPER_ADMIN; isolated functional roles cannot grant
+   * each other or higher ranks.
+   */
+  private assertCanGrantRole(actorRole: Role, requestedRole: Role): void {
+    if (!roleSatisfies(actorRole as RoleName, requestedRole as RoleName)) {
+      throw new ForbiddenException(
+        `Role ${actorRole} is not authorized to grant ${requestedRole}`,
+      );
+    }
+  }
+
   /** Create a single-use invite record and return an opaque token (dev-only). */
   async createInvite(
     email: string,
     role: Role,
     invitedById: string,
     organizationId: string,
-  ): Promise<{ id: string; previewLink?: string }>
-  {
+  ): Promise<{ id: string; previewLink?: string }> {
     // Ensure the inviter belongs to the same organization to prevent cross-org invites.
-    const inviter = await this.prisma.user.findUnique({ where: { id: invitedById }, select: { organizationId: true } });
+    const inviter = await this.prisma.user.findUnique({
+      where: { id: invitedById },
+      select: { organizationId: true, role: true },
+    });
     if (!inviter || inviter.organizationId !== organizationId) {
-      throw new Error('Inviter does not belong to the target organization');
+      throw new ForbiddenException(
+        'Inviter does not belong to the target organization',
+      );
     }
+
+    this.assertCanGrantRole(inviter.role as unknown as Role, role);
+
     const token = crypto.randomBytes(24).toString('hex');
     const tokenHash = await bcrypt.hash(token, 10);
     const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
@@ -160,8 +182,16 @@ export class UsersService {
   /**
    * Create a user in the given organization. organizationId must come from the
    * authenticated actor — never from client-supplied body fields.
+   * actorRole is the grantor's role; requested dto.role must be one the actor
+   * is authorized to grant (roleSatisfies).
    */
-  async create(organizationId: string, dto: CreateUserDto): Promise<UserEntity> {
+  async create(
+    organizationId: string,
+    actorRole: Role,
+    dto: CreateUserDto,
+  ): Promise<UserEntity> {
+    this.assertCanGrantRole(actorRole, dto.role);
+
     const existing = await this.prisma.user.findFirst({
       where: {
         organizationId,
