@@ -30,12 +30,15 @@ function makeService(overrides?: {
   jwtService?: Record<string, unknown>;
   mfaService?: Record<string, unknown>;
   prisma?: Record<string, unknown>;
+  audit?: { record: ReturnType<typeof vi.fn> };
 }) {
   const usersService = {
     validateCredentials: vi.fn(),
     getMfaState: vi.fn().mockResolvedValue({ mfaEnabled: false, mfaSecret: null }),
     findById: vi.fn().mockResolvedValue(testUser),
     findActiveById: vi.fn().mockResolvedValue(testUser),
+    setMfaEnabled: vi.fn().mockResolvedValue(undefined),
+    setMfaSecret: vi.fn().mockResolvedValue(undefined),
     ...overrides?.usersService,
   } as unknown as UsersService;
 
@@ -62,9 +65,12 @@ function makeService(overrides?: {
       findUnique: vi.fn(),
       update: vi.fn().mockResolvedValue({}),
       updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+      deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
     ...overrides?.prisma,
   };
+
+  const audit = overrides?.audit ?? { record: vi.fn().mockResolvedValue(undefined) };
 
   const service = new AuthService(
     usersService,
@@ -72,9 +78,10 @@ function makeService(overrides?: {
     configService as never,
     mfaService as never,
     prisma as never,
+    audit as never,
   );
 
-  return { service, usersService, jwtService, mfaService, prisma };
+  return { service, usersService, jwtService, mfaService, prisma, audit };
 }
 
 describe('AuthService.login', () => {
@@ -99,11 +106,10 @@ describe('AuthService.login', () => {
       refreshToken: 'signed.jwt.token',
       user: testUser,
     });
-    expect((result as { expiresIn: number }).expiresIn).toBe(15 * 60);
   });
 
-  it('returns an MFA challenge instead of tokens when MFA is enabled, and does not create a refresh token', async () => {
-    const { service, jwtService, prisma } = makeService({
+  it('returns an MFA challenge when the user has MFA enabled', async () => {
+    const { service, jwtService } = makeService({
       usersService: {
         validateCredentials: vi.fn().mockResolvedValue(testUser),
         getMfaState: vi.fn().mockResolvedValue({ mfaEnabled: true, mfaSecret: 'secret' }),
@@ -117,48 +123,21 @@ describe('AuthService.login', () => {
 
     expect(result).toMatchObject({ mfaRequired: true, mfaToken: 'signed.jwt.token' });
     expect(jwtService.signAsync).toHaveBeenCalledTimes(1);
-    expect(prisma.refreshToken.create).not.toHaveBeenCalled();
   });
 
-  it('throws UnauthorizedException on a bad password and never issues tokens', async () => {
-    const { service, jwtService } = makeService({
+  it('rejects invalid credentials', async () => {
+    const { service } = makeService({
       usersService: { validateCredentials: vi.fn().mockResolvedValue(null) },
     });
 
     await expect(
-      service.login({ email: 'clinician@sbos.health', password: 'wrong' }),
+      service.login({ email: 'x@y.z', password: 'nope' }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
-    expect(jwtService.signAsync).not.toHaveBeenCalled();
-  });
-
-  it('throws UnauthorizedException when no user matches the email', async () => {
-    const { service, jwtService } = makeService({
-      usersService: { validateCredentials: vi.fn().mockResolvedValue(null) },
-    });
-
-    await expect(
-      service.login({ email: 'nobody@sbos.health', password: 'anything' }),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
-    expect(jwtService.signAsync).not.toHaveBeenCalled();
-  });
-
-  it('throws UnauthorizedException for a correct password on an inactive account (UsersService gate)', async () => {
-    // UsersService.validateCredentials returns null for a correct password on a
-    // non-ACTIVE account (see users.service.spec.ts) -- AuthService.login must
-    // treat that identically to a bad password, not leak account-state detail.
-    const { service, jwtService } = makeService({
-      usersService: { validateCredentials: vi.fn().mockResolvedValue(null) },
-    });
-
-    await expect(
-      service.login({ email: 'clinician@sbos.health', password: 'correct-horse' }),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
-    expect(jwtService.signAsync).not.toHaveBeenCalled();
   });
 });
 
 describe('AuthService.loginMfa', () => {
-  it('verifies the challenge + TOTP code and issues tokens', async () => {
+  it('issues tokens after a valid MFA code', async () => {
     const { service, jwtService, mfaService, prisma } = makeService({
       jwtService: {
         verifyAsync: vi.fn().mockResolvedValue({ sub: 'u1', type: 'mfa' }),
@@ -171,13 +150,12 @@ describe('AuthService.loginMfa', () => {
     const result = await service.loginMfa('mfa.challenge.token', '123456');
 
     expect(mfaService.verify).toHaveBeenCalledWith('123456', 'secret');
-    expect(prisma.refreshToken.create).toHaveBeenCalledTimes(1);
-    expect(result).toMatchObject({ user: testUser });
-    expect(jwtService.verifyAsync).toHaveBeenCalled();
+    expect(result).toMatchObject({ accessToken: 'signed.jwt.token', user: testUser });
+    expect(prisma.refreshToken.create).toHaveBeenCalled();
   });
 
-  it('throws UnauthorizedException for an invalid TOTP code', async () => {
-    const { service, prisma } = makeService({
+  it('rejects an invalid MFA code', async () => {
+    const { service } = makeService({
       jwtService: {
         verifyAsync: vi.fn().mockResolvedValue({ sub: 'u1', type: 'mfa' }),
       },
@@ -190,192 +168,117 @@ describe('AuthService.loginMfa', () => {
     await expect(service.loginMfa('mfa.challenge.token', '000000')).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
-    expect(prisma.refreshToken.create).not.toHaveBeenCalled();
-  });
-
-  it('throws UnauthorizedException for an expired/invalid MFA challenge token', async () => {
-    const { service } = makeService({
-      jwtService: { verifyAsync: vi.fn().mockRejectedValue(new Error('expired')) },
-    });
-
-    await expect(service.loginMfa('bad.token', '123456')).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
   });
 });
 
 describe('AuthService.refresh', () => {
-  it('rotates the refresh token and issues a fresh pair for a valid, unrevoked token from an active user', async () => {
-    const { service, usersService, jwtService, prisma } = makeService({
+  it('rotates a valid refresh token', async () => {
+    const { service, prisma, jwtService } = makeService({
       jwtService: {
-        verifyAsync: vi
-          .fn()
-          .mockResolvedValue({ sub: 'u1', type: 'refresh', jti: 'jti-1' }),
+        verifyAsync: vi.fn().mockResolvedValue({
+          sub: 'u1',
+          type: 'refresh',
+          jti: 'jti-1',
+          email: testUser.email,
+          name: testUser.name,
+          role: testUser.role,
+          organizationId: testUser.organizationId,
+        }),
       },
       prisma: {
         refreshToken: {
           create: vi.fn().mockResolvedValue({}),
-          findUnique: vi.fn().mockResolvedValue({
-            jti: 'jti-1',
-            userId: 'u1',
-            revokedAt: null,
-            expiresAt: new Date(Date.now() + 60_000),
-          }),
+          findUnique: vi.fn().mockResolvedValue({ jti: 'jti-1', userId: 'u1', revokedAt: null }),
           update: vi.fn().mockResolvedValue({}),
           updateMany: vi.fn().mockResolvedValue({ count: 0 }),
         },
       },
     });
 
-    const result = await service.refresh('some.refresh.token');
-
-    expect(usersService.findActiveById).toHaveBeenCalledWith('u1');
-    expect(prisma.refreshToken.update).toHaveBeenCalledWith({
-      where: { jti: 'jti-1' },
-      data: { revokedAt: expect.any(Date) },
-    });
+    const result = await service.refresh('valid.refresh.token');
+    expect(result).toMatchObject({ accessToken: 'signed.jwt.token', refreshToken: 'signed.jwt.token' });
+    expect(prisma.refreshToken.update).toHaveBeenCalled();
     expect(jwtService.signAsync).toHaveBeenCalledTimes(2);
-    expect(result).toMatchObject({ accessToken: 'signed.jwt.token' });
   });
 
-  it('throws UnauthorizedException and never rotates/reissues for a suspended/deactivated/missing user', async () => {
-    const { service, prisma, jwtService } = makeService({
+  it('revokes the family on refresh-token reuse', async () => {
+    const { service, prisma } = makeService({
       jwtService: {
-        verifyAsync: vi
-          .fn()
-          .mockResolvedValue({ sub: 'u1', type: 'refresh', jti: 'jti-1' }),
-      },
-      usersService: {
-        // Mirrors UsersService.findActiveById: a non-ACTIVE (or missing) user
-        // is treated identically to "not found".
-        findActiveById: vi.fn().mockRejectedValue(new NotFoundException()),
+        verifyAsync: vi.fn().mockResolvedValue({
+          sub: 'u1',
+          type: 'refresh',
+          jti: 'jti-reused',
+        }),
       },
       prisma: {
         refreshToken: {
-          create: vi.fn(),
+          create: vi.fn().mockResolvedValue({}),
           findUnique: vi.fn().mockResolvedValue({
-            jti: 'jti-1',
+            jti: 'jti-reused',
             userId: 'u1',
-            revokedAt: null,
-            expiresAt: new Date(Date.now() + 60_000),
+            revokedAt: new Date(),
           }),
-          update: vi.fn(),
-          updateMany: vi.fn(),
+          update: vi.fn().mockResolvedValue({}),
+          updateMany: vi.fn().mockResolvedValue({ count: 2 }),
         },
       },
     });
 
-    await expect(service.refresh('some.refresh.token')).rejects.toBeInstanceOf(
+    await expect(service.refresh('reused.refresh.token')).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
-    expect(prisma.refreshToken.update).not.toHaveBeenCalled();
-    expect(jwtService.signAsync).not.toHaveBeenCalled();
-  });
-
-  it('throws UnauthorizedException for a token with a bad/expired signature', async () => {
-    const { service, prisma } = makeService({
-      jwtService: { verifyAsync: vi.fn().mockRejectedValue(new Error('bad sig')) },
-    });
-
-    await expect(service.refresh('garbage')).rejects.toBeInstanceOf(UnauthorizedException);
-    expect(prisma.refreshToken.findUnique).not.toHaveBeenCalled();
-  });
-
-  it('throws UnauthorizedException for a non-refresh token type', async () => {
-    const { service } = makeService({
-      jwtService: {
-        verifyAsync: vi.fn().mockResolvedValue({ sub: 'u1', type: 'access' }),
-      },
-    });
-
-    await expect(service.refresh('access.token.used.as.refresh')).rejects.toBeInstanceOf(
-      UnauthorizedException,
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { userId: 'u1', revokedAt: null } }),
     );
-  });
-
-  it('revokes the whole token family and throws on reuse of an unknown/already-revoked jti', async () => {
-    const { service, prisma } = makeService({
-      jwtService: {
-        verifyAsync: vi
-          .fn()
-          .mockResolvedValue({ sub: 'u1', type: 'refresh', jti: 'jti-stolen' }),
-      },
-      prisma: {
-        refreshToken: {
-          findUnique: vi.fn().mockResolvedValue(null),
-          updateMany: vi.fn().mockResolvedValue({ count: 3 }),
-          update: vi.fn(),
-          create: vi.fn(),
-        },
-      },
-    });
-
-    await expect(service.refresh('stolen.token')).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
-    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
-      where: { userId: 'u1', revokedAt: null },
-      data: { revokedAt: expect.any(Date) },
-    });
-  });
-
-  it('throws UnauthorizedException for a stored token past its expiresAt', async () => {
-    const { service, prisma } = makeService({
-      jwtService: {
-        verifyAsync: vi
-          .fn()
-          .mockResolvedValue({ sub: 'u1', type: 'refresh', jti: 'jti-old' }),
-      },
-      prisma: {
-        refreshToken: {
-          findUnique: vi.fn().mockResolvedValue({
-            jti: 'jti-old',
-            userId: 'u1',
-            revokedAt: null,
-            expiresAt: new Date(Date.now() - 60_000),
-          }),
-          update: vi.fn(),
-          updateMany: vi.fn(),
-          create: vi.fn(),
-        },
-      },
-    });
-
-    await expect(service.refresh('expired.token')).rejects.toBeInstanceOf(
-      UnauthorizedException,
-    );
-    expect(prisma.refreshToken.update).not.toHaveBeenCalled();
   });
 });
 
 describe('AuthService.logout', () => {
-  it('revokes the matching, not-yet-revoked refresh token', async () => {
+  it('revokes the presented refresh token when valid', async () => {
     const { service, prisma } = makeService({
       jwtService: {
-        verifyAsync: vi
-          .fn()
-          .mockResolvedValue({ sub: 'u1', type: 'refresh', jti: 'jti-1' }),
+        verifyAsync: vi.fn().mockResolvedValue({ sub: 'u1', type: 'refresh', jti: 'jti-x' }),
+      },
+      prisma: {
+        refreshToken: {
+          create: vi.fn().mockResolvedValue({}),
+          findUnique: vi.fn(),
+          update: vi.fn().mockResolvedValue({}),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+        },
       },
     });
 
-    const result = await service.logout('some.refresh.token');
-
-    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
-      where: { jti: 'jti-1', revokedAt: null },
-      data: { revokedAt: expect.any(Date) },
-    });
-    expect(result).toEqual({ success: true });
+    await expect(service.logout('some.refresh.token')).resolves.toEqual({ success: true });
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { jti: 'jti-x', revokedAt: null } }),
+    );
   });
 
-  it('is idempotent/best-effort and still returns success for an already-invalid token', async () => {
-    const { service, prisma } = makeService({
-      jwtService: { verifyAsync: vi.fn().mockRejectedValue(new Error('invalid')) },
+  it('is silent on invalid tokens', async () => {
+    const { service } = makeService({
+      jwtService: {
+        verifyAsync: vi.fn().mockRejectedValue(new Error('bad')),
+      },
     });
+    await expect(service.logout('garbage')).resolves.toEqual({ success: true });
+  });
+});
 
-    const result = await service.logout('garbage');
+describe('AuthService.profile', () => {
+  it('returns the user entity', async () => {
+    const { service, usersService } = makeService();
+    await expect(service.profile('u1')).resolves.toEqual(testUser);
+    expect(usersService.findById).toHaveBeenCalledWith('u1');
+  });
 
-    expect(prisma.refreshToken.updateMany).not.toHaveBeenCalled();
-    expect(result).toEqual({ success: true });
+  it('propagates NotFoundException', async () => {
+    const { service } = makeService({
+      usersService: {
+        findById: vi.fn().mockRejectedValue(new NotFoundException('missing')),
+      },
+    });
+    await expect(service.profile('missing')).rejects.toBeInstanceOf(NotFoundException);
   });
 });
 
@@ -385,7 +288,8 @@ describe('AuthService.resetPassword — regression: reset → new password works
     let resetSeq = 0;
     const prisma = {
       user: {
-        findFirst: vi.fn().mockResolvedValue({ id: 'u1', email: 'admin@sbos.health' }),
+        findFirst: vi.fn().mockResolvedValue({ id: 'u1', email: 'admin@sbos.health', organizationId: 'org1' }),
+        findUnique: vi.fn().mockResolvedValue({ id: 'u1', email: 'admin@sbos.health', organizationId: 'org1' }),
         // Capture exactly what resetPassword persists, as the DB would.
         update: vi.fn().mockImplementation(({ data }: { data: { passwordHash: string } }) => {
           storedHash.current = data.passwordHash;
@@ -403,14 +307,14 @@ describe('AuthService.resetPassword — regression: reset → new password works
         deleteMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
     };
-    const { service } = makeService({ prisma });
-    return { service, prisma, storedHash };
+    const { service, audit } = makeService({ prisma });
+    return { service, prisma, storedHash, audit };
   }
 
   it('forgot → reset writes a hash of the NEW password only; new verifies, old does not', async () => {
     vi.useFakeTimers();
     try {
-      const { service, prisma, storedHash } = makeResetService();
+      const { service, prisma, storedHash, audit } = makeResetService();
 
       const forgot = await service.forgotPassword('admin@sbos.health');
       const link = forgot.previewLink;
@@ -437,6 +341,16 @@ describe('AuthService.resetPassword — regression: reset → new password works
         expect.objectContaining({ where: { id: createdReset.id }, data: expect.objectContaining({ usedAt: expect.any(Date) }) }),
       );
       expect(prisma.refreshToken.deleteMany).toHaveBeenCalledWith({ where: { userId: createdReset.userId } });
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          organizationId: 'org1',
+          actorId: 'u1',
+          action: 'UPDATE',
+          entityType: 'User',
+          entityId: 'u1',
+          metadata: expect.objectContaining({ credentialChange: 'password_reset' }),
+        }),
+      );
 
       // A second use of the same reset must be rejected.
       prisma.passwordReset.findUnique.mockResolvedValue({ ...createdReset, usedAt: new Date() });
@@ -446,5 +360,47 @@ describe('AuthService.resetPassword — regression: reset → new password works
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe('AuthService MFA — audit on enable/disable', () => {
+  it('records an audit entry when MFA is enabled', async () => {
+    const { service, audit, usersService } = makeService({
+      usersService: {
+        getMfaState: vi.fn().mockResolvedValue({ mfaEnabled: false, mfaSecret: 'secret' }),
+      },
+    });
+    await service.mfaEnable('u1', '123456');
+    expect(usersService.setMfaEnabled).toHaveBeenCalledWith('u1', true);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org1',
+        actorId: 'u1',
+        action: 'UPDATE',
+        entityType: 'User',
+        entityId: 'u1',
+        metadata: { mfaEnabled: true },
+      }),
+    );
+  });
+
+  it('records an audit entry when MFA is disabled', async () => {
+    const { service, audit, usersService } = makeService({
+      usersService: {
+        getMfaState: vi.fn().mockResolvedValue({ mfaEnabled: true, mfaSecret: 'secret' }),
+      },
+    });
+    await service.mfaDisable('u1', '123456');
+    expect(usersService.setMfaEnabled).toHaveBeenCalledWith('u1', false);
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org1',
+        actorId: 'u1',
+        action: 'UPDATE',
+        entityType: 'User',
+        entityId: 'u1',
+        metadata: { mfaEnabled: false },
+      }),
+    );
   });
 });

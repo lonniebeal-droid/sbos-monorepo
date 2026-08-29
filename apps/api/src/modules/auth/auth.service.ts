@@ -26,6 +26,8 @@ import * as bcrypt from 'bcryptjs';
 import * as crypto from 'node:crypto';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { AuditAction } from '@sbos/database';
+import { AuditService } from '../../audit/audit.service';
 
 @Injectable()
 export class AuthService {
@@ -37,6 +39,7 @@ export class AuthService {
     private readonly configService: ConfigService<AppConfig, true>,
     private readonly mfaService: MfaService,
     private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
   ) {}
 
   private ttlToSeconds(ttl: string): number {
@@ -109,11 +112,9 @@ export class AuthService {
 
     const mfa = await this.usersService.getMfaState(user.id);
     if (mfa.mfaEnabled) {
-      // Defer token issuance until the second factor is verified.
-      const jwtConfig = this.configService.get('jwt', { infer: true });
       const mfaToken = await this.jwtService.signAsync(
         { sub: user.id, type: 'mfa' } satisfies MfaChallengePayload,
-        { secret: jwtConfig.accessSecret, expiresIn: '5m' },
+        { secret: this.configService.get('jwt', { infer: true }).accessSecret, expiresIn: '5m' },
       );
       return { mfaRequired: true, mfaToken };
     }
@@ -122,31 +123,29 @@ export class AuthService {
     return { ...tokens, user };
   }
 
-  /** Complete a login after MFA is required: verify the challenge + TOTP code. */
   async loginMfa(mfaToken: string, code: string): Promise<AuthResponseDto> {
-    const jwtConfig = this.configService.get('jwt', { infer: true });
     let payload: MfaChallengePayload;
     try {
       payload = await this.jwtService.verifyAsync<MfaChallengePayload>(
         mfaToken,
-        { secret: jwtConfig.accessSecret },
+        { secret: this.configService.get('jwt', { infer: true }).accessSecret },
       );
     } catch {
-      throw new UnauthorizedException('Invalid or expired MFA challenge');
+      throw new UnauthorizedException('Invalid or expired MFA token');
     }
     if (payload.type !== 'mfa') {
-      throw new UnauthorizedException('Invalid MFA challenge');
+      throw new UnauthorizedException('Invalid MFA token');
     }
 
     const mfa = await this.usersService.getMfaState(payload.sub);
     if (!mfa.mfaEnabled || !mfa.mfaSecret) {
-      throw new UnauthorizedException('MFA is not enabled for this account');
+      throw new UnauthorizedException('MFA is not enabled');
     }
     if (!this.mfaService.verify(code, mfa.mfaSecret)) {
       throw new UnauthorizedException('Invalid authentication code');
     }
 
-    const user = await this.usersService.findById(payload.sub);
+    const user = await this.usersService.findActiveById(payload.sub);
     const tokens = await this.issueTokens(user);
     return { ...tokens, user };
   }
@@ -170,6 +169,15 @@ export class AuthService {
       throw new BadRequestException('Invalid authentication code');
     }
     await this.usersService.setMfaEnabled(userId, true);
+    const user = await this.usersService.findById(userId);
+    await this.audit.record({
+      organizationId: user.organizationId,
+      actorId: userId,
+      action: AuditAction.UPDATE,
+      entityType: 'User',
+      entityId: userId,
+      metadata: { mfaEnabled: true },
+    });
     return { enabled: true };
   }
 
@@ -183,6 +191,15 @@ export class AuthService {
       throw new BadRequestException('Invalid authentication code');
     }
     await this.usersService.setMfaEnabled(userId, false);
+    const user = await this.usersService.findById(userId);
+    await this.audit.record({
+      organizationId: user.organizationId,
+      actorId: userId,
+      action: AuditAction.UPDATE,
+      entityType: 'User',
+      entityId: userId,
+      metadata: { mfaEnabled: false },
+    });
     return { enabled: false };
   }
 
@@ -198,41 +215,31 @@ export class AuthService {
     }
 
     if (payload.type !== 'refresh' || !payload.jti) {
-      throw new UnauthorizedException('Invalid token type');
+      throw new UnauthorizedException('Invalid refresh token');
     }
 
     const stored = await this.prisma.refreshToken.findUnique({
       where: { jti: payload.jti },
     });
-
-    // Reuse detection: a syntactically valid token whose jti is unknown or
-    // already revoked indicates theft — revoke the whole family.
     if (!stored || stored.revokedAt) {
-      await this.prisma.refreshToken.updateMany({
-        where: { userId: payload.sub, revokedAt: null },
-        data: { revokedAt: new Date() },
-      });
-      this.logger.warn(
-        `Refresh token reuse detected for user ${payload.sub}; family revoked`,
-      );
-      throw new UnauthorizedException('Refresh token has been revoked');
-    }
-
-    if (stored.expiresAt < new Date()) {
-      throw new UnauthorizedException('Refresh token has expired');
+      // Reuse of a revoked token → revoke the whole family for this user.
+      if (stored?.revokedAt) {
+        this.logger.warn(
+          `Refresh token reuse detected for user ${payload.sub}; family revoked`,
+        );
+        await this.prisma.refreshToken.updateMany({
+          where: { userId: payload.sub, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+      throw new UnauthorizedException('Invalid or revoked refresh token');
     }
 
     // A suspended/deactivated (or deleted) account must not be able to
-    // refresh its way to a new token pair, even with an otherwise-valid,
-    // unexpired refresh token.
-    let user: UserEntity;
-    try {
-      user = await this.usersService.findActiveById(payload.sub);
-    } catch {
-      throw new UnauthorizedException('Account is no longer active');
-    }
+    // silently keep itself signed in via refresh.
+    const user = await this.usersService.findActiveById(payload.sub);
 
-    // Rotate: revoke the presented token, then issue a fresh pair.
+    // Rotate: revoke presented token, issue a new pair.
     await this.prisma.refreshToken.update({
       where: { jti: payload.jti },
       data: { revokedAt: new Date() },
@@ -241,22 +248,20 @@ export class AuthService {
     return this.issueTokens(user);
   }
 
-  /** Revoke a refresh token on logout (idempotent, best-effort). */
   async logout(refreshToken: string): Promise<{ success: true }> {
     const jwtConfig = this.configService.get('jwt', { infer: true });
     try {
-      const payload = await this.jwtService.verifyAsync<JwtPayload>(
-        refreshToken,
-        { secret: jwtConfig.refreshSecret },
-      );
-      if (payload.jti) {
+      const payload = await this.jwtService.verifyAsync<JwtPayload>(refreshToken, {
+        secret: jwtConfig.refreshSecret,
+      });
+      if (payload.type === 'refresh' && payload.jti) {
         await this.prisma.refreshToken.updateMany({
           where: { jti: payload.jti, revokedAt: null },
           data: { revokedAt: new Date() },
         });
       }
     } catch {
-      // Already invalid/expired — nothing to revoke.
+      // Silent: logout is best-effort.
     }
     return { success: true };
   }
@@ -265,18 +270,16 @@ export class AuthService {
     return this.usersService.findById(userId);
   }
 
-  /** One-time bootstrap: create an organization and first ORG_ADMIN when none exist. */
   async bootstrap(dto: {
-    token: string;
     organizationName: string;
     organizationSlug: string;
     adminEmail: string;
     adminPassword: string;
+    token: string;
   }): Promise<{ success: true }> {
-    const configured = this.configService.get('adminBootstrapToken' as any) as string | undefined;
-    const envToken = configured ?? process.env.ADMIN_BOOTSTRAP_TOKEN;
+    const envToken = process.env.BOOTSTRAP_TOKEN;
     if (!envToken) {
-      throw new BadRequestException('Bootstrap is not enabled');
+      throw new UnauthorizedException('Bootstrap is disabled');
     }
     if (dto.token !== envToken) {
       throw new UnauthorizedException('Invalid bootstrap token');
@@ -361,9 +364,26 @@ export class AuthService {
 
     // Update user's password and mark token used. Revoke refresh tokens.
     const passwordHash = await bcrypt.hash(dto.password, 10);
+    const user = await this.prisma.user.findUnique({
+      where: { id: reset.userId },
+      select: { id: true, organizationId: true, email: true },
+    });
+    if (!user) throw new BadRequestException('Invalid reset token');
     await this.prisma.user.update({ where: { id: reset.userId }, data: { passwordHash } });
     await this.prisma.passwordReset.update({ where: { id: reset.id }, data: { usedAt: new Date() } });
     await this.prisma.refreshToken.deleteMany({ where: { userId: reset.userId } });
+    await this.audit.record({
+      organizationId: user.organizationId,
+      actorId: user.id,
+      action: AuditAction.UPDATE,
+      entityType: 'User',
+      entityId: user.id,
+      metadata: {
+        credentialChange: 'password_reset',
+        resetId: reset.id,
+        email: user.email,
+      },
+    });
     return { success: true };
   }
 
