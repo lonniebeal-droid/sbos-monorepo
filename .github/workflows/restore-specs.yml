@@ -25,22 +25,15 @@ jobs:
           ref: fix/rbac-isolation-tests-and-org-admin-escalation
           fetch-depth: 0
 
-      - name: Decode and write verified specs
+      - name: Restore specs from 4e2eba7 + patches
         run: |
           set -euo pipefail
-          python3 <<'PY'
-          import base64, gzip
-          from pathlib import Path
-          mapping = {
-            "tmp-restore/auth.service.spec.ts.gz.b64": "apps/api/src/modules/auth/auth.service.spec.ts",
-            "tmp-restore/users.service.spec.ts.gz.b64": "apps/api/src/modules/users/users.service.spec.ts",
-          }
-          for src, dest in mapping.items():
-              b64 = Path(src).read_text().strip()
-              data = gzip.decompress(base64.b64decode(b64))
-              Path(dest).write_bytes(data)
-              print(dest, len(data))
-          PY
+          git show 4e2eba7f1c6695de4f69b183f3345531be47d69b:apps/api/src/modules/auth/auth.service.spec.ts > apps/api/src/modules/auth/auth.service.spec.ts
+          git show 4e2eba7f1c6695de4f69b183f3345531be47d69b:apps/api/src/modules/users/users.service.spec.ts > apps/api/src/modules/users/users.service.spec.ts
+          patch -p1 < tmp-restore/auth.service.spec.ts.patch
+          patch -p1 < tmp-restore/users.service.spec.ts.patch
+          grep -c passwordVersion apps/api/src/modules/auth/auth.service.spec.ts
+          grep -c passwordVersion apps/api/src/modules/users/users.service.spec.ts
 
       - name: Remove temporary restore machinery
         run: |
