@@ -100,6 +100,19 @@ export class UsersService {
   }
 
   /**
+   * Tenant-scoped lookup. Cross-org ids are treated as not found (no leak).
+   */
+  async findByIdInOrg(organizationId: string, id: string): Promise<UserEntity> {
+    const record = await this.prisma.user.findFirst({
+      where: { id, organizationId },
+    });
+    if (!record) {
+      throw new NotFoundException(`User ${id} not found`);
+    }
+    return this.toEntity(record);
+  }
+
+  /**
    * Like findById, but treats a non-ACTIVE account the same as a missing one.
    * Use this anywhere a fresh authorization decision is being made (e.g.
    * reissuing tokens on refresh) so a suspended/deactivated account can't
@@ -144,10 +157,14 @@ export class UsersService {
     });
   }
 
-  async create(dto: CreateUserDto): Promise<UserEntity> {
+  /**
+   * Create a user in the given organization. organizationId must come from the
+   * authenticated actor — never from client-supplied body fields.
+   */
+  async create(organizationId: string, dto: CreateUserDto): Promise<UserEntity> {
     const existing = await this.prisma.user.findFirst({
       where: {
-        organizationId: dto.organizationId,
+        organizationId,
         email: dto.email.trim().toLowerCase(),
       },
       select: { id: true },
@@ -160,7 +177,7 @@ export class UsersService {
     const [firstName, ...rest] = dto.name.trim().split(' ');
     const record = await this.prisma.user.create({
       data: {
-        organizationId: dto.organizationId,
+        organizationId,
         email: dto.email.trim().toLowerCase(),
         passwordHash,
         firstName: firstName ?? dto.name,
