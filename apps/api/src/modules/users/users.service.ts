@@ -37,6 +37,7 @@ export class UsersService {
       role: record.role as unknown as Role,
       organizationId: record.organizationId,
       createdAt: record.createdAt.toISOString(),
+      passwordVersion: record.passwordVersion,
     };
   }
 
