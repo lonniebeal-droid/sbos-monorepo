@@ -275,20 +275,48 @@ export class AppointmentsService {
     return { telehealthUrl: updated.telehealthUrl, appointmentId: id };
   }
 
-  async checkIn(organizationId: string, id: string) {
-    await this.findOne(organizationId, id);
-    return this.prisma.appointment.update({
+  async checkIn(organizationId: string, actorId: string, id: string) {
+    const existing = await this.findOne(organizationId, id);
+    const updated = await this.prisma.appointment.update({
       where: { id },
       data: { status: AppointmentStatus.CHECKED_IN, checkedInAt: new Date() },
     });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.UPDATE,
+      entityType: 'Appointment',
+      entityId: id,
+      metadata: {
+        previousStatus: existing.status,
+        newStatus: AppointmentStatus.CHECKED_IN,
+      },
+    });
+
+    return updated;
   }
 
-  async checkOut(organizationId: string, id: string) {
-    await this.findOne(organizationId, id);
-    return this.prisma.appointment.update({
+  async checkOut(organizationId: string, actorId: string, id: string) {
+    const existing = await this.findOne(organizationId, id);
+    const updated = await this.prisma.appointment.update({
       where: { id },
       data: { status: AppointmentStatus.COMPLETED, checkedOutAt: new Date() },
     });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.UPDATE,
+      entityType: 'Appointment',
+      entityId: id,
+      metadata: {
+        previousStatus: existing.status,
+        newStatus: AppointmentStatus.COMPLETED,
+      },
+    });
+
+    return updated;
   }
 
   async cancel(organizationId: string, actorId: string, id: string, reason?: string) {
