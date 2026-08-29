@@ -3,7 +3,7 @@
 Last verified locally: 2026-08-29
 Worktree: `/Users/lonniebgroupllc/download/sbos-agent2-railway`
 Branch: `docs/railway-staging-readiness`
-HEAD: `53ac9c56c33023d85c4828baa983aa0307c3b5c9`
+HEAD: `422a8c2b4c11ff6c65da7fa8a5c6a933bfbdbcf8`
 
 This runbook narrows the existing deployment and production-readiness docs into the specific work needed to stand up a safe SBOS staging environment on Railway. It is intentionally local-only and does not claim that any hosted environment already exists.
 
@@ -281,19 +281,20 @@ Both Dockerfiles include HEALTHCHECK for container-level liveness.
 ## Rate Limiting
 
 - **Current implementation**: In-memory via `@nestjs/throttler` (single-instance only)
-- **Configuration**: `ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }])` in `apps/api/src/app.module.ts`
-- **Production requirement**: Shared Redis-backed throttler store for horizontal scaling (not yet implemented)
+- **Configuration**: `ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }])` in `apps/api/src/app.module.ts:46-51`
+- **Storage**: Default in-memory `ThrottlerStorage` (no Redis-backed store configured)
+- **Production requirement**: Shared Redis-backed throttler store for horizontal scaling (not implemented)
 - **Staging**: In-memory is sufficient for single-instance validation
 
-> **Note**: The Gate 5 security rebuild (local branch `fix/gate5-security-rebuild` at `5505e9f`) verified 204/204 tests passing with in-memory rate limiting. The document `docs/GATE5_SECURITY_REBUILD.md` states: "Rate limiting is in-memory. Multi-instance production deployment needs a shared throttler store before it can be considered horizontally effective." The remote SHA `c2081f9a42be4a5e197d6d531a704285cbbe014a` was not available locally for verification.
+> **Note**: The local Gate 5 security rebuild (branch `fix/gate5-security-rebuild` at `5505e9f`, merged at `dc0ecf0`) verified 204/204 tests passing with in-memory rate limiting. `docs/GATE5_SECURITY_REBUILD.md:80-81` states: "Rate limiting is in-memory. Multi-instance production deployment needs a shared throttler store before it can be considered horizontally effective." The remote SHA `c2081f9a42be4a5e197d6d531a704285cbbe014a` is not present in this repository's object database.
 
 ## Staging Deployment Steps
 
 ### Prerequisites
 - [ ] Railway account with staging project created
 - [ ] PostgreSQL plugin provisioned in staging project
-- [ ] Redis plugin provisioned (optional for staging; needed for production horizontal rate limiting)
 - [ ] Staging secrets generated and stored in Railway UI
+- [ ] Redis plugin provisioned only if/when Redis-backed rate limiting or async jobs are implemented
 
 ### Deployment Order
 1. **Provision PostgreSQL** → Note `DATABASE_URL`
@@ -389,7 +390,7 @@ curl -X POST https://staging-api.up.railway.app/api/v1/auth/login \
 - **Lint**: PASS
 - **Build**: PASS
 - **Runtime security blockers**: 0
-- **Rate limiting**: In-memory (single-instance); Redis-backed store needed for multi-instance production
+- **Rate limiting**: In-memory via @nestjs/throttler (single-instance); Redis-backed store needed for multi-instance production
 - **docs/GATE5_SECURITY_REBUILD.md**: Updated
 
 **Remote SHA `c2081f9a42be4a5e197d6d531a704285cbbe014a`**: NOT AVAILABLE locally; not integrated. This SHA does not exist in this repository's object database.
@@ -411,6 +412,8 @@ Use this runbook as the handoff checklist while creating a staging-only Railway 
 2. Staging PostgreSQL is provisioned
 3. All REQUIRED secrets are set in Railway UI
 
+**Obtain authenticated Railway access and inspect actual project/environment/service/PostgreSQL/Redis state. Provision only resources verified to be missing and only with explicit authorization. Do not create paid infrastructure. Do not assume absence from lack of access.**
+
 ## Local Verification Checklist (Complete)
 
 - [x] `pnpm install --frozen-lockfile` - PASS
@@ -425,4 +428,4 @@ Use this runbook as the handoff checklist while creating a staging-only Railway 
 - [x] Migration strategy documented - DONE
 - [x] Rollback plan documented - DONE
 - [x] Gate 5 security rebuild locally integrated - VERIFIED
-- [x] Rate limiting correctly documented as in-memory - CORRECTED
+- [x] Rate limiting correctly documented as in-memory via @nestjs/throttler - CORRECTED
