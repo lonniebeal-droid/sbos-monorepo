@@ -1,4 +1,9 @@
-import { BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import * as bcrypt from 'bcryptjs';
 import { AuditAction } from '@sbos/database';
@@ -311,6 +316,7 @@ describe('AuthService.resetPassword', () => {
       await service.resetPassword({ resetId, token, password: 'NewAdmin1!' });
 
       expect(await bcrypt.compare('NewAdmin1!', storedHash.current)).toBe(true);
+      expect(await bcrypt.compare('Admin123!', storedHash.current)).toBe(false);
       expect(passwordReset.updateMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({ id: resetId, usedAt: null }),
@@ -366,7 +372,7 @@ describe('AuthService.resetPassword', () => {
       user,
       passwordReset,
       refreshToken,
-      $transaction: vi.fn().mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx)),
+      $transaction: vi.fn().mockImplementation(async (fn: (tx: typeof tx) => unknown) => fn(tx)),
     };
     const { service, audit } = makeService({ prisma });
 
@@ -500,5 +506,325 @@ describe('AuthService.bootstrap audit', () => {
       if (prev === undefined) delete process.env.BOOTSTRAP_TOKEN;
       else process.env.BOOTSTRAP_TOKEN = prev;
     }
+  });
+});
+
+describe('AuthService.acceptInvite', () => {
+  const token = 'plain-invite-token';
+  const inviteBase = {
+    id: 'inv-1',
+    organizationId: 'org1',
+    email: 'new.user@sbos.health',
+    role: Role.CLINICIAN,
+    usedAt: null as Date | null,
+    expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+  };
+
+  async function hashToken(plain: string) {
+    return bcrypt.hash(plain, 10);
+  }
+
+  it('accepts a valid invite, creates user with invite role/org, claims invite, audits CREATE', async () => {
+    const tokenHash = await hashToken(token);
+    const invite = { ...inviteBase, tokenHash };
+    const userInvite = {
+      findUnique: vi.fn().mockResolvedValue(invite),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    };
+    const user = {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({
+        id: 'u-new',
+        organizationId: 'org1',
+        email: 'new.user@sbos.health',
+        role: Role.CLINICIAN,
+      }),
+    };
+    const clinician = { create: vi.fn().mockResolvedValue({ id: 'clin-1' }) };
+    const tx = { userInvite, user, clinician };
+    const prisma = {
+      userInvite,
+      user,
+      clinician,
+      $transaction: vi.fn().mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx)),
+    };
+    const { service, audit } = makeService({ prisma });
+
+    const result = await service.acceptInvite({
+      inviteId: 'inv-1',
+      token,
+      name: 'New User',
+      password: 'SecurePass1!',
+    });
+
+    expect(result).toEqual({ success: true });
+    expect(userInvite.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: 'inv-1',
+          usedAt: null,
+          expiresAt: { gt: expect.any(Date) },
+        }),
+        data: { usedAt: expect.any(Date) },
+      }),
+    );
+    expect(user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          organizationId: 'org1',
+          email: 'new.user@sbos.health',
+          role: Role.CLINICIAN,
+          firstName: 'New',
+          lastName: 'User',
+        }),
+      }),
+    );
+    expect(clinician.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          organizationId: 'org1',
+          userId: 'u-new',
+        }),
+      }),
+    );
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org1',
+        actorId: 'u-new',
+        action: AuditAction.CREATE,
+        entityType: 'User',
+        entityId: 'u-new',
+        metadata: expect.objectContaining({
+          via: 'invite_accept',
+          inviteId: 'inv-1',
+          role: Role.CLINICIAN,
+        }),
+      }),
+    );
+  });
+
+  it('rejects sequential replay with controlled already-used error', async () => {
+    const tokenHash = await hashToken(token);
+    const invite = { ...inviteBase, tokenHash, usedAt: new Date() };
+    const userInvite = {
+      findUnique: vi.fn().mockResolvedValue(invite),
+      updateMany: vi.fn(),
+    };
+    const prisma = {
+      userInvite,
+      $transaction: vi.fn(),
+    };
+    const { service, audit } = makeService({ prisma });
+
+    await expect(
+      service.acceptInvite({
+        inviteId: 'inv-1',
+        token,
+        name: 'Replay',
+        password: 'SecurePass1!',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('rejects expired invite', async () => {
+    const tokenHash = await hashToken(token);
+    const invite = {
+      ...inviteBase,
+      tokenHash,
+      expiresAt: new Date(Date.now() - 1000),
+    };
+    const userInvite = {
+      findUnique: vi.fn().mockResolvedValue(invite),
+      updateMany: vi.fn(),
+    };
+    const prisma = {
+      userInvite,
+      $transaction: vi.fn(),
+    };
+    const { service, audit } = makeService({ prisma });
+
+    await expect(
+      service.acceptInvite({
+        inviteId: 'inv-1',
+        token,
+        name: 'Late',
+        password: 'SecurePass1!',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('allows only one concurrent claim; loser gets controlled already-used error', async () => {
+    const tokenHash = await hashToken(token);
+    const invite = { ...inviteBase, tokenHash, usedAt: null as Date | null };
+    let claimCount = 0;
+    const userInvite = {
+      findUnique: vi.fn().mockImplementation(async () => ({
+        ...invite,
+        usedAt: claimCount > 0 ? new Date() : null,
+      })),
+      updateMany: vi.fn().mockImplementation(async () => {
+        claimCount += 1;
+        if (claimCount === 1) {
+          invite.usedAt = new Date();
+          return { count: 1 };
+        }
+        return { count: 0 };
+      }),
+    };
+    const user = {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({
+        id: 'u-new',
+        organizationId: 'org1',
+        email: 'new.user@sbos.health',
+        role: Role.CLINICIAN,
+      }),
+    };
+    const clinician = { create: vi.fn().mockResolvedValue({}) };
+    const tx = { userInvite, user, clinician };
+    const prisma = {
+      userInvite,
+      user,
+      clinician,
+      $transaction: vi.fn().mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx)),
+    };
+    const { service, audit } = makeService({ prisma });
+
+    await service.acceptInvite({
+      inviteId: 'inv-1',
+      token,
+      name: 'Winner',
+      password: 'SecurePass1!',
+    });
+
+    await expect(
+      service.acceptInvite({
+        inviteId: 'inv-1',
+        token,
+        name: 'Loser',
+        password: 'OtherPass1!',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(user.create).toHaveBeenCalledTimes(1);
+    expect(audit.record).toHaveBeenCalledTimes(1);
+  });
+
+  it('rolls back invite claim when same-org email already exists', async () => {
+    const tokenHash = await hashToken(token);
+    const invite = { ...inviteBase, tokenHash };
+    const userInvite = {
+      findUnique: vi.fn().mockResolvedValue(invite),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    };
+    const user = {
+      findFirst: vi.fn().mockResolvedValue({ id: 'existing' }),
+      create: vi.fn(),
+    };
+    const clinician = { create: vi.fn() };
+    const tx = { userInvite, user, clinician };
+    const prisma = {
+      userInvite,
+      user,
+      clinician,
+      $transaction: vi.fn().mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx)),
+    };
+    const { service, audit } = makeService({ prisma });
+
+    await expect(
+      service.acceptInvite({
+        inviteId: 'inv-1',
+        token,
+        name: 'Dup',
+        password: 'SecurePass1!',
+      }),
+    ).rejects.toBeInstanceOf(ConflictException);
+
+    expect(user.create).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+    expect(userInvite.updateMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses stored invite role and organizationId regardless of caller input', async () => {
+    const tokenHash = await hashToken(token);
+    const invite = {
+      ...inviteBase,
+      tokenHash,
+      role: Role.BILLING,
+      organizationId: 'org-authoritative',
+      email: 'billing@sbos.health',
+    };
+    const userInvite = {
+      findUnique: vi.fn().mockResolvedValue(invite),
+      updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+    };
+    const user = {
+      findFirst: vi.fn().mockResolvedValue(null),
+      create: vi.fn().mockResolvedValue({
+        id: 'u-bill',
+        organizationId: 'org-authoritative',
+        email: 'billing@sbos.health',
+        role: Role.BILLING,
+      }),
+    };
+    const clinician = { create: vi.fn() };
+    const tx = { userInvite, user, clinician };
+    const prisma = {
+      userInvite,
+      user,
+      clinician,
+      $transaction: vi.fn().mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx)),
+    };
+    const { service } = makeService({ prisma });
+
+    await service.acceptInvite({
+      inviteId: 'inv-1',
+      token,
+      name: 'Bill User',
+      password: 'SecurePass1!',
+    });
+
+    expect(user.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          organizationId: 'org-authoritative',
+          role: Role.BILLING,
+          email: 'billing@sbos.health',
+        }),
+      }),
+    );
+    expect(clinician.create).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid invite token without claiming', async () => {
+    const tokenHash = await hashToken('different-token');
+    const invite = { ...inviteBase, tokenHash };
+    const userInvite = {
+      findUnique: vi.fn().mockResolvedValue(invite),
+      updateMany: vi.fn(),
+    };
+    const prisma = {
+      userInvite,
+      $transaction: vi.fn(),
+    };
+    const { service, audit } = makeService({ prisma });
+
+    await expect(
+      service.acceptInvite({
+        inviteId: 'inv-1',
+        token: 'wrong-token',
+        name: 'Nope',
+        password: 'SecurePass1!',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
   });
 });
