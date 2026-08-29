@@ -1,0 +1,119 @@
+{
+  "basePath": "/api/v1/jessie/agent/tools",
+  "authHeader": "X-SBOS-Agent-Secret",
+  "authHeaderDescription": "Value from JESSIE_AGENT_SECRETS mapping for this organization. Do not embed real secrets in source control.",
+  "sharedOptionalParameters": [
+    {
+      "name": "idempotencyKey",
+      "type": "string",
+      "description": "Optional. Retries with the same key replay the first result without side effects."
+    },
+    {
+      "name": "conversationId",
+      "type": "string",
+      "description": "Jessie conversation id; must belong to the agent organization."
+    },
+    {
+      "name": "sessionId",
+      "type": "string",
+      "description": "Alias for conversationId."
+    }
+  ],
+  "responseSchema": {
+    "ok": "boolean",
+    "tool": "string",
+    "idempotentReplay": "boolean?",
+    "error": "string?",
+    "message": "string?",
+    "data": "object?"
+  },
+  "tools": [
+    {
+      "name": "lookup_client",
+      "method": "POST",
+      "path": "/lookup_client",
+      "description": "Find a client in the agent organization by id, email, phone, or name.",
+      "parameters": [
+        { "name": "clientId", "type": "string", "required": false, "description": "Exact client id (same org only)" },
+        { "name": "email", "type": "string", "required": false, "description": "Case-insensitive email match" },
+        { "name": "phone", "type": "string", "required": false, "description": "Digits matched against stored phone" },
+        { "name": "name", "type": "string", "required": false, "description": "Partial match on first or last name" }
+      ]
+    },
+    {
+      "name": "save_or_update_lead",
+      "method": "POST",
+      "path": "/save_or_update_lead",
+      "description": "Create a prospect lead or update an existing same-org client.",
+      "parameters": [
+        { "name": "firstName", "type": "string", "required": true, "description": "Lead first name" },
+        { "name": "lastName", "type": "string", "required": true, "description": "Lead last name" },
+        { "name": "clientId", "type": "string", "required": false, "description": "When set, updates that client (same org)" },
+        { "name": "email", "type": "string", "required": false, "description": "Email" },
+        { "name": "phone", "type": "string", "required": false, "description": "Phone" },
+        { "name": "dateOfBirth", "type": "string", "required": false, "description": "ISO date of birth" },
+        { "name": "notes", "type": "string", "required": false, "description": "Free-text notes" }
+      ]
+    },
+    {
+      "name": "check_calendar",
+      "method": "POST",
+      "path": "/check_calendar",
+      "description": "List open calendar slots for a clinician on a given date.",
+      "parameters": [
+        { "name": "clinicianId", "type": "string", "required": true, "description": "Clinician in the agent organization" },
+        { "name": "date", "type": "string", "required": true, "description": "YYYY-MM-DD" },
+        { "name": "slotMinutes", "type": "integer", "required": false, "description": "Slot length (default 50)" }
+      ]
+    },
+    {
+      "name": "schedule_appointment",
+      "method": "POST",
+      "path": "/schedule_appointment",
+      "description": "Book an appointment for a client with a clinician.",
+      "parameters": [
+        { "name": "clientId", "type": "string", "required": true, "description": "Client in the agent organization" },
+        { "name": "clinicianId", "type": "string", "required": true, "description": "Clinician in the agent organization" },
+        { "name": "startTime", "type": "string", "required": true, "description": "ISO datetime start (UTC)" },
+        { "name": "endTime", "type": "string", "required": true, "description": "ISO datetime end (UTC)" },
+        { "name": "durationMinutes", "type": "integer", "required": true, "description": "Duration in minutes" },
+        { "name": "locationId", "type": "string", "required": false, "description": "Location in the agent organization" },
+        { "name": "type", "type": "string", "required": false, "description": "e.g. INDIVIDUAL" }
+      ]
+    },
+    {
+      "name": "send_sms",
+      "method": "POST",
+      "path": "/send_sms",
+      "description": "Send an SMS via the configured provider.",
+      "parameters": [
+        { "name": "to", "type": "string", "required": true, "description": "Destination phone" },
+        { "name": "body", "type": "string", "required": true, "description": "Message body (max 1600)" },
+        { "name": "clientId", "type": "string", "required": false, "description": "Optional client for ownership audit" }
+      ]
+    },
+    {
+      "name": "send_email",
+      "method": "POST",
+      "path": "/send_email",
+      "description": "Send an email via the configured provider.",
+      "parameters": [
+        { "name": "to", "type": "string", "required": true, "description": "Destination email" },
+        { "name": "subject", "type": "string", "required": true, "description": "Subject line" },
+        { "name": "body", "type": "string", "required": true, "description": "Plain-text body" },
+        { "name": "clientId", "type": "string", "required": false, "description": "Optional client for ownership audit" }
+      ]
+    },
+    {
+      "name": "transfer_to_human",
+      "method": "POST",
+      "path": "/transfer_to_human",
+      "description": "Create a high-priority staff task to escalate the call.",
+      "parameters": [
+        { "name": "reason", "type": "string", "required": true, "description": "Why the caller needs a human" },
+        { "name": "clientId", "type": "string", "required": false, "description": "Related client (same org)" },
+        { "name": "assigneeId", "type": "string", "required": false, "description": "Staff user id to assign" }
+      ]
+    }
+  ]
+}

@@ -487,4 +487,50 @@ describe('AppointmentsService.create — tenant ownership of clientId/clinicianI
     expect(audit.record).toHaveBeenCalled();
     expect(result).toBe(created);
   });
+
+  it('records audit with null actorId and agent metadata for system bookings', async () => {
+    const created = {
+      id: 'appt-agent-1',
+      clientId: 'c1',
+      clinicianId: 'cl1',
+      startTime: new Date(baseDto.startTime),
+    };
+    const { service, prisma, audit } = makeService({
+      prisma: {
+        client: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          findFirst: vi.fn().mockResolvedValue({ id: 'c1' }),
+        },
+        clinician: { findFirst: vi.fn().mockResolvedValue({ id: 'cl1' }) },
+        appointment: {
+          findFirst: vi.fn().mockResolvedValue(null),
+          findMany: vi.fn(),
+          count: vi.fn(),
+          create: vi.fn().mockResolvedValue(created),
+          update: vi.fn(),
+          delete: vi.fn(),
+        },
+      },
+    });
+
+    const result = await service.create(
+      'org1',
+      null,
+      baseDto as never,
+      { actorType: 'jessie_agent', tool: 'schedule_appointment' },
+    );
+    expect(result).toBe(created);
+    expect(prisma.appointment.create).toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorId: null,
+        entityType: 'Appointment',
+        metadata: expect.objectContaining({
+          actorType: 'jessie_agent',
+          tool: 'schedule_appointment',
+        }),
+      }),
+    );
+  });
+
 });
