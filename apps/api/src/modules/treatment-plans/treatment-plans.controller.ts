@@ -60,7 +60,7 @@ export class TreatmentPlansController {
     @Param('id') id: string,
     @Body() dto: UpdateTreatmentPlanDto,
   ) {
-    return this.service.update(user.organizationId, id, dto);
+    return this.service.update(user.organizationId, user.id, id, dto);
   }
 
   @Patch(':id/goals/:goalId')
