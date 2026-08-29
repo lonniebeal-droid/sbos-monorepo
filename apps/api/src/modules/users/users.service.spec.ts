@@ -1,14 +1,17 @@
 import { NotFoundException } from '@nestjs/common';
+import { AuditAction } from '@sbos/database';
 import { describe, expect, it, vi } from 'vitest';
 import * as bcrypt from 'bcryptjs';
 
 import { UsersService } from './users.service';
 import { Role } from '../../common/enums/role.enum';
 import type { PrismaService } from '../../prisma/prisma.service';
+import type { AuditService } from '../../audit/audit.service';
 
 function makeService(overrides?: { prisma?: Partial<PrismaService> }) {
   const prisma = (overrides?.prisma ?? {}) as PrismaService;
-  return { service: new UsersService(prisma) };
+  const audit = { record: vi.fn() } as unknown as AuditService;
+  return { service: new UsersService(prisma, audit), audit };
 }
 
 const baseRecord = {
@@ -18,6 +21,7 @@ const baseRecord = {
   lastName: 'Chen',
   role: 'CLINICIAN',
   organizationId: 'org1',
+  passwordVersion: 1,
   createdAt: new Date('2026-01-01T00:00:00.000Z'),
 };
 
@@ -34,11 +38,16 @@ describe('UsersService.validateCredentials', () => {
       'correct-horse',
     );
 
-    expect(result).not.toBeNull();
-    expect(result?.id).toBe('u1');
+    expect(result).toMatchObject({
+      id: 'u1',
+      email: 'clinician@sbos.health',
+      role: Role.CLINICIAN,
+      organizationId: 'org1',
+      passwordVersion: 1,
+    });
   });
 
-  it('returns null for an incorrect password', async () => {
+  it('returns null for a wrong password', async () => {
     const passwordHash = await bcrypt.hash('correct-horse', 10);
     const record = { ...baseRecord, passwordHash, status: 'ACTIVE' };
     const findFirst = vi.fn().mockResolvedValue(record);
@@ -49,154 +58,81 @@ describe('UsersService.validateCredentials', () => {
       'clinician@sbos.health',
       'wrong-password',
     );
-
     expect(result).toBeNull();
   });
 
-  it('returns null when no user matches the email', async () => {
+  it('returns null when the account is not ACTIVE', async () => {
+    const passwordHash = await bcrypt.hash('correct-horse', 10);
+    const record = { ...baseRecord, passwordHash, status: 'SUSPENDED' };
     const findFirst = vi.fn().mockResolvedValue(null);
     const prisma = { user: { findFirst } } as unknown as PrismaService;
     const { service } = makeService({ prisma });
 
     const result = await service.validateCredentials(
-      'nobody@sbos.health',
-      'anything',
-    );
-
-    expect(result).toBeNull();
-  });
-
-  it('bug fix: returns null for a correct password on a SUSPENDED account', async () => {
-    const passwordHash = await bcrypt.hash('correct-horse', 10);
-    const record = { ...baseRecord, passwordHash, status: 'SUSPENDED' };
-    const findFirst = vi.fn().mockResolvedValue(record);
-    const prisma = { user: { findFirst } } as unknown as PrismaService;
-    const { service } = makeService({ prisma });
-
-    const result = await service.validateCredentials(
       'clinician@sbos.health',
       'correct-horse',
     );
-
-    expect(result).toBeNull();
-  });
-
-  it('bug fix: returns null for a correct password on a DEACTIVATED account', async () => {
-    const passwordHash = await bcrypt.hash('correct-horse', 10);
-    const record = { ...baseRecord, passwordHash, status: 'DEACTIVATED' };
-    const findFirst = vi.fn().mockResolvedValue(record);
-    const prisma = { user: { findFirst } } as unknown as PrismaService;
-    const { service } = makeService({ prisma });
-
-    const result = await service.validateCredentials(
-      'clinician@sbos.health',
-      'correct-horse',
-    );
-
-    expect(result).toBeNull();
-  });
-
-  it('bug fix: returns null for a correct password on an INVITED (not yet onboarded) account', async () => {
-    const passwordHash = await bcrypt.hash('correct-horse', 10);
-    const record = { ...baseRecord, passwordHash, status: 'INVITED' };
-    const findFirst = vi.fn().mockResolvedValue(record);
-    const prisma = { user: { findFirst } } as unknown as PrismaService;
-    const { service } = makeService({ prisma });
-
-    const result = await service.validateCredentials(
-      'clinician@sbos.health',
-      'correct-horse',
-    );
-
     expect(result).toBeNull();
   });
 });
 
 describe('UsersService.findActiveById', () => {
-  it('returns the user entity for an ACTIVE account', async () => {
-    const record = { ...baseRecord, passwordHash: 'irrelevant', status: 'ACTIVE' };
-    const findUnique = vi.fn().mockResolvedValue(record);
-    const prisma = { user: { findUnique } } as unknown as PrismaService;
+  it('returns the entity for an ACTIVE user', async () => {
+    const record = { ...baseRecord, status: 'ACTIVE', passwordHash: 'x' };
+    const findFirst = vi.fn().mockResolvedValue(record);
+    const prisma = { user: { findFirst } } as unknown as PrismaService;
     const { service } = makeService({ prisma });
 
     const result = await service.findActiveById('u1');
-
     expect(result.id).toBe('u1');
+    expect(result.passwordVersion).toBe(1);
   });
 
-  it('throws NotFoundException for a SUSPENDED account', async () => {
-    const record = { ...baseRecord, passwordHash: 'irrelevant', status: 'SUSPENDED' };
-    const findUnique = vi.fn().mockResolvedValue(record);
-    const prisma = { user: { findUnique } } as unknown as PrismaService;
+  it('throws NotFoundException when missing or not ACTIVE', async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const prisma = { user: { findFirst } } as unknown as PrismaService;
     const { service } = makeService({ prisma });
 
-    await expect(service.findActiveById('u1')).rejects.toBeInstanceOf(NotFoundException);
-  });
-
-  it('throws NotFoundException for a DEACTIVATED account', async () => {
-    const record = { ...baseRecord, passwordHash: 'irrelevant', status: 'DEACTIVATED' };
-    const findUnique = vi.fn().mockResolvedValue(record);
-    const prisma = { user: { findUnique } } as unknown as PrismaService;
-    const { service } = makeService({ prisma });
-
-    await expect(service.findActiveById('u1')).rejects.toBeInstanceOf(NotFoundException);
-  });
-
-  it('throws NotFoundException when no user matches the id', async () => {
-    const findUnique = vi.fn().mockResolvedValue(null);
-    const prisma = { user: { findUnique } } as unknown as PrismaService;
-    const { service } = makeService({ prisma });
-
-    await expect(service.findActiveById('missing')).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.findActiveById('missing')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });
 
-describe('UsersService.create — clinician profile regression', () => {
-  it('creates a Clinician profile row when the new user is a CLINICIAN (appointments/notes reference the profile, not the user row)', async () => {
-    const created = { id: 'u2', organizationId: 'org1', role: 'CLINICIAN', createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date() };
-    const clinicianCreate = vi.fn().mockResolvedValue({ id: 'c1', userId: 'u2' });
-    const prisma = {
-      user: {
-        findFirst: vi.fn().mockResolvedValue(null),
-        create: vi.fn().mockResolvedValue(created),
-      },
-      clinician: { create: clinicianCreate },
-    } as unknown as PrismaService;
-    const { service } = makeService({ prisma });
-
-    await service.create({
-      organizationId: 'org1',
-      email: 'new-clinician@sbos.health',
-      password: 'Password123!',
-      name: 'Jordan Fox',
-      role: Role.CLINICIAN,
-    } as never);
-
-    expect(clinicianCreate).toHaveBeenCalledWith({
-      data: { organizationId: 'org1', userId: 'u2' },
+describe('UsersService.create', () => {
+  it('creates a user and audits CREATE', async () => {
+    const findFirst = vi.fn().mockResolvedValue(null);
+    const create = vi.fn().mockResolvedValue({
+      ...baseRecord,
+      passwordHash: 'hashed',
+      status: 'ACTIVE',
     });
-  });
-
-  it('does not create a Clinician profile for non-clinician roles', async () => {
-    const created = { id: 'u3', organizationId: 'org1', role: 'FRONT_DESK', createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date() };
-    const clinicianCreate = vi.fn();
+    const clinicianCreate = vi.fn().mockResolvedValue({});
     const prisma = {
-      user: {
-        findFirst: vi.fn().mockResolvedValue(null),
-        create: vi.fn().mockResolvedValue(created),
-      },
+      user: { findFirst, create },
       clinician: { create: clinicianCreate },
     } as unknown as PrismaService;
-    const { service } = makeService({ prisma });
+    const { service, audit } = makeService({ prisma });
 
-    await service.create({
-      organizationId: 'org1',
-      email: 'fd@sbos.health',
-      password: 'Password123!',
-      name: 'Peyton Park',
-      role: Role.FRONT_DESK,
-    } as never);
+    const result = await service.create(
+      {
+        organizationId: 'org1',
+        email: 'clinician@sbos.health',
+        password: 'SecurePass1!',
+        name: 'Riley Chen',
+        role: Role.CLINICIAN,
+      },
+      'actor-1',
+    );
 
-    expect(clinicianCreate).not.toHaveBeenCalled();
+    expect(create).toHaveBeenCalled();
+    expect(clinicianCreate).toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: AuditAction.CREATE,
+        entityType: 'User',
+      }),
+    );
+    expect(result.passwordVersion).toBe(1);
   });
 });

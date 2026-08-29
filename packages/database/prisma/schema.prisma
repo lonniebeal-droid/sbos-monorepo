@@ -480,6 +480,9 @@ model User {
   mfaEnabled     Boolean    @default(false)
   mfaSecret      String?
   lastLoginAt    DateTime?
+  /// Incremented on every password change so outstanding JWTs issued under a
+  /// prior password are rejected without relying solely on refresh-token rows.
+  passwordVersion Int       @default(1)
   createdAt      DateTime   @default(now())
   updatedAt      DateTime   @updatedAt
 

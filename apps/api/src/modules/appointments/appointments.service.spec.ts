@@ -10,7 +10,10 @@ import { RecurrenceFrequencyDto } from './dto/create-recurring.dto';
 
 function makeService(overrides?: { prisma?: Record<string, unknown> }) {
   const prisma = {
-    client: { findUnique: vi.fn().mockResolvedValue(null) },
+    client: {
+      findUnique: vi.fn().mockResolvedValue(null),
+      findFirst: vi.fn().mockResolvedValue({ id: 'c1' }),
+    },
     appointment: {
       findFirst: vi.fn().mockResolvedValue(null),
       findMany: vi.fn().mockResolvedValue([]),
@@ -44,6 +47,23 @@ describe('AppointmentsService.create', () => {
         endTime: validDto.startTime,
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.appointment.create).not.toHaveBeenCalled();
+  });
+
+  it('throws NotFoundException and never creates when clientId is outside the org', async () => {
+    const { service, prisma } = makeService({
+      prisma: {
+        client: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          findFirst: vi.fn().mockResolvedValue(null),
+        },
+      },
+    });
+
+    await expect(service.create('org1', 'actor1', {
+      ...validDto,
+      clientId: 'foreign-client',
+    })).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.appointment.create).not.toHaveBeenCalled();
   });
 
@@ -84,6 +104,10 @@ describe('AppointmentsService.create', () => {
 
     const result = await service.create('org1', 'actor1', validDto);
 
+    expect(prisma.client.findFirst).toHaveBeenCalledWith({
+      where: { id: 'c1', organizationId: 'org1', deletedAt: null },
+      select: { id: true },
+    });
     expect(prisma.appointment.create).toHaveBeenCalledTimes(1);
     expect(audit.record).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -102,6 +126,7 @@ describe('AppointmentsService.create', () => {
     const { service, sms } = makeService({
       prisma: {
         client: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'c1' }),
           findUnique: vi.fn().mockResolvedValue({ phone: '+15555550100', firstName: 'Riley' }),
         },
         appointment: {
@@ -130,7 +155,10 @@ describe('AppointmentsService.create', () => {
     const created = { id: 'appt1', clientId: 'c1', clinicianId: 'cl1', startTime: new Date(validDto.startTime) };
     const { service, sms } = makeService({
       prisma: {
-        client: { findUnique: vi.fn().mockResolvedValue({ phone: null, firstName: 'Riley' }) },
+        client: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'c1' }),
+          findUnique: vi.fn().mockResolvedValue({ phone: null, firstName: 'Riley' }),
+        },
         appointment: {
           findFirst: vi.fn().mockResolvedValue(null),
           findMany: vi.fn(),
@@ -151,6 +179,27 @@ describe('AppointmentsService.create', () => {
 });
 
 describe('AppointmentsService.createRecurring', () => {
+  it('throws NotFoundException and never creates when clientId is outside the org', async () => {
+    const { service, prisma } = makeService({
+      prisma: {
+        client: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          findFirst: vi.fn().mockResolvedValue(null),
+        },
+      },
+    });
+
+    await expect(
+      service.createRecurring('org1', {
+        ...validDto,
+        clientId: 'foreign-client',
+        frequency: RecurrenceFrequencyDto.WEEKLY,
+        count: 3,
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.appointment.create).not.toHaveBeenCalled();
+  });
+
   it('links occurrences to a parent, skips conflicting windows, and reports both', async () => {
     let callCount = 0;
     const findFirst = vi.fn().mockImplementation(() => {
@@ -190,6 +239,33 @@ describe('AppointmentsService.createRecurring', () => {
     // The first create is the parent itself and must not self-reference.
     const firstCreateData = create.mock.calls[0][0].data;
     expect(firstCreateData.parentAppointmentId).toBeUndefined();
+  });
+});
+
+describe('AppointmentsService.update', () => {
+  it('rejects reassignment to a foreign-org clientId without updating', async () => {
+    const existing = { id: 'appt1', clientId: 'c1' };
+    const { service, prisma } = makeService({
+      prisma: {
+        client: {
+          findUnique: vi.fn().mockResolvedValue(null),
+          findFirst: vi.fn().mockResolvedValue(null),
+        },
+        appointment: {
+          findFirst: vi.fn().mockResolvedValue(existing),
+          findMany: vi.fn(),
+          count: vi.fn(),
+          create: vi.fn(),
+          update: vi.fn(),
+          delete: vi.fn(),
+        },
+      },
+    });
+
+    await expect(
+      service.update('org1', 'actor1', 'appt1', { clientId: 'foreign-client' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.appointment.update).not.toHaveBeenCalled();
   });
 });
 

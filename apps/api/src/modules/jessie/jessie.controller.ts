@@ -77,7 +77,7 @@ export class JessieController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('id') id: string,
   ) {
-    return this.conversations.close(user.organizationId, id);
+    return this.conversations.close(user.organizationId, user.id, id);
   }
 
   // ----- Prompt management (admin) -----

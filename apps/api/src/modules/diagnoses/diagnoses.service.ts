@@ -13,8 +13,21 @@ export class DiagnosesService {
     private readonly audit: AuditService,
   ) {}
 
-  create(organizationId: string, dto: CreateDiagnosisDto) {
+  /** Ensure the client exists in this org (and is not soft-deleted). */
+  private async ensureClientInOrg(organizationId: string, clientId: string) {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+    return client;
+  }
+
+  async create(organizationId: string, dto: CreateDiagnosisDto) {
     const { clientId, ...rest } = dto;
+    await this.ensureClientInOrg(organizationId, clientId);
     return this.prisma.diagnosis.create({
       data: { ...rest, clientId, organizationId },
     });
@@ -37,13 +50,35 @@ export class DiagnosesService {
     return diagnosis;
   }
 
-  async update(organizationId: string, id: string, dto: UpdateDiagnosisDto) {
-    await this.ensure(organizationId, id);
+  async update(
+    organizationId: string,
+    actorId: string,
+    id: string,
+    dto: UpdateDiagnosisDto,
+  ) {
+    const existing = await this.ensure(organizationId, id);
     const data: Prisma.DiagnosisUpdateInput = { ...dto };
     if (dto.status === 'RESOLVED') {
       data.resolvedAt = new Date();
     }
-    return this.prisma.diagnosis.update({ where: { id }, data });
+    const updated = await this.prisma.diagnosis.update({ where: { id }, data });
+
+    if (dto.status && dto.status !== existing.status) {
+      await this.audit.record({
+        organizationId,
+        actorId,
+        action: AuditAction.UPDATE,
+        entityType: 'Diagnosis',
+        entityId: id,
+        metadata: {
+          previousStatus: existing.status,
+          newStatus: dto.status,
+          clientId: existing.clientId,
+        },
+      });
+    }
+
+    return updated;
   }
 
   async remove(organizationId: string, actorId: string, id: string) {

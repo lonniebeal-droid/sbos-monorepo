@@ -4,7 +4,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import { Role as PrismaRole, type Prisma, type User } from '@sbos/database';
+import {
+  AuditAction,
+  Role as PrismaRole,
+  type Prisma,
+  type User,
+} from '@sbos/database';
 
 import { Role } from '../../common/enums/role.enum';
 import * as crypto from 'node:crypto';
@@ -14,6 +19,7 @@ import {
   type PaginationQueryDto,
 } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../audit/audit.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserEntity } from './entities/user.entity';
 
@@ -23,7 +29,10 @@ import { UserEntity } from './entities/user.entity';
  */
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   private toEntity(record: User): UserEntity {
     return {
@@ -34,6 +43,7 @@ export class UsersService {
       name: `${record.firstName} ${record.lastName}`.trim(),
       role: record.role as unknown as Role,
       organizationId: record.organizationId,
+      passwordVersion: record.passwordVersion,
       createdAt: record.createdAt.toISOString(),
     };
   }
@@ -44,10 +54,12 @@ export class UsersService {
     role: Role,
     invitedById: string,
     organizationId: string,
-  ): Promise<{ id: string; previewLink?: string }>
-  {
+  ): Promise<{ id: string; previewLink?: string }> {
     // Ensure the inviter belongs to the same organization to prevent cross-org invites.
-    const inviter = await this.prisma.user.findUnique({ where: { id: invitedById }, select: { organizationId: true } });
+    const inviter = await this.prisma.user.findUnique({
+      where: { id: invitedById },
+      select: { organizationId: true },
+    });
     if (!inviter || inviter.organizationId !== organizationId) {
       throw new Error('Inviter does not belong to the target organization');
     }
@@ -66,55 +78,63 @@ export class UsersService {
       },
     });
 
-    // Only reveal the raw token in non-production for dev/test convenience.
-    if (process.env.NODE_ENV !== 'production') {
-      const previewLink = `/auth/invite/accept?inviteId=${record.id}&token=${token}`;
-      return { id: record.id, previewLink };
-    }
-    return { id: record.id };
+    await this.audit.record({
+      organizationId,
+      actorId: invitedById,
+      action: AuditAction.CREATE,
+      entityType: 'UserInvite',
+      entityId: record.id,
+      metadata: { email: record.email, role: record.role },
+    });
+
+    // In production the token is emailed; in development we surface a preview link.
+    const previewLink =
+      process.env.NODE_ENV !== 'production'
+        ? `/invite/accept?id=${record.id}&token=${token}`
+        : undefined;
+
+    return { id: record.id, previewLink };
   }
 
-  /** Validate email/password. Email lookup is global (first match) for login. */
-  async validateCredentials(
-    email: string,
-    password: string,
-  ): Promise<UserEntity | null> {
+  async findActiveById(id: string): Promise<UserEntity> {
     const record = await this.prisma.user.findFirst({
-      where: { email: email.trim().toLowerCase() },
+      where: { id, status: 'ACTIVE' },
     });
-    if (!record) return null;
-    const valid = await bcrypt.compare(password, record.passwordHash);
-    if (!valid) return null;
-    // A correct password must not be enough on its own: suspended/deactivated/
-    // not-yet-onboarded accounts must never be able to log in.
-    if (record.status !== 'ACTIVE') return null;
+    if (!record) {
+      throw new NotFoundException('User not found');
+    }
     return this.toEntity(record);
   }
 
   async findById(id: string): Promise<UserEntity> {
     const record = await this.prisma.user.findUnique({ where: { id } });
     if (!record) {
-      throw new NotFoundException(`User ${id} not found`);
+      throw new NotFoundException('User not found');
     }
     return this.toEntity(record);
   }
 
   /**
    * Like findById, but treats a non-ACTIVE account the same as a missing one.
-   * Use this anywhere a fresh authorization decision is being made (e.g.
-   * reissuing tokens on refresh) so a suspended/deactivated account can't
-   * silently keep itself signed in -- mirrors the ACTIVE-only gate in
-   * validateCredentials.
+   * Used by credential validation and JWT strategy so suspended/deactivated
+   * users cannot authenticate or hold live sessions.
    */
-  async findActiveById(id: string): Promise<UserEntity> {
-    const record = await this.prisma.user.findUnique({ where: { id } });
-    if (!record || record.status !== 'ACTIVE') {
-      throw new NotFoundException(`User ${id} not found`);
-    }
+  async validateCredentials(
+    email: string,
+    password: string,
+  ): Promise<UserEntity | null> {
+    const record = await this.prisma.user.findFirst({
+      where: {
+        email: email.trim().toLowerCase(),
+        status: 'ACTIVE',
+      },
+    });
+    if (!record) return null;
+    const valid = await bcrypt.compare(password, record.passwordHash);
+    if (!valid) return null;
     return this.toEntity(record);
   }
 
-  /** Read a user's MFA state (used by the auth flow). */
   async getMfaState(
     userId: string,
   ): Promise<{ mfaEnabled: boolean; mfaSecret: string | null }> {
@@ -123,28 +143,72 @@ export class UsersService {
       select: { mfaEnabled: true, mfaSecret: true },
     });
     if (!record) {
-      throw new NotFoundException(`User ${userId} not found`);
+      throw new NotFoundException('User not found');
     }
-    return record;
+    return { mfaEnabled: record.mfaEnabled, mfaSecret: record.mfaSecret };
   }
 
-  /** Store a pending TOTP secret (enrollment step; not yet enabled). */
   async setMfaSecret(userId: string, secret: string): Promise<void> {
     await this.prisma.user.update({
       where: { id: userId },
-      data: { mfaSecret: secret, mfaEnabled: false },
+      data: { mfaSecret: secret },
     });
   }
 
-  /** Enable or disable MFA. Disabling clears the stored secret. */
   async setMfaEnabled(userId: string, enabled: boolean): Promise<void> {
     await this.prisma.user.update({
       where: { id: userId },
-      data: { mfaEnabled: enabled, ...(enabled ? {} : { mfaSecret: null }) },
+      data: {
+        mfaEnabled: enabled,
+        ...(enabled ? {} : { mfaSecret: null }),
+      },
     });
   }
 
-  async create(dto: CreateUserDto): Promise<UserEntity> {
+  async findByEmail(
+    email: string,
+    organizationId?: string,
+  ): Promise<(UserEntity & { passwordHash: string }) | null> {
+    const record = await this.prisma.user.findFirst({
+      where: {
+        email: email.trim().toLowerCase(),
+        ...(organizationId ? { organizationId } : {}),
+      },
+    });
+    if (!record) return null;
+    return { ...this.toEntity(record), passwordHash: record.passwordHash };
+  }
+
+  async validatePassword(
+    email: string,
+    password: string,
+    organizationId?: string,
+  ): Promise<UserEntity | null> {
+    const record = await this.prisma.user.findFirst({
+      where: {
+        email: email.trim().toLowerCase(),
+        status: 'ACTIVE',
+        ...(organizationId ? { organizationId } : {}),
+      },
+    });
+    if (!record) return null;
+    const valid = await bcrypt.compare(password, record.passwordHash);
+    if (!valid) return null;
+    return this.toEntity(record);
+  }
+
+  async recordLogin(userId: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { lastLoginAt: new Date() },
+    });
+  }
+
+  /**
+   * Create a user directly (admin/bootstrap path). Prefer invites for normal
+   * onboarding so the password is chosen by the invitee.
+   */
+  async create(dto: CreateUserDto, actorId?: string): Promise<UserEntity> {
     const existing = await this.prisma.user.findFirst({
       where: {
         organizationId: dto.organizationId,
@@ -177,6 +241,18 @@ export class UsersService {
         data: { organizationId: record.organizationId, userId: record.id },
       });
     }
+
+    await this.audit.record({
+      organizationId: record.organizationId,
+      actorId,
+      action: AuditAction.CREATE,
+      entityType: 'User',
+      entityId: record.id,
+      metadata: {
+        email: record.email,
+        role: record.role,
+      },
+    });
 
     return this.toEntity(record);
   }

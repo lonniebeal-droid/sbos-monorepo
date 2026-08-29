@@ -19,7 +19,21 @@ export class ClaimsService {
     return `CLM-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
+  /** Ensure the client exists in this org (and is not soft-deleted). */
+  private async ensureClientInOrg(organizationId: string, clientId: string) {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+    return client;
+  }
+
   async create(organizationId: string, actorId: string, dto: CreateClaimDto) {
+    await this.ensureClientInOrg(organizationId, dto.clientId);
+
     const claim = await this.prisma.claim.create({
       data: {
         organizationId,

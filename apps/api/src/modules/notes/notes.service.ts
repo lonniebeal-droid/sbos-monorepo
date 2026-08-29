@@ -40,6 +40,18 @@ export class NotesService {
     @Inject(NOTE_ASSISTANT) private readonly assistant: NoteAssistant,
   ) {}
 
+  /** Ensure the client exists in this org (and is not soft-deleted). */
+  private async ensureClientInOrg(organizationId: string, clientId: string) {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+    return client;
+  }
+
   private validateSections(type: NoteType, sections?: Record<string, string>) {
     const required = REQUIRED_SECTIONS[type];
     if (!required) return;
@@ -120,6 +132,7 @@ export class NotesService {
   async create(organizationId: string, authorId: string, dto: CreateNoteDto) {
     const type = dto.type as unknown as NoteType;
     this.validateSections(type, dto.sections);
+    await this.ensureClientInOrg(organizationId, dto.clientId);
 
     const narrative = this.renderNarrative(type, dto.sections, dto.content);
 

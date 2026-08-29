@@ -13,10 +13,13 @@ function makeService(prisma: PrismaService) {
 
 describe('AssessmentsService', () => {
   describe('create', () => {
-    it('creates assessment with JSON responses and returns it', async () => {
+    it('creates assessment only after confirming the client belongs to the org', async () => {
       const expected = { id: 'a1', instrument: 'PHQ-9', score: 12 };
       const create = vi.fn().mockResolvedValue(expected);
-      const prisma = { assessment: { create } } as unknown as PrismaService;
+      const prisma = {
+        client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+        assessment: { create },
+      } as unknown as PrismaService;
       const { service } = makeService(prisma);
 
       const result = await service.create('org1', 'actor1', {
@@ -27,6 +30,10 @@ describe('AssessmentsService', () => {
         responses: { q1: 2, q2: 2 },
       });
 
+      expect(prisma.client.findFirst).toHaveBeenCalledWith({
+        where: { id: 'c1', organizationId: 'org1', deletedAt: null },
+        select: { id: true },
+      });
       expect(create).toHaveBeenCalledWith({
         data: expect.objectContaining({
           clientId: 'c1',
@@ -41,9 +48,56 @@ describe('AssessmentsService', () => {
       expect(result).toEqual(expected);
     });
 
+    it('throws NotFoundException and never inserts when clientId is outside the org', async () => {
+      const create = vi.fn();
+      const prisma = {
+        client: { findFirst: vi.fn().mockResolvedValue(null) },
+        assessment: { create },
+      } as unknown as PrismaService;
+      const { service } = makeService(prisma);
+
+      await expect(
+        service.create('org1', 'actor1', {
+          clientId: 'foreign-client',
+          instrument: 'PHQ-9',
+          score: 12,
+          severity: 'Moderate',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(create).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException and never inserts when client is soft-deleted', async () => {
+      const create = vi.fn();
+      const prisma = {
+        client: { findFirst: vi.fn().mockResolvedValue(null) },
+        assessment: { create },
+      } as unknown as PrismaService;
+      const { service } = makeService(prisma);
+
+      await expect(
+        service.create('org1', 'actor1', {
+          clientId: 'deleted-client',
+          instrument: 'GAD-7',
+          score: 8,
+          severity: 'Mild',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(prisma.client.findFirst).toHaveBeenCalledWith({
+        where: { id: 'deleted-client', organizationId: 'org1', deletedAt: null },
+        select: { id: true },
+      });
+      expect(create).not.toHaveBeenCalled();
+    });
+
     it('defaults administeredAt to now when omitted', async () => {
       const create = vi.fn().mockResolvedValue({ id: 'a2' });
-      const prisma = { assessment: { create } } as unknown as PrismaService;
+      const prisma = {
+        client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+        assessment: { create },
+      } as unknown as PrismaService;
       const { service } = makeService(prisma);
 
       await service.create('org1', 'actor1', {

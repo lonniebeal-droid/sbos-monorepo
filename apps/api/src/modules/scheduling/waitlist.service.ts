@@ -12,10 +12,38 @@ export class WaitlistService {
     private readonly audit: AuditService,
   ) {}
 
-  create(organizationId: string, dto: CreateWaitlistDto) {
-    return this.prisma.waitlistEntry.create({
+  /** Ensure the client exists in this org (and is not soft-deleted). */
+  private async ensureClientInOrg(organizationId: string, clientId: string) {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+    return client;
+  }
+
+  async create(organizationId: string, actorId: string, dto: CreateWaitlistDto) {
+    await this.ensureClientInOrg(organizationId, dto.clientId);
+
+    const entry = await this.prisma.waitlistEntry.create({
       data: { ...dto, organizationId },
     });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.CREATE,
+      entityType: 'WaitlistEntry',
+      entityId: entry.id,
+      metadata: {
+        clientId: entry.clientId,
+        priority: entry.priority,
+      },
+    });
+
+    return entry;
   }
 
   findAll(organizationId: string, status?: WaitlistStatus) {
@@ -32,16 +60,36 @@ export class WaitlistService {
     });
   }
 
-  async updateStatus(organizationId: string, id: string, dto: UpdateWaitlistDto) {
+  async updateStatus(
+    organizationId: string,
+    actorId: string,
+    id: string,
+    dto: UpdateWaitlistDto,
+  ) {
     const entry = await this.prisma.waitlistEntry.findFirst({
       where: { id, organizationId },
-      select: { id: true },
+      select: { id: true, status: true, clientId: true },
     });
     if (!entry) throw new NotFoundException(`Waitlist entry ${id} not found`);
-    return this.prisma.waitlistEntry.update({
+    const updated = await this.prisma.waitlistEntry.update({
       where: { id },
       data: { status: dto.status as WaitlistStatus },
     });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.UPDATE,
+      entityType: 'WaitlistEntry',
+      entityId: id,
+      metadata: {
+        previousStatus: entry.status,
+        newStatus: dto.status,
+        clientId: entry.clientId,
+      },
+    });
+
+    return updated;
   }
 
   async remove(organizationId: string, actorId: string, id: string) {

@@ -11,12 +11,68 @@ function makeService(overrides?: { prisma?: Partial<PrismaService> }) {
   const prisma = (overrides?.prisma ?? {}) as PrismaService;
   const audit = { record: vi.fn() } as unknown as AuditService;
   const storage = {
-    createUpload: vi.fn(),
+    createUpload: vi.fn().mockResolvedValue({ storageKey: 'orgs/org1/key', uploadUrl: 'https://example/upload' }),
     getDownloadUrl: vi.fn(),
     remove: vi.fn(),
   } as unknown as StorageProvider;
   return { service: new DocumentsService(prisma, audit, storage), audit, storage };
 }
+
+describe('DocumentsService.create ownership', () => {
+  it('creates when clientId belongs to the org', async () => {
+    const document = { id: 'd1', name: 'intake.pdf' };
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+      document: { create: vi.fn().mockResolvedValue(document) },
+    } as unknown as PrismaService;
+    const { service, storage } = makeService({ prisma });
+
+    const result = await service.create('org1', 'user1', {
+      name: 'intake.pdf',
+      clientId: 'c1',
+    });
+
+    expect(prisma.client.findFirst).toHaveBeenCalledWith({
+      where: { id: 'c1', organizationId: 'org1', deletedAt: null },
+      select: { id: true },
+    });
+    expect(storage.createUpload).toHaveBeenCalled();
+    expect(prisma.document.create).toHaveBeenCalled();
+    expect(result.document).toEqual(document);
+  });
+
+  it('throws NotFoundException and never creates when clientId is outside the org', async () => {
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue(null) },
+      document: { create: vi.fn() },
+    } as unknown as PrismaService;
+    const { service, storage } = makeService({ prisma });
+
+    await expect(
+      service.create('org1', 'user1', {
+        name: 'intake.pdf',
+        clientId: 'foreign-client',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(storage.createUpload).not.toHaveBeenCalled();
+    expect(prisma.document.create).not.toHaveBeenCalled();
+  });
+
+  it('allows create without clientId', async () => {
+    const document = { id: 'd2', name: 'org-policy.pdf' };
+    const prisma = {
+      client: { findFirst: vi.fn() },
+      document: { create: vi.fn().mockResolvedValue(document) },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await service.create('org1', 'user1', { name: 'org-policy.pdf' });
+
+    expect(prisma.client.findFirst).not.toHaveBeenCalled();
+    expect(prisma.document.create).toHaveBeenCalled();
+  });
+});
 
 describe('DocumentsService.remove (soft-delete)', () => {
   it('soft-deletes via update(deletedAt), never calls storage.remove(), and audits it', async () => {
