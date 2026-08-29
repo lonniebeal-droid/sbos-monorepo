@@ -380,6 +380,87 @@ describe('AuthService.logout', () => {
   });
 });
 
+describe('AuthService.bootstrap', () => {
+  const bootstrapDto = {
+    token: 'bootstrap-token',
+    organizationName: 'Success Brand',
+    organizationSlug: 'success-brand',
+    adminEmail: 'admin@sbos.health',
+    adminPassword: 'SecurePass1!',
+  };
+
+  it('rejects when bootstrap is not enabled', async () => {
+    const configService = { get: vi.fn().mockReturnValue(undefined) };
+    const { service } = makeService();
+    Object.assign(service as object, { configService });
+
+    await expect(service.bootstrap(bootstrapDto)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('rejects an invalid bootstrap token', async () => {
+    const prisma = { user: { findFirst: vi.fn() } };
+    const configService = { get: vi.fn().mockReturnValue('expected-token') };
+    const { service } = makeService({ prisma });
+    Object.assign(service as object, { configService });
+
+    await expect(service.bootstrap(bootstrapDto)).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    expect(prisma.user.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('rejects when an organization admin already exists', async () => {
+    const prisma = {
+      user: { findFirst: vi.fn().mockResolvedValue({ id: 'u1' }) },
+    };
+    const configService = { get: vi.fn().mockReturnValue(bootstrapDto.token) };
+    const { service } = makeService({ prisma });
+    Object.assign(service as object, { configService });
+
+    await expect(service.bootstrap(bootstrapDto)).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
+
+  it('creates one organization and one ORG_ADMIN when the bootstrap token is valid', async () => {
+    const organizationCreate = vi.fn().mockResolvedValue({ id: 'org1' });
+    const create = vi.fn().mockResolvedValue({ id: 'u1' });
+    const prisma = {
+      user: { findFirst: vi.fn().mockResolvedValue(null) },
+      organization: { create: organizationCreate },
+    };
+    const configService = { get: vi.fn().mockReturnValue(bootstrapDto.token) };
+    const { service } = makeService({
+      prisma,
+      usersService: { create } as never,
+    });
+    Object.assign(service as object, { configService });
+
+    await expect(service.bootstrap(bootstrapDto)).resolves.toEqual({
+      success: true,
+    });
+
+    expect(organizationCreate).toHaveBeenCalledWith({
+      data: {
+        name: bootstrapDto.organizationName,
+        slug: bootstrapDto.organizationSlug,
+      },
+    });
+    expect(create).toHaveBeenCalledWith(
+      'org1',
+      Role.SUPER_ADMIN,
+      {
+        email: bootstrapDto.adminEmail,
+        password: bootstrapDto.adminPassword,
+        name: 'Administrator',
+        role: Role.ORG_ADMIN,
+      },
+    );
+  });
+});
+
 describe('AuthService.resetPassword — session invalidation', () => {
   function makeResetService() {
     const storedHash = { current: '$2a$10$originalhash' };
