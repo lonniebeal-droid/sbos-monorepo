@@ -25,15 +25,62 @@ jobs:
           ref: fix/rbac-isolation-tests-and-org-admin-escalation
           fetch-depth: 0
 
-      - name: Restore specs from 4e2eba7 + patches
+      - name: Apply passwordVersion to auth/user specs programmatically
         run: |
           set -euo pipefail
           git show 4e2eba7f1c6695de4f69b183f3345531be47d69b:apps/api/src/modules/auth/auth.service.spec.ts > apps/api/src/modules/auth/auth.service.spec.ts
           git show 4e2eba7f1c6695de4f69b183f3345531be47d69b:apps/api/src/modules/users/users.service.spec.ts > apps/api/src/modules/users/users.service.spec.ts
-          patch -p1 < tmp-restore/auth.service.spec.ts.patch
-          patch -p1 < tmp-restore/users.service.spec.ts.patch
-          grep -c passwordVersion apps/api/src/modules/auth/auth.service.spec.ts
-          grep -c passwordVersion apps/api/src/modules/users/users.service.spec.ts
+          python3 <<'PY'
+          from pathlib import Path
+
+          # users.service.spec.ts: inject passwordVersion: 1 into record mocks
+          up = Path('apps/api/src/modules/users/users.service.spec.ts')
+          u = up.read_text()
+          if 'passwordVersion' not in u:
+              u = u.replace(
+                  "organizationId: 'org1',\n  createdAt: new Date('2026-01-01T00:00:00.000Z'),",
+                  "organizationId: 'org1',\n  passwordVersion: 1,\n  createdAt: new Date('2026-01-01T00:00:00.000Z'),",
+                  1,
+              )
+              for role in ('CLINICIAN', 'FRONT_DESK'):
+                  u = u.replace(
+                      f"role: '{role}', createdAt:",
+                      f"role: '{role}', passwordVersion: 1, createdAt:",
+                  )
+              u = u.replace(
+                  "organizationId: 'org-actor',\n      email:",
+                  "organizationId: 'org-actor',\n      passwordVersion: 1,\n      email:",
+              )
+              u = u.replace(
+                  "organizationId: 'org1',\n      email: 'sa@sbos.health',",
+                  "organizationId: 'org1',\n      passwordVersion: 1,\n      email: 'sa@sbos.health',",
+              )
+              u = u.replace(
+                  "organizationId: 'org1',\n      email: 'cl@sbos.health',",
+                  "organizationId: 'org1',\n      passwordVersion: 1,\n      email: 'cl@sbos.health',",
+              )
+              up.write_text(u)
+
+          # auth.service.spec.ts: passwordVersion on testUser + transactional reset mocks
+          ap = Path('apps/api/src/modules/auth/auth.service.spec.ts')
+          a = ap.read_text()
+          if "passwordVersion: 1," not in a.split('const testUser')[1][:400]:
+              a = a.replace(
+                  "createdAt: '2026-01-01T00:00:00.000Z',\n};",
+                  "createdAt: '2026-01-01T00:00:00.000Z',\n  passwordVersion: 1,\n};",
+                  1,
+              )
+          # Replace resetPassword describe with version-aware block if still old
+          if 'session invalidation' not in a:
+              marker = "describe('AuthService.resetPassword"
+              idx = a.find(marker)
+              if idx < 0:
+                  raise SystemExit('resetPassword describe not found')
+              a = a[:idx] + Path('tmp-restore/auth_reset_block.ts').read_text()
+          ap.write_text(a)
+          print('users PV', Path('apps/api/src/modules/users/users.service.spec.ts').read_text().count('passwordVersion'))
+          print('auth PV', Path('apps/api/src/modules/auth/auth.service.spec.ts').read_text().count('passwordVersion'))
+          PY
 
       - name: Remove temporary restore machinery
         run: |
