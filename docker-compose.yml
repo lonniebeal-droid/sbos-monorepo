@@ -40,7 +40,7 @@ services:
       redis:
         condition: service_healthy
     environment:
-      PORT: 4000
+      PORT: ${PORT:-4000}
       NODE_ENV: production
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-sbos}?schema=public
       REDIS_URL: redis://redis:6379
@@ -64,7 +64,7 @@ services:
         - CMD
         - node
         - -e
-        - "fetch('http://127.0.0.1:4000/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        - "fetch('http://127.0.0.1:'+(process.env.PORT||4000)+'/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
       interval: 30s
       timeout: 5s
       retries: 3

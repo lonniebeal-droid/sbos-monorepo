@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
+import { publicApiV1 } from '@/lib/public-api';
 
 export default function Forgot() {
   const [email, setEmail] = useState('');
@@ -11,7 +12,7 @@ export default function Forgot() {
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setResult(null);
-    const res = await fetch('http://localhost:4000/api/v1/auth/forgot', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
+    const res = await fetch(publicApiV1('/auth/forgot'), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email }) });
     const data = await res.json().catch(() => ({}));
     setResult({ ok: res.ok, data });
   }

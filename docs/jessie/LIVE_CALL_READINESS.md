@@ -5,12 +5,14 @@ Status: branch `docs/jessie-live-call-readiness` (extends PR #8 Jessie agent-too
 
 ## Deployment target (discovered)
 
-**No managed platform is configured in-repo.** There is no `railway.json`, `fly.toml`, `vercel.json`, `render.yaml`, or `netlify.toml`.
+**A Railway IaC scaffold is now prepared in-repo at `.railway/railway.ts`, but it has not been linked or applied to any Railway project.**
+There is still no verified live hosted environment from this branch.
 
 | Path | Status |
 |------|--------|
 | **Docker Compose** (`docker-compose.yml` + `apps/api/Dockerfile`) | Fully specified; API runs Prisma `migrate deploy` on container start |
-| Managed (Railway / Fly / AWS ECS) | Documented as Option B in `docs/DEPLOYMENT.md` only; images build in CI |
+| Managed (Railway) | `.railway/railway.ts` prepared for api + web + Postgres; requires `railway config plan/apply`, domains, and secrets |
+| Managed (Fly / AWS ECS) | Still documentation-only in `docs/DEPLOYMENT.md` |
 
 **Public production API:** none discovered. No hardcoded production host. You must provide a publicly reachable HTTPS host for ElevenLabs webhooks.
 
@@ -96,6 +98,7 @@ JWT_REFRESH_SECRET=<openssl rand -base64 48>   # must differ from access
 JWT_ACCESS_TTL=15m
 JWT_REFRESH_TTL=7d
 CORS_ORIGINS=https://app.yourdomain.com
+ADMIN_BOOTSTRAP_TOKEN=<openssl rand -base64 32>   # optional after first org/admin exists
 # Syntactically valid shape only — replace with real org id + secret at deploy time:
 # JESSIE_AGENT_SECRETS="org_example_replace_me:secret_example_replace_me"
 JESSIE_AGENT_SECRETS=<realOrgId>:<openssl rand -base64 32>
@@ -105,7 +108,15 @@ Format for `JESSIE_AGENT_SECRETS`: `orgId:secret[,orgId2:secret2...]`.
 Multiple secrets per org allowed; duplicate secrets rejected at startup.  
 API **refuses to start** in production if JWT secrets are empty/placeholder or if `JESSIE_AGENT_SECRETS` is empty/malformed.
 
-Templates: `.env.production.example`, `.env.docker.example`, `apps/api/.env.example`, and Compose pass-through for `JESSIE_AGENT_SECRETS`.
+If the hosted web app is deployed too, set:
+
+```bash
+AUTH_SECRET=<openssl rand -base64 48>
+SBOS_API_URL=http://<private-api-host>
+NEXT_PUBLIC_API_URL=https://<public-api-host>
+```
+
+Templates: `.env.production.example`, `.env.docker.example`, `apps/api/.env.example`, `apps/web/.env.example`, and Compose pass-through for `JESSIE_AGENT_SECRETS`.
 
 **Not required for first live tool test** (`lookup_client`):
 
@@ -119,13 +130,13 @@ Templates: `.env.production.example`, `.env.docker.example`, `apps/api/.env.exam
 |------|--------|
 | Route | `GET /api/v1/health` (`@Public()`, version `1`, path `health`) |
 | Auth | None |
-| HTTP status | **Always 200** when the process is up and the handler runs (even if DB is down) |
+| HTTP status | **200** when DB is up; **503** when the process is up but DB check fails |
 | Body when healthy | `status: "ok"`, `database.status: "up"`, optional `latencyMs`, `timestamp`, `uptime` |
 | Body when DB fails | `status: "degraded"`, `database.status: "down"`, `latencyMs: null` |
 | Secrets | None exposed |
 
 This is a **combined** liveness + DB readiness signal in one JSON body, **not** separate Kubernetes-style liveness/readiness endpoints.
-Docker HEALTHCHECK treats any successful HTTP response as healthy; operators should also inspect `database.status` for true readiness.
+Docker and Railway health checks only pass when the handler returns **200**, so a DB-down process is now treated as not ready.
 
 ## Safest first Jessie tool
 
@@ -198,9 +209,10 @@ Replay with the same `idempotencyKey` returns the prior body with `idempotentRep
 | `scripts/create_org_and_client.js` | **No** | Dev helper; uses ambient `DATABASE_URL` / Prisma client; creates `test-org-*` rows with fixed demo client names; no env guard against production |
 | `SBOS_SEED_DEV=true` database seed | **No** | Explicitly gated; creates demo org + known passwords — never use seed credentials in production |
 | Existing org already in the DB | **Yes** | Prefer selecting a real org created via normal product/admin flows |
+| `POST /api/v1/auth/bootstrap` with `ADMIN_BOOTSTRAP_TOKEN` | **Yes, first-org only** | One-time public bootstrap; throttled; token required; creates one org plus one `ORG_ADMIN`; rejected once any org admin exists |
 | Authenticated Organizations API | **Yes (preferred)** | Create/select org through the secured API with a real operator account after deploy |
 
-**Blocker if no org exists yet:** there is no production-hardened bootstrap CLI in-repo. An operator must create an organization through the normal authenticated path (or a controlled one-off SQL/admin procedure outside this readiness branch), then set `JESSIE_AGENT_SECRETS=<that-org-id>:<new-secret>` and restart the API.
+**If no org exists yet:** use `POST /api/v1/auth/bootstrap` with a strong `ADMIN_BOOTSTRAP_TOKEN`, then replace or clear that token after the first successful org/admin creation. Do not use the dev script.
 
 Do **not** point `create_org_and_client.js` at a production database.
 
@@ -208,16 +220,17 @@ Do **not** point `create_org_and_client.js` at a production database.
 
 Source of truth: `docs/jessie/ELEVENLABS_AGENT_TOOLS.md`, `docs/jessie/elevenlabs-webhook-tools.json`.
 
-1. Deploy API so `https://<public-api-host>/api/v1/health` returns body `status: "ok"` and `database.status: "up"`.
-2. Set `JESSIE_AGENT_SECRETS` and restart.
-3. In ElevenLabs agent dashboard → Custom / Webhook tools → **Add tool**:
+1. Deploy API so `https://<public-api-host>/api/v1/health` returns **HTTP 200** with body `status: "ok"` and `database.status: "up"`.
+2. If no org exists yet, run the one-time bootstrap path with `ADMIN_BOOTSTRAP_TOKEN`.
+3. Set `JESSIE_AGENT_SECRETS` and restart.
+4. In ElevenLabs agent dashboard → Custom / Webhook tools → **Add tool**:
    - **Name:** `lookup_client`
    - **Method:** `POST`
    - **URL:** `https://<public-api-host>/api/v1/jessie/agent/tools/lookup_client`
    - **Header:** `X-SBOS-Agent-Secret` = `<secret>` (never put the secret in git)
    - **Body parameters:** optional `clientId`, `email`, `phone`, `name`, `idempotencyKey`, `conversationId`, `sessionId`
    - **Timeout:** allow ≥ 10–15s
-4. Test with curl first (see smoke plan), then from ElevenLabs.
+5. Test with curl first (see smoke plan), then from ElevenLabs.
 5. After success, register the remaining six tools with the same base URL + header:
 
 | Tool | Path |
