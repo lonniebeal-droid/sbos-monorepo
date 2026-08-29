@@ -82,13 +82,35 @@ export class TreatmentPlansService {
     return plan;
   }
 
-  async update(organizationId: string, id: string, dto: UpdateTreatmentPlanDto) {
-    await this.findOne(organizationId, id);
+  async update(
+    organizationId: string,
+    actorId: string,
+    id: string,
+    dto: UpdateTreatmentPlanDto,
+  ) {
+    const existing = await this.findOne(organizationId, id);
     const data: Prisma.TreatmentPlanUpdateInput = { ...dto };
     if (dto.status === 'COMPLETED' || dto.status === 'DISCONTINUED') {
       data.endDate = new Date();
     }
-    return this.prisma.treatmentPlan.update({ where: { id }, data });
+    const updated = await this.prisma.treatmentPlan.update({ where: { id }, data });
+
+    if (dto.status && dto.status !== existing.status) {
+      await this.audit.record({
+        organizationId,
+        actorId,
+        action: AuditAction.UPDATE,
+        entityType: 'TreatmentPlan',
+        entityId: id,
+        metadata: {
+          previousStatus: existing.status,
+          newStatus: dto.status,
+          clientId: existing.clientId,
+        },
+      });
+    }
+
+    return updated;
   }
 
   async updateGoal(
