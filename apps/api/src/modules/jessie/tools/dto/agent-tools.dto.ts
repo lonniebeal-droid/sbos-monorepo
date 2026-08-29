@@ -10,7 +10,10 @@ import {
   MinLength,
 } from 'class-validator';
 
-/** Shared optional idempotency key for side-effecting agent tools. */
+/**
+ * Shared optional fields for all agent tools.
+ * conversationId / sessionId must belong to the org resolved from the agent secret.
+ */
 export class AgentToolBaseDto {
   @ApiPropertyOptional({
     description: 'Idempotency key so retries do not duplicate side effects',
@@ -21,6 +24,28 @@ export class AgentToolBaseDto {
   @MinLength(1)
   @MaxLength(128)
   idempotencyKey?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Jessie conversation id for this agent session. Must belong to the agent organization.',
+    example: 'clx_conversation_abc',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(64)
+  conversationId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Alias for conversationId (ElevenLabs session correlation). Same ownership rules.',
+    example: 'clx_conversation_abc',
+  })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(64)
+  sessionId?: string;
 }
 
 export class LookupClientDto extends AgentToolBaseDto {
@@ -46,7 +71,9 @@ export class LookupClientDto extends AgentToolBaseDto {
 }
 
 export class SaveOrUpdateLeadDto extends AgentToolBaseDto {
-  @ApiPropertyOptional({ description: 'When set, updates an existing same-org client' })
+  @ApiPropertyOptional({
+    description: 'When set, updates an existing same-org client',
+  })
   @IsOptional()
   @IsString()
   clientId?: string;
@@ -138,7 +165,9 @@ export class SendSmsDto extends AgentToolBaseDto {
   @MinLength(7)
   to!: string;
 
-  @ApiProperty({ example: 'Your appointment is confirmed for Tuesday at 2pm.' })
+  @ApiProperty({
+    example: 'Your appointment is confirmed for Tuesday at 2pm.',
+  })
   @IsString()
   @MinLength(1)
   @MaxLength(1600)
@@ -161,7 +190,9 @@ export class SendEmailDto extends AgentToolBaseDto {
   @MaxLength(200)
   subject!: string;
 
-  @ApiProperty({ example: 'Your appointment is confirmed for Tuesday at 2pm.' })
+  @ApiProperty({
+    example: 'Your appointment is confirmed for Tuesday at 2pm.',
+  })
   @IsString()
   @MinLength(1)
   @MaxLength(10000)
@@ -174,7 +205,9 @@ export class SendEmailDto extends AgentToolBaseDto {
 }
 
 export class TransferToHumanDto extends AgentToolBaseDto {
-  @ApiProperty({ example: 'Caller requested to speak with the front desk.' })
+  @ApiProperty({
+    example: 'Caller requested to speak with the front desk.',
+  })
   @IsString()
   @MinLength(1)
   @MaxLength(2000)
@@ -189,11 +222,6 @@ export class TransferToHumanDto extends AgentToolBaseDto {
   @IsOptional()
   @IsString()
   assigneeId?: string;
-
-  @ApiPropertyOptional({ description: 'Jessie conversation id for context' })
-  @IsOptional()
-  @IsString()
-  conversationId?: string;
 }
 
 /** Concise structured tool result for voice agents. */
