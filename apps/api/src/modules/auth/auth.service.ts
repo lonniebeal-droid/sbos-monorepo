@@ -65,6 +65,7 @@ export class AuthService {
       name: user.name,
       role: user.role,
       organizationId: user.organizationId,
+      passwordVersion: user.passwordVersion,
     };
 
     const accessToken = await this.jwtService.signAsync(
@@ -259,6 +260,15 @@ export class AuthService {
     // A suspended/deactivated (or deleted) account must not be able to
     // silently keep itself signed in via refresh.
     const user = await this.usersService.findActiveById(payload.sub);
+
+    // Credential-version gate: tokens issued under a prior password must not
+    // rotate into a new session after a password change/reset.
+    if (
+      typeof payload.passwordVersion !== 'number' ||
+      user.passwordVersion !== payload.passwordVersion
+    ) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
 
     // Rotate: revoke presented token, issue a new pair.
     await this.prisma.refreshToken.update({
@@ -521,7 +531,10 @@ export class AuthService {
 
       await tx.user.update({
         where: { id: reset.userId },
-        data: { passwordHash },
+        data: {
+          passwordHash,
+          passwordVersion: { increment: 1 },
+        },
       });
       await tx.refreshToken.deleteMany({ where: { userId: reset.userId } });
     });
