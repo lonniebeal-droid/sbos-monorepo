@@ -11,10 +11,23 @@ import { AuthController } from './auth.controller';
  */
 describe('AuthController public routes', () => {
   const IS_PUBLIC_KEY = 'isPublic';
-  const isPublic = (method: string) =>
-    Reflect.getMetadata(IS_PUBLIC_KEY, AuthController.prototype[method]);
+  type ControllerMethod = keyof AuthController;
+  const isPublic = (method: ControllerMethod) =>
+    Reflect.getMetadata(
+      IS_PUBLIC_KEY,
+      AuthController.prototype[method] as object,
+    );
 
-  it.each(['bootstrap', 'login', 'loginMfa', 'refresh', 'logout', 'acceptInvite', 'forgot', 'reset'])(
+  it.each([
+    'bootstrap',
+    'login',
+    'loginMfa',
+    'refresh',
+    'logout',
+    'acceptInvite',
+    'forgot',
+    'reset',
+  ] as const satisfies readonly ControllerMethod[])(
     '%s is publicly accessible (no JWT required)',
     (method) => {
       expect(isPublic(method)).toBe(true);
