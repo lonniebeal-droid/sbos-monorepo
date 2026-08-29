@@ -115,6 +115,7 @@ export class TreatmentPlansService {
 
   async updateGoal(
     organizationId: string,
+    actorId: string,
     planId: string,
     goalId: string,
     dto: UpdateGoalDto,
@@ -126,13 +127,37 @@ export class TreatmentPlansService {
     if (!goal) {
       throw new NotFoundException(`Goal ${goalId} not found on this plan`);
     }
-    return this.prisma.goal.update({
+    const updated = await this.prisma.goal.update({
       where: { id: goalId },
       data: {
         status: dto.status,
         progressPercent: dto.progressPercent,
       },
     });
+
+    const statusChanged =
+      dto.status !== undefined && dto.status !== goal.status;
+    const progressChanged =
+      dto.progressPercent !== undefined &&
+      dto.progressPercent !== goal.progressPercent;
+    if (statusChanged || progressChanged) {
+      await this.audit.record({
+        organizationId,
+        actorId,
+        action: AuditAction.UPDATE,
+        entityType: 'Goal',
+        entityId: goalId,
+        metadata: {
+          treatmentPlanId: planId,
+          previousStatus: goal.status,
+          newStatus: dto.status ?? goal.status,
+          previousProgressPercent: goal.progressPercent,
+          newProgressPercent: dto.progressPercent ?? goal.progressPercent,
+        },
+      });
+    }
+
+    return updated;
   }
 
   async remove(organizationId: string, actorId: string, id: string) {
