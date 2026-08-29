@@ -3,7 +3,7 @@
 Last verified locally: 2026-08-29
 Worktree: `/Users/lonniebgroupllc/download/sbos-agent2-railway`
 Branch: `docs/railway-staging-readiness`
-HEAD: `dc0ecf0d7a4b3f3fe1eba6025f1580e9ecaf9ce0`
+HEAD: `67c1e175418627969a37b55df4528c1e2d3e391f`
 
 This runbook narrows the existing deployment and production-readiness docs into the specific work needed to stand up a safe SBOS staging environment on Railway. It is intentionally local-only and does not claim that any hosted environment already exists.
 
@@ -280,16 +280,19 @@ Both Dockerfiles include HEALTHCHECK for container-level liveness.
 
 ## Rate Limiting
 
-- **Current**: In-memory via `@nestjs/throttler` (single-instance only)
-- **Production requirement**: Shared Redis-backed throttler store for horizontal scaling
+- **Current implementation**: In-memory via `@nestjs/throttler` (single-instance only)
+- **Configuration**: `ThrottlerModule.forRoot([{ ttl: 60_000, limit: 120 }])` in `apps/api/src/app.module.ts`
+- **Production requirement**: Shared Redis-backed throttler store for horizontal scaling (not yet implemented)
 - **Staging**: In-memory is sufficient for single-instance validation
+
+> **Note**: The Gate 5 security rebuild (local branch `fix/gate5-security-rebuild` at `5505e9f`) verified 204/204 tests passing with in-memory rate limiting. The document `docs/GATE5_SECURITY_REBUILD.md` states: "Rate limiting is in-memory. Multi-instance production deployment needs a shared throttler store before it can be considered horizontally effective." The remote SHA `c2081f9a42be4a5e197d6d531a704285cbbe014a` was not available locally for verification.
 
 ## Staging Deployment Steps
 
 ### Prerequisites
 - [ ] Railway account with staging project created
 - [ ] PostgreSQL plugin provisioned in staging project
-- [ ] Redis plugin provisioned (optional, for future queue work and production-rate-limiting)
+- [ ] Redis plugin provisioned (optional for staging; needed for production horizontal rate limiting)
 - [ ] Staging secrets generated and stored in Railway UI
 
 ### Deployment Order
@@ -354,22 +357,42 @@ curl -X POST https://staging-api.up.railway.app/api/v1/auth/login \
 - [ ] HIPAA, encryption-at-rest, backups, and BAA controls remain separate launch gates
 - [ ] **NEEDS_AGENT3_INTEGRATION = YES**: Jessie backend endpoints not yet implemented in this branch
 
+## Railway Infrastructure Readiness vs Application Integration
+
+### RAILWAY_INFRA_READINESS
+- **Status**: UNKNOWN — AUTHENTICATED RAILWAY INSPECTION REQUIRED
+- No authenticated Railway access available in this worktree to verify:
+  - Railway project existence
+  - Staging environment
+  - PostgreSQL service
+  - Redis service
+  - Environment variable configuration
+- These must be verified by operator with Railway dashboard/CLI access
+
+### JESSIE_APPLICATION_INTEGRATION_READINESS
+- **Status**: NOT IMPLEMENTED
+- Agent 3 owns Jessie backend integration
+- Jessie backend endpoints not present in this branch
+- This is an application-layer dependency, not a Railway infrastructure blocker
+
 ## Upstream Dependencies
 
 | Dependency | Owner | Status |
 |------------|-------|--------|
-| Gate 5 RBAC/security fixes | Agent 1 | **INTEGRATED** (commit dc0ecf0) |
+| Gate 5 RBAC/security fixes | Agent 1 | **LOCALLY INTEGRATED** (merged `fix/gate5-security-rebuild` at `5505e9f`) |
 | Jessie backend endpoints | Agent 3 | NEEDS_AGENT3_INTEGRATION = YES |
 | Commercial launch config | Agent 4 | Not blocking staging |
 
-**Gate 5 Status (verified via merge from fix/gate5-security-rebuild)**:
-- **SHA**: `5505e9f079661db6025bcc71340cbaa7119a3002` (local), merged into this branch at `dc0ecf0`
+**Gate 5 Status (local verification via merge from fix/gate5-security-rebuild `5505e9f`)**:
+- **Local SHA**: `5505e9f079661db6025bcc71340cbaa7119a3002` (merged into this branch at `dc0ecf0`)
 - **Tests**: 204/204 PASS (179 API + 25 core)
 - **Lint**: PASS
 - **Build**: PASS
 - **Runtime security blockers**: 0
 - **Rate limiting**: In-memory (single-instance); Redis-backed store needed for multi-instance production
 - **docs/GATE5_SECURITY_REBUILD.md**: Updated
+
+**Remote SHA `c2081f9a42be4a5e197d6d531a704285cbbe014a`**: NOT AVAILABLE locally; not integrated.
 
 ## Security Files Modified by Agent 2
 
@@ -401,4 +424,5 @@ Use this runbook as the handoff checklist while creating a staging-only Railway 
 - [x] Environment inventory documented - DONE
 - [x] Migration strategy documented - DONE
 - [x] Rollback plan documented - DONE
-- [x] Gate 5 security rebuild integrated - VERIFIED
+- [x] Gate 5 security rebuild locally integrated - VERIFIED
+- [x] Rate limiting correctly documented as in-memory - CORRECTED
