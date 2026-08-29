@@ -26,6 +26,7 @@ function makeService(overrides?: {
     clinician: { findFirst: vi.fn() },
     location: { findFirst: vi.fn() },
     user: { findFirst: vi.fn() },
+    conversation: { findFirst: vi.fn() },
     task: { create: vi.fn() },
     auditLog: {
       findFirst: vi.fn().mockResolvedValue(null),
@@ -378,6 +379,7 @@ describe('AgentToolsService', () => {
         clinician: { findFirst: vi.fn() },
         location: { findFirst: vi.fn() },
         user: { findFirst: vi.fn() },
+        conversation: { findFirst: vi.fn() },
         task: { create: vi.fn() },
         auditLog: {
           findFirst: vi.fn().mockResolvedValue({
@@ -436,5 +438,159 @@ describe('AgentToolsService', () => {
         where: expect.objectContaining({ organizationId: org }),
       }),
     );
+  });
+});
+
+describe('AgentToolsService — conversation context', () => {
+  it('same-org conversationId succeeds and is stored in audit metadata', async () => {
+    const { service, prisma } = makeService();
+    prisma.conversation.findFirst.mockResolvedValue({ id: 'conv1' });
+    prisma.client.findFirst.mockResolvedValue({
+      id: 'c1',
+      firstName: 'Jordan',
+      lastName: 'Lee',
+      email: 'j@example.com',
+      phone: '+1555',
+      status: 'ACTIVE',
+    });
+    const res = await service.lookupClient(org, {
+      clientId: 'c1',
+      conversationId: 'conv1',
+      idempotencyKey: 'k-conv-1',
+    });
+    expect(res.ok).toBe(true);
+    expect(prisma.conversation.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'conv1', organizationId: org },
+      }),
+    );
+    expect(prisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          metadata: expect.objectContaining({
+            tool: 'lookup_client',
+            conversationId: 'conv1',
+            idempotencyKey: 'k-conv-1',
+            ok: true,
+          }),
+        }),
+      }),
+    );
+  });
+
+  it('sessionId alias is accepted as conversation context', async () => {
+    const { service, prisma } = makeService();
+    prisma.conversation.findFirst.mockResolvedValue({ id: 'conv2' });
+    prisma.client.findMany.mockResolvedValue([]);
+    const res = await service.lookupClient(org, {
+      name: 'Nobody',
+      sessionId: 'conv2',
+    });
+    expect(res.ok).toBe(true);
+    expect(prisma.conversation.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: 'conv2', organizationId: org },
+      }),
+    );
+  });
+
+  it('cross-org conversationId is rejected', async () => {
+    const { service, prisma } = makeService();
+    prisma.conversation.findFirst.mockResolvedValue(null);
+    const res = await service.lookupClient(org, {
+      clientId: 'c1',
+      conversationId: 'foreign-conv',
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('not_found');
+    expect(prisma.client.findFirst).not.toHaveBeenCalled();
+  });
+
+  it('unknown conversationId is rejected', async () => {
+    const { service, prisma } = makeService();
+    prisma.conversation.findFirst.mockResolvedValue(null);
+    const res = await service.saveOrUpdateLead(org, {
+      firstName: 'A',
+      lastName: 'B',
+      conversationId: 'missing',
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('not_found');
+    expect(prisma.client.create).not.toHaveBeenCalled();
+    expect(prisma.client.update).not.toHaveBeenCalled();
+  });
+
+  it('no business write after conversation validation failure', async () => {
+    const { service, prisma, appointments, sms } = makeService();
+    prisma.conversation.findFirst.mockResolvedValue(null);
+    const r1 = await service.scheduleAppointment(org, {
+      clientId: 'c1',
+      clinicianId: 'cl1',
+      startTime: '2026-09-01T14:00:00.000Z',
+      endTime: '2026-09-01T14:50:00.000Z',
+      durationMinutes: 50,
+      conversationId: 'bad',
+    });
+    expect(r1.ok).toBe(false);
+    expect(appointments.create).not.toHaveBeenCalled();
+
+    const r2 = await service.sendSms(org, {
+      to: '+15551212',
+      body: 'hi',
+      conversationId: 'bad',
+    });
+    expect(r2.ok).toBe(false);
+    expect(sms.send).not.toHaveBeenCalled();
+  });
+
+  it('idempotent replay remains scoped and skips side effects', async () => {
+    const { service, prisma, appointments } = makeService();
+    prisma.auditLog.findFirst.mockResolvedValue({
+      metadata: {
+        result: {
+          ok: true,
+          tool: 'schedule_appointment',
+          data: { appointmentId: 'appt-replay' },
+        },
+      },
+    });
+    const res = await service.scheduleAppointment(org, {
+      clientId: 'c1',
+      clinicianId: 'cl1',
+      startTime: '2026-09-01T14:00:00.000Z',
+      endTime: '2026-09-01T14:50:00.000Z',
+      durationMinutes: 50,
+      conversationId: 'conv1',
+      idempotencyKey: 'k-replay',
+    });
+    expect(res.ok).toBe(true);
+    expect(res.idempotentReplay).toBe(true);
+    expect(appointments.create).not.toHaveBeenCalled();
+    expect(prisma.conversation.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+describe('AgentToolsGuard — secret hygiene', () => {
+  it('error messages never include the presented secret', () => {
+    const config = {
+      get: vi.fn().mockReturnValue({ secrets: { secret1: org } }),
+    } as unknown as ConfigService<AppConfig, true>;
+    const guard = new AgentToolsGuard(config);
+    const presented = 'super-secret-value-should-not-leak';
+    const req = {
+      header: vi.fn((h: string) =>
+        h === 'x-sbos-agent-secret' ? presented : undefined,
+      ),
+    };
+    try {
+      guard.canActivate({
+        switchToHttp: () => ({ getRequest: () => req }),
+      } as never);
+      throw new Error('expected throw');
+    } catch (err) {
+      const msg = (err as Error).message;
+      expect(msg).not.toContain(presented);
+      expect(msg).toMatch(/Invalid agent credentials|Unauthorized/i);
+    }
   });
 });
