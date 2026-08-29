@@ -24,17 +24,29 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   /**
-   * Signature/expiry are already verified by passport-jwt. We still load the
-   * user so a SUSPENDED/DEACTIVATED/deleted account cannot ride a valid
-   * access token until natural expiry (refresh was already gated).
+   * Signature/expiry are already verified by passport-jwt. We load the user so:
+   * - SUSPENDED/DEACTIVATED/deleted accounts cannot ride a valid access token
+   * - passwordVersion mismatch invalidates tokens issued before a password reset
+   * - role/organizationId always come from the DB (never stale JWT claims)
    */
   async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
     if (payload.type !== 'access') {
       throw new UnauthorizedException('Invalid token type');
     }
 
+    if (
+      payload.passwordVersion === undefined ||
+      payload.passwordVersion === null ||
+      typeof payload.passwordVersion !== 'number'
+    ) {
+      throw new UnauthorizedException('Invalid token version');
+    }
+
     try {
       const user = await this.usersService.findActiveById(payload.sub);
+      if (user.passwordVersion !== payload.passwordVersion) {
+        throw new UnauthorizedException('Token version is stale');
+      }
       return {
         id: user.id,
         email: user.email,
@@ -42,7 +54,8 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
         role: user.role,
         organizationId: user.organizationId,
       };
-    } catch {
+    } catch (err) {
+      if (err instanceof UnauthorizedException) throw err;
       throw new UnauthorizedException('Account is no longer active');
     }
   }

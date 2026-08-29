@@ -27,4 +27,7 @@ export class UserEntity {
 
   @ApiProperty({ example: '2026-07-24T12:00:00.000Z' })
   createdAt!: string;
+
+  /** Session invalidation counter; included in access JWTs, not exposed on list APIs. */
+  passwordVersion!: number;
 }
