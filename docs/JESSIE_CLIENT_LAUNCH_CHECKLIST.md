@@ -4,6 +4,21 @@
 **Each item must be verified and signed off.**
 **No exceptions.**
 
+> **Launch Gate:** Commercial go-live requires the full verification chain:
+> - Gate 5 Security: **VERIFIED** (204/204 tests pass)
+> - Railway Staging: **VERIFIED** (not yet — blocked)
+> - Postgres Staging: **VERIFIED** (not yet — blocked)
+> - Redis Staging: **VERIFIED** (not yet — blocked)
+> - Jessie Backend Staging Binding: **VERIFIED** (not yet — blocked)
+> - ElevenLabs Binding: **VERIFIED** (not yet — implemented_not_verified)
+> - Make Standard/Escalation/Gmail Routes: **VERIFIED** (not yet — implemented_not_verified)
+> - Controlled Voice Call: **VERIFIED** (not yet — blocked)
+> - Client Onboarding: **VERIFIED** (template complete)
+> - Support Process: **VERIFIED** (not yet — implemented_not_verified)
+> - Client Acceptance Signoff: **REQUIRED**
+
+**Current Status: COMMERCIAL_GO_LIVE = BLOCKED** — Full chain not verified.
+
 ---
 
 ## Client: ________________________
@@ -86,7 +101,7 @@
 
 ---
 
-### 9. Test Calls Passed
+### 9. Test Calls Passed (Local Demo Capability)
 
 | Test Case | Pass/Fail | Notes |
 |-----------|-----------|-------|
@@ -136,7 +151,26 @@
 
 ---
 
-### 13. Client Signoff Recorded
+### 13. Infrastructure Verification Gates (Must Pass Before Go-Live)
+
+| Gate | Status | Evidence Required |
+|------|--------|-------------------|
+| Gate 5 Security | VERIFIED | 204/204 tests pass; distributed rate limiter; 0 runtime blockers |
+| Railway Staging | BLOCKED | Railway project provisioned; health checks passing |
+| Postgres Staging | BLOCKED | Managed PG deployed; backups enabled; migrations applied |
+| Redis Staging | BLOCKED | Redis deployed; distributed rate limiting functional |
+| Jessie Backend Staging Binding | BLOCKED | API + Web deployed to staging; health checks pass |
+| ElevenLabs Binding | IMPLEMENTED_NOT_VERIFIED | Backend binding verified in staging; controlled call passed |
+| Make Standard Route | IMPLEMENTED_NOT_VERIFIED | Executed in staging; Gmail auth verified |
+| Make Escalation Route | IMPLEMENTED_NOT_VERIFIED | Executed in staging |
+| Gmail Escalation | IMPLEMENTED_NOT_VERIFIED | Executed in staging |
+| Controlled Voice Call | BLOCKED | 10+ successful end-to-end test calls in staging |
+
+**ALL GATES MUST BE VERIFIED BEFORE CLIENT GO-LIVE.**
+
+---
+
+### 14. Client Signoff Recorded
 
 | Item | Client Initials | Date |
 |------|-----------------|------|
@@ -150,6 +184,7 @@
 | Fallback behavior understood | | |
 | Emergency escalation tested | | |
 | Monitoring/logging scope understood | | |
+| **Infrastructure gates verified (above)** | | |
 | **GO/NO-GO for launch** | | |
 
 **Client Authorization:** _________________________ **Date:** ___________
@@ -158,7 +193,7 @@
 
 ---
 
-### 14. Launch Day Checklist (Day Of)
+### 15. Launch Day Checklist (Day Of) — Only After All Gates Verified
 
 - [ ] **Phone number pointed to Jessie webhook** — Verified inbound call reaches API
 - [ ] **Feature flags enabled** — `jessie_chat`, `jessie_voice` (if applicable) for this org
@@ -170,7 +205,7 @@
 
 ---
 
-### 15. Post-Launch (Day 1–7)
+### 16. Post-Launch (Day 1–7)
 
 - [ ] **Daily conversation review** — First 7 days: review all conversations for quality
 - [ ] **Client check-in (Day 1)** — 30-min call: any issues, feedback
@@ -186,3 +221,5 @@
 **No partial launches.** If any item is BLOCKED or FAIL, launch is delayed until resolved.
 
 **Exceptions require:** Written approval from Engineering Lead + Product Lead + Client
+
+**Current Verdict: COMMERCIAL_READY = NO** — Infrastructure gates not verified.

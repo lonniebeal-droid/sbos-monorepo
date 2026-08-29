@@ -3,6 +3,7 @@
 **For:** Marketing page, landing page, sales deck
 **Tone:** Clear, professional, simple, non-technical
 **Rule:** Every claim must trace to `JESSIE_APPROVED_SALES_CLAIMS.md`
+**Structure:** Separate **AVAILABLE NOW** / **OPTIONAL / CONFIGURABLE** / **COMING LATER**
 
 ---
 
@@ -25,7 +26,7 @@
 
 ---
 
-## Value Props (3 Columns)
+## Value Props (3 Columns) — **AVAILABLE NOW**
 
 ### 🎯 **Answers from Your Content Only**
 Jessie never hallucinates. She responds using only your published knowledge base — hours, services, location, insurance, policies. You approve every answer before it goes live.
@@ -38,7 +39,7 @@ Billing question → billing. Clinical concern → on-call clinician. Emergency 
 
 ---
 
-## How It Works (4 Steps)
+## How It Works (4 Steps) — **AVAILABLE NOW**
 
 ### 1. **We Learn Your Practice**
 30-minute discovery call. We map your call volume, FAQs, services, scheduling flow, and escalation rules.
@@ -54,7 +55,7 @@ Point your phone number to Jessie. First week: daily check-ins. Monthly: knowled
 
 ---
 
-## Use Cases
+## Use Cases — **AVAILABLE NOW**
 
 | Practice Type | Jessie Handles |
 |---------------|----------------|
@@ -66,13 +67,48 @@ Point your phone number to Jessie. First week: daily check-ins. Monthly: knowled
 
 ---
 
+## Capability Breakdown
+
+### ✅ **AVAILABLE NOW** (Verified in local demo; heuristic provider)
+- AI receptionist answering from your approved knowledge base
+- Multi-assistant routing: Receptionist, Scheduling, Intake, Clinical, Knowledge, General
+- Structured lead capture (name, contact, concern, insurance)
+- Intent recognition for transfer/escalation (voicemail, callback, on-call)
+- After-hours behavior via prompt configuration
+- Conversation memory & full audit trail
+- Offline mode — works without external AI provider
+- Per-client prompt & knowledge base configuration
+- Versioned prompts with rollback
+- HIPAA-aligned technical safeguards (RBAC, audit, encryption in transit, tenant isolation, MFA)
+
+### ⚙️ **OPTIONAL / CONFIGURABLE** (Requires credentials + configuration)
+- Live LLM provider (OpenAI/Azure/Claude) — requires API key + BAA for PHI
+- SMS notifications (Twilio) — requires credentials
+- Email notifications (Resend) — requires API key + verified domain
+- Stripe payment recording — requires Stripe key
+- Custom voice selection (when voice available)
+
+### 🚧 **COMING LATER** (Roadmap — not yet implemented)
+- **Automated appointment booking** — Jessie collects details; your team confirms today
+- **Live voice transfer** — Jessie recognizes intent; warm transfer requires telephony integration
+- **Intake → Client record creation** — Structured data collected; API automation pending
+- **Voice receptionist (Twilio Voice + STT/TTS)** — Requires telephony integration
+- **Calendar sync (Google/Microsoft/Calendly)** — Not yet implemented
+- **Insurance verification** — Not implemented
+- **Call recording/transcription** — Requires telephony integration
+- **FHIR/HL7 EHR connectors** — Not implemented
+- **Pre-built CRM integrations** — REST API available; connectors on roadmap
+- **Multi-language support** — English only in heuristic; LLM-dependent
+
+---
+
 ## FAQ
 
 ### **Does Jessie book appointments automatically?**
-Jessie collects the details your team needs to book — preferred date, time, clinician, and appointment type. Your team confirms and finalizes the appointment. Automated calendar booking is on our roadmap.
+Jessie collects the details your team needs to book — preferred date, time, clinician, and appointment type. Your team confirms and finalizes the appointment. Automated calendar booking is **COMING LATER**.
 
 ### **Can Jessie transfer calls to a human?**
-Jessie recognizes when a caller needs a human and follows your escalation rules (voicemail, callback request, or on-call transfer). Live warm voice transfer requires telephony integration and is on our roadmap. Today, Jessie captures the intent and ensures your team gets the lead immediately.
+Jessie recognizes when a caller needs a human and follows your escalation rules (voicemail, callback request, or on-call transfer). Live warm voice transfer requires telephony integration and is **COMING LATER**. Today, Jessie captures the intent and ensures your team gets the lead immediately.
 
 ### **Is Jessie HIPAA compliant?**
 Jessie is built with HIPAA-aligned technical safeguards: role-based access control, audit logging, encryption in transit, tenant isolation, and MFA. For production use with PHI, you'll need to execute BAAs with any enabled subprocessors (AI provider, SMS, email) and implement administrative/physical safeguards. We'll guide you through this.
@@ -90,13 +126,13 @@ Typically 2–3 weeks from discovery call to launch. Complex routing or custom i
 Yes. Your dashboard lets you edit knowledge base articles and prompt templates anytime. Changes take effect immediately. Version history lets you roll back.
 
 ### **What phone systems work with Jessie?**
-Jessie works with Twilio Voice. If you have an existing number, we help you port it (2–4 weeks). New numbers provision instantly.
+Jessie works with Twilio Voice. If you have an existing number, we help you port it (2–4 weeks). New numbers provision instantly. **Voice receptionist is COMING LATER.**
 
 ### **How much does it cost?**
 Three tiers: Starter, Professional, Business. Pricing based on conversation volume and features. External costs (Twilio, AI provider) billed at cost. Contact us for a custom quote.
 
 ### **Can Jessie integrate with my EHR/CRM?**
-Jessie exposes a REST API. Custom integrations can be built. Pre-built connectors for SimplePractice, TherapyNotes, HubSpot, and Salesforce are on our roadmap.
+Jessie exposes a REST API. Custom integrations can be built. Pre-built connectors for SimplePractice, TherapyNotes, HubSpot, and Salesforce are **COMING LATER**.
 
 ---
 
@@ -161,11 +197,12 @@ Jessie exposes a REST API. Custom integrations can be built. Pre-built connector
 
 1. **Hero** — Headline + Subheadline + Primary CTA
 2. **Trust Bar** — Logos (SBOS, HIPAA-aligned, SOC 2 Type II target)
-3. **Value Props** — 3-column grid
-4. **How It Works** — 4-step numbered flow
-5. **Use Cases** — Table or cards
-6. **Demo Section** — "See Jessie in Action" → Calendly embed
-7. **FAQ** — Accordion (8–10 items)
-8. **Pricing Teaser** — 3 tiers + "Contact for Quote"
-9. **Disclaimer** — Safe language
-10. **Footer** — Links, copyright, status page
+3. **Value Props** — 3-column grid (AVAILABLE NOW)
+4. **How It Works** — 4-step numbered flow (AVAILABLE NOW)
+5. **Use Cases** — Table or cards (AVAILABLE NOW)
+6. **Capability Breakdown** — AVAILABLE NOW / OPTIONAL / COMING LATER
+7. **Demo Section** — "See Jessie in Action" → Calendly embed
+8. **FAQ** — Accordion (8–10 items)
+9. **Pricing Teaser** — 3 tiers + "Contact for Quote"
+10. **Disclaimer** — Safe language
+11. **Footer** — Links, copyright, status page
