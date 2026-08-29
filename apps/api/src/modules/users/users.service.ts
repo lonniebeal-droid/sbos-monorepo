@@ -106,6 +106,65 @@ export class UsersService {
     return this.toEntity(record);
   }
 
+  async findById(id: string): Promise<UserEntity> {
+    const record = await this.prisma.user.findUnique({ where: { id } });
+    if (!record) {
+      throw new NotFoundException('User not found');
+    }
+    return this.toEntity(record);
+  }
+
+  /**
+   * Like findById, but treats a non-ACTIVE account the same as a missing one.
+   * Used by credential validation and JWT strategy so suspended/deactivated
+   * users cannot authenticate or hold live sessions.
+   */
+  async validateCredentials(
+    email: string,
+    password: string,
+  ): Promise<UserEntity | null> {
+    const record = await this.prisma.user.findFirst({
+      where: {
+        email: email.trim().toLowerCase(),
+        status: 'ACTIVE',
+      },
+    });
+    if (!record) return null;
+    const valid = await bcrypt.compare(password, record.passwordHash);
+    if (!valid) return null;
+    return this.toEntity(record);
+  }
+
+  async getMfaState(
+    userId: string,
+  ): Promise<{ mfaEnabled: boolean; mfaSecret: string | null }> {
+    const record = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { mfaEnabled: true, mfaSecret: true },
+    });
+    if (!record) {
+      throw new NotFoundException('User not found');
+    }
+    return { mfaEnabled: record.mfaEnabled, mfaSecret: record.mfaSecret };
+  }
+
+  async setMfaSecret(userId: string, secret: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { mfaSecret: secret },
+    });
+  }
+
+  async setMfaEnabled(userId: string, enabled: boolean): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        mfaEnabled: enabled,
+        ...(enabled ? {} : { mfaSecret: null }),
+      },
+    });
+  }
+
   async findByEmail(
     email: string,
     organizationId?: string,
