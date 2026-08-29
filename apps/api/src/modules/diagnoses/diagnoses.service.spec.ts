@@ -51,3 +51,43 @@ describe('DiagnosesService.remove', () => {
     expect(audit.record).not.toHaveBeenCalled();
   });
 });
+
+describe('DiagnosesService.create — tenant ownership of clientId', () => {
+  it('rejects create when clientId is not in the actor organization', async () => {
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue(null) },
+      diagnosis: { create: vi.fn() },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(
+      service.create('org1', {
+        clientId: 'client-other-org',
+        icd10Code: 'F32.1',
+        description: 'Major depressive disorder',
+      } as never),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.diagnosis.create).not.toHaveBeenCalled();
+    expect(prisma.client.findFirst).toHaveBeenCalledWith({
+      where: { id: 'client-other-org', organizationId: 'org1', deletedAt: null },
+      select: { id: true },
+    });
+  });
+
+  it('creates when client belongs to the organization', async () => {
+    const created = { id: 'd2', clientId: 'c1', icd10Code: 'F32.1' };
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+      diagnosis: { create: vi.fn().mockResolvedValue(created) },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    const result = await service.create('org1', {
+      clientId: 'c1',
+      icd10Code: 'F32.1',
+      description: 'Major depressive disorder',
+    } as never);
+    expect(prisma.diagnosis.create).toHaveBeenCalled();
+    expect(result).toBe(created);
+  });
+});
