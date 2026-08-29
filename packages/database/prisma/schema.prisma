@@ -14,3 +14,243 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum Role {
+  SUPER_ADMIN
+  ORG_ADMIN
+  SUPERVISOR
+  CLINICIAN
+  BILLING
+  FRONT_DESK
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  NON_BINARY
+  TRANSGENDER
+  OTHER
+  UNKNOWN
+  DECLINED
+}
+
+enum ClientStatus {
+  PROSPECT
+  INTAKE
+  ACTIVE
+  ON_HOLD
+  DISCHARGED
+  INACTIVE
+}
+
+enum LocationType {
+  OFFICE
+  TELEHEALTH
+  COMMUNITY
+  RESIDENTIAL
+}
+
+enum AppointmentType {
+  INTAKE
+  INDIVIDUAL
+  GROUP
+  FAMILY
+  COUPLES
+  MEDICATION_MANAGEMENT
+  ASSESSMENT
+  TELEHEALTH
+  CONSULTATION
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  CHECKED_IN
+  IN_SESSION
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum RecurrenceFrequency {
+  NONE
+  DAILY
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+enum NoteType {
+  INTAKE
+  PROGRESS
+  BIRP
+  DAP
+  SOAP
+  GROUP
+  PSYCHIATRIC
+  DISCHARGE
+  CONTACT
+}
+
+enum NoteStatus {
+  DRAFT
+  PENDING_COSIGN
+  SIGNED
+  AMENDED
+  LOCKED
+}
+
+enum DiagnosisStatus {
+  ACTIVE
+  RESOLVED
+  RULED_OUT
+  PROVISIONAL
+}
+
+enum DiagnosisType {
+  PRIMARY
+  SECONDARY
+  PROVISIONAL
+  RULE_OUT
+}
+
+enum MedicationStatus {
+  ACTIVE
+  DISCONTINUED
+  COMPLETED
+  ON_HOLD
+}
+
+enum TreatmentPlanStatus {
+  DRAFT
+  ACTIVE
+  UNDER_REVIEW
+  COMPLETED
+  DISCONTINUED
+}
+
+enum GoalStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  ACHIEVED
+  DISCONTINUED
+}
+
+enum InsuranceType {
+  PRIMARY
+  SECONDARY
+  TERTIARY
+  SELF_PAY
+}
+
+enum ClaimStatus {
+  DRAFT
+  READY
+  SUBMITTED
+  ACCEPTED
+  DENIED
+  PARTIALLY_PAID
+  PAID
+  APPEALED
+  VOID
+}
+
+enum InvoiceStatus {
+  DRAFT
+  OPEN
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  VOID
+}
+
+enum PaymentMethod {
+  CARD
+  CASH
+  CHECK
+  ACH
+  INSURANCE
+  HSA_FSA
+  ADJUSTMENT
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum DocumentType {
+  INTAKE_FORM
+  CONSENT
+  ASSESSMENT
+  INSURANCE_CARD
+  IDENTIFICATION
+  CLINICAL
+  BILLING
+  CORRESPONDENCE
+  OTHER
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  BLOCKED
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum MessageThreadType {
+  DIRECT
+  GROUP
+  CLIENT_PORTAL
+  CARE_TEAM
+}
+
+enum NotificationType {
+  APPOINTMENT
+  NOTE_COSIGN
+  TASK
+  BILLING
+  MESSAGE
+  SYSTEM
+}
+
+enum AdmissionStatus {
+  ADMITTED
+  DISCHARGED
+  TRANSFERRED
+}
+
+enum AuditAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+  SIGN
+  SUBMIT
+  DENY
+}
