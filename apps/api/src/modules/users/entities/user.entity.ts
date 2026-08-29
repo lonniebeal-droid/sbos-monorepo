@@ -25,6 +25,9 @@ export class UserEntity {
   @ApiProperty({ example: 'org_success_brand' })
   organizationId!: string;
 
+  @ApiProperty({ example: 1, description: 'Credential generation for JWT invalidation' })
+  passwordVersion!: number;
+
   @ApiProperty({ example: '2026-07-24T12:00:00.000Z' })
   createdAt!: string;
 }

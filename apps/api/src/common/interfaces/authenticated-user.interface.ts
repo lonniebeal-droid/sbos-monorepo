@@ -19,6 +19,8 @@ export interface JwtPayload {
   type: 'access' | 'refresh';
   /** Unique id for refresh tokens, used for rotation/revocation. */
   jti?: string;
+  /** Credential generation; must match User.passwordVersion. */
+  passwordVersion: number;
 }
 
 /** Short-lived token issued between password success and MFA verification. */
