@@ -1,10 +1,20 @@
 name: Restore schema
 
 on:
+  push:
+    branches:
+      - fix/rbac-isolation-tests-and-org-admin-escalation
+    paths:
+      - '.github/workflows/restore-schema.yml'
+      - '.github/workflows/RESTORE_SCHEMA_TRIGGER'
   workflow_dispatch:
 
 permissions:
   contents: write
+
+concurrency:
+  group: restore-schema
+  cancel-in-progress: true
 
 jobs:
   restore:
@@ -14,7 +24,6 @@ jobs:
         with:
           ref: fix/rbac-isolation-tests-and-org-admin-escalation
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Rebuild schema from 4e2eba7 + passwordVersion
         run: |
@@ -28,17 +37,19 @@ jobs:
           if old not in src:
               raise SystemExit('anchor not found in 4e2eba7 schema')
           out = src.replace(old, new, 1)
-          Path('packages/database/prisma/schema.prisma').write_text(out)
+          dest = Path('packages/database/prisma/schema.prisma')
+          dest.write_text(out)
           print('bytes', len(out))
           print('models', out.count('model '))
           assert 'passwordVersion Int       @default(1)' in out
+          assert out.count('model ') == 44
           PY
 
       - name: Commit and push if changed
         run: |
           set -euo pipefail
-          git config user.name "lonniebeal-droid"
-          git config user.email "lonniebeal@gmail.com"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
           git add packages/database/prisma/schema.prisma
           if git diff --cached --quiet; then
             echo "No schema changes to commit"
