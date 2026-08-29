@@ -251,6 +251,12 @@ export class AuthService {
     return this.usersService.findActiveById(userId);
   }
 
+  /**
+   * One-time platform bootstrap. Gated by ADMIN_BOOTSTRAP_TOKEN and refused
+   * once any ORG_ADMIN exists. Creates a new organization + ORG_ADMIN only
+   * (never SUPER_ADMIN from the public body). Grantor role is SUPER_ADMIN so
+   * the create path's role-authority check allows ORG_ADMIN.
+   */
   async bootstrap(dto: {
     token: string;
     organizationName: string;
@@ -279,7 +285,7 @@ export class AuthService {
       },
     });
 
-    await this.usersService.create(org.id, {
+    await this.usersService.create(org.id, Role.SUPER_ADMIN, {
       email: dto.adminEmail,
       password: dto.adminPassword,
       name: 'Administrator',
@@ -289,6 +295,12 @@ export class AuthService {
     return { success: true };
   }
 
+  /**
+   * Accept invite: role and organizationId come only from the stored invite
+   * row after token verification. Request body cannot override role or org.
+   * Grant authority was enforced when the invite was created; the stored role
+   * is used as the grantor for the create check (roleSatisfies is reflexive).
+   */
   async acceptInvite(dto: AcceptInviteDto): Promise<{ success: true }> {
     const invite = await this.prisma.userInvite.findUnique({ where: { id: dto.inviteId } });
     if (!invite) throw new BadRequestException('Invalid invite');
@@ -298,11 +310,13 @@ export class AuthService {
     const ok = await bcrypt.compare(dto.token, invite.tokenHash);
     if (!ok) throw new BadRequestException('Invalid invite token');
 
-    await this.usersService.create(invite.organizationId, {
+    const grantedRole = invite.role as unknown as Role;
+
+    await this.usersService.create(invite.organizationId, grantedRole, {
       email: invite.email,
       password: dto.password,
       name: dto.name,
-      role: invite.role as unknown as Role,
+      role: grantedRole,
     });
 
     await this.prisma.userInvite.update({ where: { id: invite.id }, data: { usedAt: new Date() } });
