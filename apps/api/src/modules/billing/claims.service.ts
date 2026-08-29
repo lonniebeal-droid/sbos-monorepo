@@ -120,6 +120,25 @@ export class ClaimsService {
     return this.ensure(organizationId, id);
   }
 
+  async submit(organizationId: string, actorId: string, id: string) {
+    const claim = await this.ensure(organizationId, id);
+    const submitted = await this.prisma.claim.update({
+      where: { id },
+      data: { status: ClaimStatus.SUBMITTED, submittedAt: new Date() },
+    });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.SUBMIT,
+      entityType: 'Claim',
+      entityId: id,
+      metadata: { claimNumber: claim.claimNumber, previousStatus: claim.status },
+    });
+
+    return submitted;
+  }
+
   async updateStatus(
     organizationId: string,
     actorId: string,
