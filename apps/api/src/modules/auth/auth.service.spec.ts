@@ -1,4 +1,4 @@
-import { NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import * as bcrypt from 'bcryptjs';
 import { AuditAction } from '@sbos/database';
@@ -366,7 +366,7 @@ describe('AuthService.resetPassword', () => {
       user,
       passwordReset,
       refreshToken,
-      $transaction: vi.fn().mockImplementation(async (fn: (tx: typeof tx) => unknown) => fn(tx)),
+      $transaction: vi.fn().mockImplementation(async (fn: (t: typeof tx) => unknown) => fn(tx)),
     };
     const { service, audit } = makeService({ prisma });
 
