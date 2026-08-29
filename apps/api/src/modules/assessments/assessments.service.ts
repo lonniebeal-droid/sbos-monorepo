@@ -13,8 +13,21 @@ export class AssessmentsService {
     private readonly audit: AuditService,
   ) {}
 
-  create(organizationId: string, actorId: string, dto: CreateAssessmentDto) {
+  /** Ensure the client exists in this org (and is not soft-deleted). */
+  private async ensureClientInOrg(organizationId: string, clientId: string) {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+    return client;
+  }
+
+  async create(organizationId: string, actorId: string, dto: CreateAssessmentDto) {
     const { clientId, administeredAt, responses, ...rest } = dto;
+    await this.ensureClientInOrg(organizationId, clientId);
     return this.prisma.assessment.create({
       data: {
         ...rest,
