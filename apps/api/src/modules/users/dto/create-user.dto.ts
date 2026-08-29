@@ -8,6 +8,10 @@ import {
 
 import { Role } from '../../../common/enums/role.enum';
 
+/**
+ * Client must not supply organizationId — it is taken from the authenticated
+ * actor so a caller cannot create users in another tenant.
+ */
 export class CreateUserDto {
   @ApiProperty({ example: 'newuser@sbos.health' })
   @IsEmail()
@@ -26,8 +30,4 @@ export class CreateUserDto {
   @ApiProperty({ enum: Role, example: Role.CLINICIAN })
   @IsEnum(Role)
   role!: Role;
-
-  @ApiProperty({ example: 'org_success_brand' })
-  @IsString()
-  organizationId!: string;
 }

@@ -8,10 +8,14 @@ import type {
   AuthenticatedUser,
   JwtPayload,
 } from '../../../common/interfaces/authenticated-user.interface';
+import { UsersService } from '../../users/users.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(configService: ConfigService<AppConfig, true>) {
+  constructor(
+    configService: ConfigService<AppConfig, true>,
+    private readonly usersService: UsersService,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -19,16 +23,27 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: JwtPayload): AuthenticatedUser {
+  /**
+   * Signature/expiry are already verified by passport-jwt. We still load the
+   * user so a SUSPENDED/DEACTIVATED/deleted account cannot ride a valid
+   * access token until natural expiry (refresh was already gated).
+   */
+  async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
     if (payload.type !== 'access') {
       throw new UnauthorizedException('Invalid token type');
     }
-    return {
-      id: payload.sub,
-      email: payload.email,
-      name: payload.name,
-      role: payload.role,
-      organizationId: payload.organizationId,
-    };
+
+    try {
+      const user = await this.usersService.findActiveById(payload.sub);
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        role: user.role,
+        organizationId: user.organizationId,
+      };
+    } catch {
+      throw new UnauthorizedException('Account is no longer active');
+    }
   }
 }

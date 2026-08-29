@@ -27,7 +27,6 @@ export const ROLE_SATISFIES: Record<RoleName, RoleName[]> = {
     'FRONT_DESK',
   ],
   ORG_ADMIN: [
-    'SUPER_ADMIN',
     'ORG_ADMIN',
     'SUPERVISOR',
     'BILLING',
