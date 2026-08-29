@@ -168,7 +168,11 @@ export class UsersService {
     });
   }
 
-  async create(actorId: string, dto: CreateUserDto): Promise<UserEntity> {
+  /**
+   * Create a user. `actorId` is the admin performing the action when known
+   * (ORG_ADMIN create). Bootstrap / invite-accept may omit it.
+   */
+  async create(dto: CreateUserDto, actorId?: string): Promise<UserEntity> {
     const existing = await this.prisma.user.findFirst({
       where: {
         organizationId: dto.organizationId,

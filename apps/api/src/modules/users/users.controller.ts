@@ -66,6 +66,6 @@ export class UsersController {
     @Body() dto: CreateUserDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    return this.usersService.create(user.id, dto);
+    return this.usersService.create(dto, user.id);
   }
 }

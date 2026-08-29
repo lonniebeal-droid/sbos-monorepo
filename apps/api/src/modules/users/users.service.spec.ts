@@ -176,13 +176,16 @@ describe('UsersService.create — clinician profile regression', () => {
     } as unknown as PrismaService;
     const { service, audit } = makeService({ prisma });
 
-    await service.create('actor1', {
-      organizationId: 'org1',
-      email: 'new-clinician@sbos.health',
-      password: 'Password123!',
-      name: 'Jordan Fox',
-      role: Role.CLINICIAN,
-    } as never);
+    await service.create(
+      {
+        organizationId: 'org1',
+        email: 'new-clinician@sbos.health',
+        password: 'Password123!',
+        name: 'Jordan Fox',
+        role: Role.CLINICIAN,
+      } as never,
+      'actor1',
+    );
 
     expect(clinicianCreate).toHaveBeenCalledWith({
       data: { organizationId: 'org1', userId: 'u2' },
@@ -223,7 +226,7 @@ describe('UsersService.create — clinician profile regression', () => {
     } as unknown as PrismaService;
     const { service } = makeService({ prisma });
 
-    await service.create('actor1', {
+    await service.create({
       organizationId: 'org1',
       email: 'fd@sbos.health',
       password: 'Password123!',
