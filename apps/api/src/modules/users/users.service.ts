@@ -4,7 +4,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import { Role as PrismaRole, type Prisma, type User } from '@sbos/database';
+import {
+  AuditAction,
+  Role as PrismaRole,
+  type Prisma,
+  type User,
+} from '@sbos/database';
 
 import { Role } from '../../common/enums/role.enum';
 import * as crypto from 'node:crypto';
@@ -14,6 +19,7 @@ import {
   type PaginationQueryDto,
 } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuditService } from '../../audit/audit.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { UserEntity } from './entities/user.entity';
 
@@ -23,7 +29,10 @@ import { UserEntity } from './entities/user.entity';
  */
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
+  ) {}
 
   private toEntity(record: User): UserEntity {
     return {
@@ -44,10 +53,12 @@ export class UsersService {
     role: Role,
     invitedById: string,
     organizationId: string,
-  ): Promise<{ id: string; previewLink?: string }>
-  {
+  ): Promise<{ id: string; previewLink?: string }> {
     // Ensure the inviter belongs to the same organization to prevent cross-org invites.
-    const inviter = await this.prisma.user.findUnique({ where: { id: invitedById }, select: { organizationId: true } });
+    const inviter = await this.prisma.user.findUnique({
+      where: { id: invitedById },
+      select: { organizationId: true },
+    });
     if (!inviter || inviter.organizationId !== organizationId) {
       throw new Error('Inviter does not belong to the target organization');
     }
@@ -63,6 +74,19 @@ export class UsersService {
         tokenHash,
         expiresAt,
         invitedById,
+      },
+    });
+
+    await this.audit.record({
+      organizationId,
+      actorId: invitedById,
+      action: AuditAction.CREATE,
+      entityType: 'UserInvite',
+      entityId: record.id,
+      metadata: {
+        email: record.email,
+        role: record.role,
+        expiresAt: record.expiresAt.toISOString(),
       },
     });
 
@@ -144,7 +168,7 @@ export class UsersService {
     });
   }
 
-  async create(dto: CreateUserDto): Promise<UserEntity> {
+  async create(actorId: string, dto: CreateUserDto): Promise<UserEntity> {
     const existing = await this.prisma.user.findFirst({
       where: {
         organizationId: dto.organizationId,
@@ -177,6 +201,18 @@ export class UsersService {
         data: { organizationId: record.organizationId, userId: record.id },
       });
     }
+
+    await this.audit.record({
+      organizationId: record.organizationId,
+      actorId,
+      action: AuditAction.CREATE,
+      entityType: 'User',
+      entityId: record.id,
+      metadata: {
+        email: record.email,
+        role: record.role,
+      },
+    });
 
     return this.toEntity(record);
   }

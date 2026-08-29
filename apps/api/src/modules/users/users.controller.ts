@@ -13,7 +13,6 @@ import type { AuthenticatedUser } from '../../common/interfaces/authenticated-us
 import { CreateUserDto } from './dto/create-user.dto';
 import { UsersService } from './users.service';
 import { InviteUserDto } from './dto/invite-user.dto';
-import { AuthService } from '../auth/auth.service';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -29,8 +28,12 @@ export class UsersController {
     @Body() dto: InviteUserDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    // Delegate to AuthService for token creation and persistence.
-    return this.usersService.createInvite(dto.email, dto.role, user.id, user.organizationId);
+    return this.usersService.createInvite(
+      dto.email,
+      dto.role,
+      user.id,
+      user.organizationId,
+    );
   }
 
   @Get()
@@ -59,7 +62,10 @@ export class UsersController {
   @Post()
   @Roles(Role.ORG_ADMIN)
   @ApiOperation({ summary: 'Create a new user' })
-  create(@Body() dto: CreateUserDto) {
-    return this.usersService.create(dto);
+  create(
+    @Body() dto: CreateUserDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.usersService.create(user.id, dto);
   }
 }

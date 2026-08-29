@@ -1,14 +1,17 @@
 import { NotFoundException } from '@nestjs/common';
+import { AuditAction } from '@sbos/database';
 import { describe, expect, it, vi } from 'vitest';
 import * as bcrypt from 'bcryptjs';
 
 import { UsersService } from './users.service';
 import { Role } from '../../common/enums/role.enum';
 import type { PrismaService } from '../../prisma/prisma.service';
+import type { AuditService } from '../../audit/audit.service';
 
 function makeService(overrides?: { prisma?: Partial<PrismaService> }) {
   const prisma = (overrides?.prisma ?? {}) as PrismaService;
-  return { service: new UsersService(prisma) };
+  const audit = { record: vi.fn() } as unknown as AuditService;
+  return { service: new UsersService(prisma, audit), audit };
 }
 
 const baseRecord = {
@@ -153,7 +156,16 @@ describe('UsersService.findActiveById', () => {
 
 describe('UsersService.create — clinician profile regression', () => {
   it('creates a Clinician profile row when the new user is a CLINICIAN (appointments/notes reference the profile, not the user row)', async () => {
-    const created = { id: 'u2', organizationId: 'org1', role: 'CLINICIAN', createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date() };
+    const created = {
+      id: 'u2',
+      organizationId: 'org1',
+      role: 'CLINICIAN',
+      email: 'new-clinician@sbos.health',
+      firstName: 'Jordan',
+      lastName: 'Fox',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date(),
+    };
     const clinicianCreate = vi.fn().mockResolvedValue({ id: 'c1', userId: 'u2' });
     const prisma = {
       user: {
@@ -162,9 +174,9 @@ describe('UsersService.create — clinician profile regression', () => {
       },
       clinician: { create: clinicianCreate },
     } as unknown as PrismaService;
-    const { service } = makeService({ prisma });
+    const { service, audit } = makeService({ prisma });
 
-    await service.create({
+    await service.create('actor1', {
       organizationId: 'org1',
       email: 'new-clinician@sbos.health',
       password: 'Password123!',
@@ -175,10 +187,32 @@ describe('UsersService.create — clinician profile regression', () => {
     expect(clinicianCreate).toHaveBeenCalledWith({
       data: { organizationId: 'org1', userId: 'u2' },
     });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org1',
+        actorId: 'actor1',
+        action: AuditAction.CREATE,
+        entityType: 'User',
+        entityId: 'u2',
+        metadata: expect.objectContaining({
+          email: 'new-clinician@sbos.health',
+          role: 'CLINICIAN',
+        }),
+      }),
+    );
   });
 
   it('does not create a Clinician profile for non-clinician roles', async () => {
-    const created = { id: 'u3', organizationId: 'org1', role: 'FRONT_DESK', createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date() };
+    const created = {
+      id: 'u3',
+      organizationId: 'org1',
+      role: 'FRONT_DESK',
+      email: 'fd@sbos.health',
+      firstName: 'Peyton',
+      lastName: 'Park',
+      createdAt: new Date('2026-01-01T00:00:00Z'),
+      updatedAt: new Date(),
+    };
     const clinicianCreate = vi.fn();
     const prisma = {
       user: {
@@ -189,7 +223,7 @@ describe('UsersService.create — clinician profile regression', () => {
     } as unknown as PrismaService;
     const { service } = makeService({ prisma });
 
-    await service.create({
+    await service.create('actor1', {
       organizationId: 'org1',
       email: 'fd@sbos.health',
       password: 'Password123!',
@@ -198,5 +232,47 @@ describe('UsersService.create — clinician profile regression', () => {
     } as never);
 
     expect(clinicianCreate).not.toHaveBeenCalled();
+  });
+});
+
+describe('UsersService.createInvite', () => {
+  it('creates an invite and records a CREATE audit entry', async () => {
+    const invite = {
+      id: 'inv1',
+      email: 'new@sbos.health',
+      role: 'CLINICIAN',
+      expiresAt: new Date('2026-09-01T00:00:00Z'),
+    };
+    const prisma = {
+      user: {
+        findUnique: vi.fn().mockResolvedValue({ organizationId: 'org1' }),
+      },
+      userInvite: {
+        create: vi.fn().mockResolvedValue(invite),
+      },
+    } as unknown as PrismaService;
+    const { service, audit } = makeService({ prisma });
+
+    const result = await service.createInvite(
+      'new@sbos.health',
+      Role.CLINICIAN,
+      'actor1',
+      'org1',
+    );
+
+    expect(result.id).toBe('inv1');
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org1',
+        actorId: 'actor1',
+        action: AuditAction.CREATE,
+        entityType: 'UserInvite',
+        entityId: 'inv1',
+        metadata: expect.objectContaining({
+          email: 'new@sbos.health',
+          role: 'CLINICIAN',
+        }),
+      }),
+    );
   });
 });
