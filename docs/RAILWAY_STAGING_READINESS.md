@@ -3,7 +3,7 @@
 Last verified locally: 2026-08-29
 Worktree: `/Users/lonniebgroupllc/download/sbos-agent2-railway`
 Branch: `docs/railway-staging-readiness`
-HEAD: `67c1e175418627969a37b55df4528c1e2d3e391f`
+HEAD: `53ac9c56c33023d85c4828baa983aa0307c3b5c9`
 
 This runbook narrows the existing deployment and production-readiness docs into the specific work needed to stand up a safe SBOS staging environment on Railway. It is intentionally local-only and does not claim that any hosted environment already exists.
 
@@ -392,7 +392,7 @@ curl -X POST https://staging-api.up.railway.app/api/v1/auth/login \
 - **Rate limiting**: In-memory (single-instance); Redis-backed store needed for multi-instance production
 - **docs/GATE5_SECURITY_REBUILD.md**: Updated
 
-**Remote SHA `c2081f9a42be4a5e197d6d531a704285cbbe014a`**: NOT AVAILABLE locally; not integrated.
+**Remote SHA `c2081f9a42be4a5e197d6d531a704285cbbe014a`**: NOT AVAILABLE locally; not integrated. This SHA does not exist in this repository's object database.
 
 ## Security Files Modified by Agent 2
 
