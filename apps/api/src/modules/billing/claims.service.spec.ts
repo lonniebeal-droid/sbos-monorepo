@@ -85,11 +85,37 @@ describe('ClaimsService.create — tenant ownership of clientId', () => {
     expect(prisma.claim.create).not.toHaveBeenCalled();
   });
 
-  it('creates and audits when client (and appointment) belong to the organization', async () => {
+  it('rejects create when insurancePolicyId is not in the actor organization', async () => {
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+      insurancePolicy: { findFirst: vi.fn().mockResolvedValue(null) },
+      claim: { create: vi.fn() },
+    } as any;
+    const audit = { record: vi.fn() } as any;
+    const svc = new ClaimsService(prisma, audit);
+    const dto = {
+      clientId: 'c1',
+      insurancePolicyId: 'pol-other-org',
+      billedAmount: 50,
+      serviceDate: '2026-08-23',
+    } as any;
+
+    await expect(svc.create('org1', 'actor1', dto)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.claim.create).not.toHaveBeenCalled();
+    expect(prisma.insurancePolicy.findFirst).toHaveBeenCalledWith({
+      where: { id: 'pol-other-org', organizationId: 'org1' },
+      select: { id: true },
+    });
+  });
+
+  it('creates and audits when client, appointment, and policy belong to the organization', async () => {
     const created = { id: 'c-new', claimNumber: 'CLM-999', billedAmount: 50 };
     const prisma = {
       client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
       appointment: { findFirst: vi.fn().mockResolvedValue({ id: 'a1' }) },
+      insurancePolicy: { findFirst: vi.fn().mockResolvedValue({ id: 'pol1' }) },
       claim: { create: vi.fn().mockResolvedValue(created) },
     } as any;
     const audit = { record: vi.fn() } as any;
@@ -97,6 +123,7 @@ describe('ClaimsService.create — tenant ownership of clientId', () => {
     const dto = {
       clientId: 'c1',
       appointmentId: 'a1',
+      insurancePolicyId: 'pol1',
       billedAmount: 50,
       serviceDate: '2026-08-23',
     } as any;
