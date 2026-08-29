@@ -36,6 +36,10 @@ docker compose logs -f api
 
 ## Option B — Managed platform (Railway / Fly / AWS ECS)
 
+For Railway, this repo now includes a prepared `.railway/railway.ts` scaffold.
+It is not applied automatically; run `railway config plan` and review before
+any apply.
+
 Build and push the two images (CI already builds them):
 
 ```bash
@@ -47,9 +51,14 @@ Provision:
 1. A managed **PostgreSQL** instance; set `DATABASE_URL` on the api service.
 2. The **api** service with the secrets from `.env.production.example`.
 3. The **web** service with `SBOS_API_URL` pointing at the api's internal URL
-   and `AUTH_SECRET` set.
-4. Run migrations on deploy (the api image does this automatically; or run
-   `prisma migrate deploy` as a release step).
+   plus `NEXT_PUBLIC_API_URL` pointing at the api's public HTTPS URL, and
+   `AUTH_SECRET` set.
+4. Run migrations on deploy exactly once per deploy path. The prepared Railway
+   scaffold keeps migrations in the api start command, so do not also add a
+   second Railway pre-deploy migration step for that same service.
+5. If this is a fresh environment with no org yet, set a strong
+   `ADMIN_BOOTSTRAP_TOKEN`, use the one-time bootstrap endpoint, then rotate or
+   remove the token.
 
 ## Required configuration
 
@@ -61,6 +70,8 @@ Provision:
 | `AUTH_SECRET` | web | Session cookie signing |
 | `CORS_ORIGINS` | api | Comma-separated allowed web origins |
 | `SBOS_API_URL` | web | Internal URL of the api |
+| `NEXT_PUBLIC_API_URL` | web | Public HTTPS URL of the api for browser-side auth/setup flows |
+| `ADMIN_BOOTSTRAP_TOKEN` | api | Optional one-time bootstrap token for the first org/admin |
 
 The API **fails fast** at boot if secrets are missing or left at dev defaults in
 production (`NODE_ENV=production`).
@@ -85,6 +96,8 @@ before each deploy as standard practice.
 ## Observability
 
 - **Health:** `GET /api/v1/health` (api), `GET /api/health` (web),
+- `GET /api/v1/health` returns **503** when the DB probe fails, which keeps
+  Railway-style health gates meaningful.
   `GET /api/v1/platform/system-health` (authenticated admin snapshot).
 - Ship container stdout to your log aggregator; the API logs unexpected errors
   with stack traces via the global exception filter.

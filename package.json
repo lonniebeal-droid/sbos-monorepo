@@ -9,6 +9,7 @@
     "test": "turbo run test"
   },
   "devDependencies": {
+    "railway": "^3.11.0",
     "turbo": "^2.10.6",
     "typescript": "^7.0.2"
   }

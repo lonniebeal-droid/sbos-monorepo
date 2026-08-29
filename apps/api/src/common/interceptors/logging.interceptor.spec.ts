@@ -11,11 +11,13 @@ function makeHttpContext(opts: {
   originalUrl?: string;
   statusCode?: number;
   user?: AuthenticatedUser;
+  agentOrganizationId?: string;
 }): ExecutionContext {
   const req = {
     method: opts.method ?? 'GET',
     originalUrl: opts.originalUrl ?? '/api/v1/clients',
     user: opts.user,
+    agentOrganizationId: opts.agentOrganizationId,
   };
   const res = { statusCode: opts.statusCode ?? 200 };
   return {
@@ -72,16 +74,40 @@ describe('LoggingInterceptor', () => {
     const user = {
       id: 'u1',
       email: 'clinician@sbos.health',
-      name: 'Riley Chen',
-      role: 'CLINICIAN',
       organizationId: 'org1',
-    } as unknown as AuthenticatedUser;
-    const context = makeHttpContext({ statusCode: 200, user });
+      role: 'CLINICIAN',
+    } as AuthenticatedUser;
+    const context = makeHttpContext({
+      method: 'GET',
+      originalUrl: '/api/v1/clients',
+      statusCode: 200,
+      user,
+    });
 
-    interceptor.intercept(context, handlerReturning({})).subscribe();
+    interceptor.intercept(context, handlerReturning({ ok: true })).subscribe();
 
+    expect(logSpy).toHaveBeenCalledTimes(1);
     const line = logSpy.mock.calls[0][0] as string;
-    expect(line).toContain('user=u1 org=org1');
+    expect(line).toContain('user=u1');
+    expect(line).toContain('org=org1');
+  });
+
+  it('appends agentOrg when the request was authenticated via agent secret (no JWT user)', () => {
+    const interceptor = new LoggingInterceptor();
+    const logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const context = makeHttpContext({
+      method: 'POST',
+      originalUrl: '/api/v1/jessie/agent/tools/lookup_client',
+      statusCode: 200,
+      agentOrganizationId: 'org_test_abc',
+    });
+
+    interceptor.intercept(context, handlerReturning({ ok: true })).subscribe();
+
+    expect(logSpy).toHaveBeenCalledTimes(1);
+    const line = logSpy.mock.calls[0][0] as string;
+    expect(line).toContain('agentOrg=org_test_abc');
+    expect(line).not.toContain('user=');
   });
 
   it('logs a 4xx response at "warn" level', () => {
@@ -131,5 +157,57 @@ describe('LoggingInterceptor', () => {
       .subscribe({ next: () => undefined, error: (err: unknown) => (caught = err) });
 
     expect(caught).toBe(boom);
+  });
+
+  it('does not log headers, bodies, or secrets — only method/path/status/duration/who', () => {
+    const interceptor = new LoggingInterceptor();
+    const logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const context = makeHttpContext({
+      method: 'POST',
+      originalUrl: '/api/v1/jessie/agent/tools/lookup_client',
+      statusCode: 200,
+      agentOrganizationId: 'org_safe',
+    });
+
+    interceptor.intercept(context, handlerReturning({ ok: true })).subscribe();
+
+    const line = logSpy.mock.calls[0][0] as string;
+    expect(line).toMatch(/^POST \/api\/v1\/jessie\/agent\/tools\/lookup_client 200 \d+\.\dms agentOrg=org_safe$/);
+    expect(line.toLowerCase()).not.toContain('secret');
+    expect(line.toLowerCase()).not.toContain('authorization');
+    expect(line.toLowerCase()).not.toContain('password');
+    expect(line).not.toContain('Bearer');
+  });
+
+  it('ignores untrusted body fields — agentOrg only appears when req.agentOrganizationId is set by the guard', () => {
+    const interceptor = new LoggingInterceptor();
+    const logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    // Simulate a request that has body.orgId but NO agentOrganizationId (guard did not run / failed).
+    const req = {
+      method: 'POST',
+      originalUrl: '/api/v1/jessie/agent/tools/lookup_client',
+      user: undefined,
+      agentOrganizationId: undefined,
+      body: { organizationId: 'attacker-org', orgId: 'attacker-org' },
+      headers: { 'x-sbos-agent-secret': 'forged', organizationid: 'attacker-org' },
+    };
+    const res = { statusCode: 401 };
+    const context = {
+      getType: () => 'http',
+      switchToHttp: () => ({
+        getRequest: () => req,
+        getResponse: () => res,
+      }),
+    } as unknown as ExecutionContext;
+
+    interceptor.intercept(context, handlerReturning({})).subscribe();
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    const line = warnSpy.mock.calls[0][0] as string;
+    expect(line).not.toContain('agentOrg=');
+    expect(line).not.toContain('attacker-org');
+    expect(line).not.toContain('forged');
+    expect(logSpy).not.toHaveBeenCalled();
   });
 });

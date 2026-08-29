@@ -5,6 +5,7 @@ import { Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { publicApiBaseUrl } from "@/lib/public-api";
 
 function toCsvRow(values: (string | number)[]): string {
   return values
@@ -38,8 +39,7 @@ export function ExportReportsButton() {
         .find((c) => c.startsWith("sbos_access_token="))
         ?.split("=")[1];
 
-      const baseUrl =
-        process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:4000";
+      const baseUrl = publicApiBaseUrl();
 
       const headers: Record<string, string> = {
         "Content-Type": "application/json",
