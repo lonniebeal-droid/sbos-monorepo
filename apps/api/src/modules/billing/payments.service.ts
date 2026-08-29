@@ -25,7 +25,8 @@ export class PaymentsService {
 
   /**
    * Client-supplied ownership IDs must belong to this organization.
-   * Prevents cross-tenant payment attachment via clientId/invoiceId.
+   * Prevents cross-tenant payment attachment via clientId/invoiceId/claimId.
+   * Validated before any external charge side effect.
    */
   private async ensureClientInOrg(
     organizationId: string,
@@ -53,6 +54,19 @@ export class PaymentsService {
     }
   }
 
+  private async ensureClaimInOrg(
+    organizationId: string,
+    claimId: string,
+  ): Promise<void> {
+    const claim = await this.prisma.claim.findFirst({
+      where: { id: claimId, organizationId },
+      select: { id: true },
+    });
+    if (!claim) {
+      throw new NotFoundException(`Claim ${claimId} not found`);
+    }
+  }
+
   /**
    * Record a payment: charge via the configured provider, persist the payment,
    * and (when applied to an invoice) recompute the invoice balance/status.
@@ -65,6 +79,9 @@ export class PaymentsService {
     await this.ensureClientInOrg(organizationId, dto.clientId);
     if (dto.invoiceId) {
       await this.ensureInvoiceInOrg(organizationId, dto.invoiceId);
+    }
+    if (dto.claimId) {
+      await this.ensureClaimInOrg(organizationId, dto.claimId);
     }
 
     // Card/ACH route through the provider; cash/check/adjustment are manual.
