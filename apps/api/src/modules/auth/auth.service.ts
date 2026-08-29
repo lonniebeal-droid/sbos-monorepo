@@ -240,10 +240,16 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    const stored = await this.prisma.refreshToken.findUnique({
-      where: { jti: payload.jti },
+    // Atomic claim: only the first concurrent presenter of this jti wins.
+    // Losers see count !== 1 and are treated as reuse (family revoke).
+    const claimed = await this.prisma.refreshToken.updateMany({
+      where: { jti: payload.jti, revokedAt: null },
+      data: { revokedAt: new Date() },
     });
-    if (!stored || stored.revokedAt) {
+    if (claimed.count !== 1) {
+      const stored = await this.prisma.refreshToken.findUnique({
+        where: { jti: payload.jti },
+      });
       // Reuse of a revoked token → revoke the whole family for this user.
       if (stored?.revokedAt) {
         this.logger.warn(
@@ -269,12 +275,6 @@ export class AuthService {
     ) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
-
-    // Rotate: revoke presented token, issue a new pair.
-    await this.prisma.refreshToken.update({
-      where: { jti: payload.jti },
-      data: { revokedAt: new Date() },
-    });
 
     return this.issueTokens(user);
   }
