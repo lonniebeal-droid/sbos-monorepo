@@ -12,7 +12,15 @@ function makeService(overrides?: {
 }) {
   const defaultPrisma = {
     client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
-    invoice: { findFirst: vi.fn().mockResolvedValue({ id: 'inv1' }) },
+    invoice: {
+      findFirst: vi.fn().mockResolvedValue({
+        id: 'inv1',
+        amountPaid: 0,
+        total: 100,
+        status: 'OPEN',
+      }),
+      update: vi.fn().mockResolvedValue({ id: 'inv1' }),
+    },
     claim: { findFirst: vi.fn().mockResolvedValue({ id: 'clm1' }) },
     payment: { create: vi.fn().mockResolvedValue({ id: 'pay1' }) },
   };
@@ -106,10 +114,19 @@ describe('PaymentsService.record — tenant ownership before charge', () => {
 
   it('charges and creates when client, optional invoice, and claim belong to org', async () => {
     const created = { id: 'pay1', amount: 25 };
+    const invoiceRecord = {
+      id: 'inv1',
+      amountPaid: 0,
+      total: 100,
+      status: 'OPEN',
+    };
     const { service, prisma, provider, audit } = makeService({
       prisma: {
         client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
-        invoice: { findFirst: vi.fn().mockResolvedValue({ id: 'inv1' }) },
+        invoice: {
+          findFirst: vi.fn().mockResolvedValue(invoiceRecord),
+          update: vi.fn().mockResolvedValue(invoiceRecord),
+        },
         claim: { findFirst: vi.fn().mockResolvedValue({ id: 'clm1' }) },
         payment: { create: vi.fn().mockResolvedValue(created) },
       } as never,
@@ -123,6 +140,7 @@ describe('PaymentsService.record — tenant ownership before charge', () => {
 
     expect(provider.charge).toHaveBeenCalled();
     expect(prisma.payment.create).toHaveBeenCalled();
+    expect(prisma.invoice.update).toHaveBeenCalled();
     expect(audit.record).toHaveBeenCalled();
     expect(result).toBe(created);
   });
