@@ -12,6 +12,80 @@ function makeService(overrides?: { prisma?: Partial<PrismaService> }) {
   return { service: new TasksService(prisma, audit), audit };
 }
 
+describe('TasksService.create ownership', () => {
+  it('creates when optional clientId belongs to the org', async () => {
+    const created = { id: 't1', title: 'Follow up', clientId: 'c1' };
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+      task: { create: vi.fn().mockResolvedValue(created) },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    const result = await service.create('org1', 'user1', {
+      title: 'Follow up',
+      clientId: 'c1',
+    });
+
+    expect(prisma.client.findFirst).toHaveBeenCalledWith({
+      where: { id: 'c1', organizationId: 'org1', deletedAt: null },
+      select: { id: true },
+    });
+    expect(prisma.task.create).toHaveBeenCalled();
+    expect(result).toEqual(created);
+  });
+
+  it('throws NotFoundException and never inserts when clientId is outside the org', async () => {
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue(null) },
+      task: { create: vi.fn() },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(
+      service.create('org1', 'user1', {
+        title: 'Spoofed',
+        clientId: 'foreign-client',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(prisma.task.create).not.toHaveBeenCalled();
+  });
+
+  it('allows create without clientId', async () => {
+    const created = { id: 't2', title: 'Internal task' };
+    const prisma = {
+      client: { findFirst: vi.fn() },
+      task: { create: vi.fn().mockResolvedValue(created) },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await service.create('org1', 'user1', { title: 'Internal task' });
+
+    expect(prisma.client.findFirst).not.toHaveBeenCalled();
+    expect(prisma.task.create).toHaveBeenCalled();
+  });
+});
+
+describe('TasksService.update ownership', () => {
+  it('rejects reassignment to a foreign-org clientId', async () => {
+    const existing = { id: 't1', title: 'Task' };
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue(null) },
+      task: {
+        findFirst: vi.fn().mockResolvedValue(existing),
+        update: vi.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(
+      service.update('org1', 't1', { clientId: 'foreign-client' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(prisma.task.update).not.toHaveBeenCalled();
+  });
+});
+
 describe('TasksService.remove', () => {
   it('deletes the task and records an audit entry', async () => {
     const existing = { id: 't1', title: 'Follow up with client' };
