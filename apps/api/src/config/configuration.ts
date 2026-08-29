@@ -1,3 +1,5 @@
+import { parseAgentSecrets } from './agent-secrets';
+
 export interface AppConfig {
   port: number;
   corsOrigins: string[];
@@ -36,54 +38,43 @@ export interface AppConfig {
   };
 }
 
-export default (): AppConfig => ({
-  port: parseInt(process.env.PORT ?? '4000', 10),
-  corsOrigins: (process.env.CORS_ORIGINS ?? 'http://localhost:3000')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean),
-  jwt: {
-    accessSecret:
-      process.env.JWT_ACCESS_SECRET ?? 'sbos-dev-access-secret-change-me',
-    refreshSecret:
-      process.env.JWT_REFRESH_SECRET ?? 'sbos-dev-refresh-secret-change-me',
-    accessExpiresIn: process.env.JWT_ACCESS_TTL ?? '15m',
-    refreshExpiresIn: process.env.JWT_REFRESH_TTL ?? '7d',
-  },
-  ai: {
-    baseUrl: process.env.AI_BASE_URL ?? 'https://api.openai.com/v1',
-    apiKey: process.env.OPENAI_API_KEY ?? process.env.AI_API_KEY,
-    model: process.env.AI_MODEL ?? 'gpt-4o-mini',
-  },
-  stripe: {
-    secretKey: process.env.STRIPE_SECRET_KEY,
-  },
-  email: {
-    resendApiKey: process.env.RESEND_API_KEY,
-    fromAddress: process.env.EMAIL_FROM ?? 'no-reply@sbos.health',
-  },
-  sms: {
-    twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
-    twilioAuthToken: process.env.TWILIO_AUTH_TOKEN,
-    twilioFromNumber: process.env.TWILIO_FROM_NUMBER,
-  },
-  jessieAgent: {
-    secrets: parseAgentSecrets(process.env.JESSIE_AGENT_SECRETS),
-  },
-});
+export default (): AppConfig => {
+  // Parse failures throw AgentSecretsParseError at config load (fail fast).
+  const parsed = parseAgentSecrets(process.env.JESSIE_AGENT_SECRETS);
 
-/** Parse "orgId:secret,orgId2:secret2" into secret → organizationId. */
-function parseAgentSecrets(raw?: string): Record<string, string> {
-  const map: Record<string, string> = {};
-  if (!raw?.trim()) return map;
-  for (const part of raw.split(',')) {
-    const trimmed = part.trim();
-    if (!trimmed) continue;
-    const colon = trimmed.indexOf(':');
-    if (colon <= 0) continue;
-    const orgId = trimmed.slice(0, colon).trim();
-    const secret = trimmed.slice(colon + 1).trim();
-    if (orgId && secret) map[secret] = orgId;
-  }
-  return map;
-}
+  return {
+    port: parseInt(process.env.PORT ?? '4000', 10),
+    corsOrigins: (process.env.CORS_ORIGINS ?? 'http://localhost:3000')
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter(Boolean),
+    jwt: {
+      accessSecret:
+        process.env.JWT_ACCESS_SECRET ?? 'sbos-dev-access-secret-change-me',
+      refreshSecret:
+        process.env.JWT_REFRESH_SECRET ?? 'sbos-dev-refresh-secret-change-me',
+      accessExpiresIn: process.env.JWT_ACCESS_TTL ?? '15m',
+      refreshExpiresIn: process.env.JWT_REFRESH_TTL ?? '7d',
+    },
+    ai: {
+      baseUrl: process.env.AI_BASE_URL ?? 'https://api.openai.com/v1',
+      apiKey: process.env.OPENAI_API_KEY ?? process.env.AI_API_KEY,
+      model: process.env.AI_MODEL ?? 'gpt-4o-mini',
+    },
+    stripe: {
+      secretKey: process.env.STRIPE_SECRET_KEY,
+    },
+    email: {
+      resendApiKey: process.env.RESEND_API_KEY,
+      fromAddress: process.env.EMAIL_FROM ?? 'no-reply@sbos.health',
+    },
+    sms: {
+      twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
+      twilioAuthToken: process.env.TWILIO_AUTH_TOKEN,
+      twilioFromNumber: process.env.TWILIO_FROM_NUMBER,
+    },
+    jessieAgent: {
+      secrets: parsed.secrets,
+    },
+  };
+};
