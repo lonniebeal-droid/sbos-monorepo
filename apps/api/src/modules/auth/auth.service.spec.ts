@@ -28,6 +28,7 @@ const testUser: UserEntity = {
   name: 'Riley Chen',
   role: Role.CLINICIAN,
   organizationId: 'org1',
+  passwordVersion: 1,
   createdAt: '2026-01-01T00:00:00.000Z',
 };
 
@@ -322,6 +323,15 @@ describe('AuthService.resetPassword', () => {
           data: { usedAt: expect.any(Date) },
         }),
       );
+      expect(user.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'u1' },
+          data: expect.objectContaining({
+            passwordVersion: { increment: 1 },
+          }),
+        }),
+      );
+      expect(refreshToken.deleteMany).toHaveBeenCalledWith({ where: { userId: 'u1' } });
       expect(audit.record).toHaveBeenCalledWith(
         expect.objectContaining({
           organizationId: 'org1',
