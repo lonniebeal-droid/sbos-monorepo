@@ -46,7 +46,7 @@ import {
   MakeEventDto,
 } from '../../dto/jessie-integration.dto';
 
-const mockPrisma = {
+const mockPrisma: any = {
   client: {
     findFirst: vi.fn(),
     findUnique: vi.fn(),
@@ -113,7 +113,7 @@ const mockConfigService = {
     if (key === 'JESSIE_SERVICE_SECRET') return VALID_SERVICE_SECRET;
     return undefined;
   }),
-};
+} as unknown as ConfigService;
 
 let app: INestApplication;
 let mockMakeReceiver: MockMakeWebhookReceiver;
@@ -1016,7 +1016,7 @@ describe('JessieIntegrationController - E2E Tests', () => {
       it(`${endpoint}: emits Make event with correct event_type (${eventType})`, async () => {
         await makeRequest(endpoint, method, fixture, validHeaders);
         const calls = mockPrisma.auditLog.create.mock.calls;
-        const makeEventCall = calls.find((call) => {
+        const makeEventCall = calls.find((call: any) => {
           const metadata = call[0]?.data?.metadata;
           return metadata && typeof metadata === 'object' && 'event_type' in metadata && metadata.event_type === eventType;
         });
@@ -1029,7 +1029,7 @@ describe('JessieIntegrationController - E2E Tests', () => {
       it(`${endpoint}: Make event contains required fields`, async () => {
         await makeRequest(endpoint, method, fixture, validHeaders);
         const calls = mockPrisma.auditLog.create.mock.calls;
-        const makeEventCall = calls.find((call) => {
+        const makeEventCall = calls.find((call: any) => {
           const metadata = call[0]?.data?.metadata;
           return metadata && metadata.event_type === eventType;
         });
