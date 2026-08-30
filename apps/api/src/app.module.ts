@@ -1,5 +1,5 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
@@ -35,6 +35,14 @@ import { MessagingModule } from './modules/messaging/messaging.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { PlatformModule } from './modules/platform/platform.module';
 import { HealthController } from './modules/health/health.controller';
+import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
+
+interface RedisConfig {
+  url?: string;
+  enabled: boolean;
+  connectTimeout: number;
+  maxRetriesPerRequest: number;
+}
 
 @Module({
   imports: [
@@ -43,12 +51,26 @@ import { HealthController } from './modules/health/health.controller';
       load: [configuration],
       cache: true,
     }),
-    ThrottlerModule.forRoot([
-      {
-        ttl: 60_000,
-        limit: 120,
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const redisConfig = configService.get<RedisConfig>('redis', { infer: true });
+        const storage = redisConfig?.enabled && redisConfig?.url
+          ? new RedisThrottlerStorage(configService)
+          : undefined;
+
+        return {
+          throttlers: [
+            {
+              ttl: 60_000,
+              limit: 120,
+            },
+          ],
+          storage,
+        };
       },
-    ]),
+    }),
     PrismaModule,
     AuditModule,
     AiModule,
