@@ -30,8 +30,7 @@
     "qrcode": "^1.5.4",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "ioredis": "^5.4.1",
-    "@nest-lab/throttler-storage-redis": "^1.2.0"
+    "ioredis": "^5.4.1"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",

@@ -26,9 +26,14 @@ export interface AppConfig {
     twilioFromNumber?: string;
   };
   redis: {
+    /** Redis connection URL for distributed rate limiting. Optional; falls back to in-memory if unset. */
     url?: string;
-    /** Enable Redis-backed throttler store for distributed rate limiting */
-    enableThrottlerStore?: boolean;
+    /** Enable Redis-backed rate limiting (requires REDIS_URL). Defaults to false. */
+    enabled: boolean;
+    /** Connection timeout in ms. Default: 5000. */
+    connectTimeout: number;
+    /** Max retries for Redis connection. Default: 3. */
+    maxRetriesPerRequest: number;
   };
 }
 
@@ -65,6 +70,8 @@ export default (): AppConfig => ({
   },
   redis: {
     url: process.env.REDIS_URL,
-    enableThrottlerStore: process.env.REDIS_ENABLE_THROTTLER_STORE === 'true',
+    enabled: process.env.REDIS_RATE_LIMIT_ENABLED === 'true',
+    connectTimeout: parseInt(process.env.REDIS_CONNECT_TIMEOUT ?? '5000', 10),
+    maxRetriesPerRequest: parseInt(process.env.REDIS_MAX_RETRIES ?? '3', 10),
   },
 });

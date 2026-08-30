@@ -2,9 +2,8 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 
-import configuration, { type AppConfig } from './config/configuration';
+import configuration from './config/configuration';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -36,26 +35,13 @@ import { MessagingModule } from './modules/messaging/messaging.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { PlatformModule } from './modules/platform/platform.module';
 import { HealthController } from './modules/health/health.controller';
+import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
 
-/**
- * Creates a Redis-backed throttler storage if REDIS_URL is configured and
- * REDIS_ENABLE_THROTTLER_STORE=true. Falls back to in-memory storage otherwise.
- * This enables distributed rate limiting for multi-instance deployments.
- */
-async function createThrottlerStorage(configService: ConfigService<AppConfig, true>): Promise<ThrottlerStorageRedisService | undefined> {
-  const redisConfig = configService.get('redis', { infer: true });
-  if (!redisConfig?.url || !redisConfig?.enableThrottlerStore) {
-    return undefined; // Use default in-memory storage
-  }
-
-  try {
-    const storage = new ThrottlerStorageRedisService(redisConfig.url);
-    console.log('[Throttler] Using Redis-backed storage for distributed rate limiting');
-    return storage;
-  } catch (error) {
-    console.warn('[Throttler] Failed to initialize Redis storage, falling back to in-memory:', error instanceof Error ? error.message : String(error));
-    return undefined;
-  }
+interface RedisConfig {
+  url?: string;
+  enabled: boolean;
+  connectTimeout: number;
+  maxRetriesPerRequest: number;
 }
 
 @Module({
@@ -67,8 +53,13 @@ async function createThrottlerStorage(configService: ConfigService<AppConfig, tr
     }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
-      useFactory: async (configService: ConfigService<AppConfig, true>) => {
-        const storage = await createThrottlerStorage(configService);
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const redisConfig = configService.get<RedisConfig>('redis', { infer: true });
+        const storage = redisConfig?.enabled && redisConfig?.url
+          ? new RedisThrottlerStorage(configService)
+          : undefined;
+
         return {
           throttlers: [
             {
@@ -79,7 +70,6 @@ async function createThrottlerStorage(configService: ConfigService<AppConfig, tr
           storage,
         };
       },
-      inject: [ConfigService],
     }),
     PrismaModule,
     AuditModule,
