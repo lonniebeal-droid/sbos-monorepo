@@ -304,11 +304,16 @@ model Organization {
   clinicianTimeOff        ClinicianTimeOff[]
   payers         Payer[]
   serviceCodes   ServiceCode[]
-  conversations     Conversation[]
-  promptTemplates   PromptTemplate[]
-  knowledgeArticles KnowledgeArticle[]
-  featureFlags      FeatureFlag[]
-  userInvites       UserInvite[]
+  conversations        Conversation[]
+  promptTemplates      PromptTemplate[]
+  knowledgeArticles    KnowledgeArticle[]
+  leads                Lead[]
+  callLogs             CallLog[]
+  callbackRequests     CallbackRequest[]
+  callTransfers        CallTransfer[]
+  idempotencyKeys      IdempotencyKey[]
+  featureFlags         FeatureFlag[]
+  userInvites          UserInvite[]
 
   @@index([isActive])
 }
@@ -389,6 +394,8 @@ model Conversation {
 
   organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   messages     ConversationMessage[]
+  callLogs     CallLog[]
+  callTransfers CallTransfer[]
 
   @@index([organizationId])
   @@index([kind])
@@ -425,6 +432,106 @@ model KnowledgeArticle {
 
   @@index([organizationId])
   @@index([isPublished])
+}
+
+/// A lead captured from an inbound call or web form. Idempotent by organization + idempotencyKey.
+model Lead {
+  id               String   @id @default(cuid())
+  organizationId   String
+  idempotencyKey   String
+  firstName        String
+  lastName         String
+  phone            String?
+  email            String?
+  reason           String?
+  source           String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId])
+  @@index([phone])
+  @@index([email])
+}
+
+/// Outcome log for a completed or attempted call. Idempotent by organization + idempotencyKey.
+model CallLog {
+  id               String   @id @default(cuid())
+  organizationId   String
+  conversationId   String
+  idempotencyKey   String
+  outcome          String
+  durationSeconds  Int?
+  summary          String?
+  recordingId      String?
+  createdAt        DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId])
+  @@index([conversationId])
+}
+
+/// A callback or message request queued for later delivery. Idempotent by organization + idempotencyKey.
+model CallbackRequest {
+  id                     String   @id @default(cuid())
+  organizationId         String
+  clientId               String
+  idempotencyKey         String
+  type                   String
+  message                String?
+  contactValue           String?
+  preferredCallbackTime  DateTime?
+  status                 String
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  client       Client     @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, idempotencyKey])
+  @@index([organizationId])
+  @@index([clientId])
+  @@index([status])
+}
+
+/// A call transfer record. Tracks transfer decisions and targets.
+model CallTransfer {
+  id               String   @id @default(cuid())
+  organizationId   String
+  conversationId   String
+  target           String
+  reason           String?
+  targetAgentId    String?
+  status           String
+  createdAt        DateTime @default(now())
+  completedAt      DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([conversationId])
+  @@index([status])
+}
+
+/// Idempotency key tracking for all write operations.
+model IdempotencyKey {
+  id             String   @id @default(cuid())
+  organizationId String
+  key            String
+  resourceType   String
+  resourceId     String?
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, key])
+  @@index([organizationId])
 }
 
 /// An insurance company / payer the organization bills. Reference data used to
@@ -713,6 +820,7 @@ model Client {
   admissions        Admission[]
   assessments       Assessment[]
   waitlistEntries   WaitlistEntry[]
+  callbackRequests  CallbackRequest[]
 
   @@unique([organizationId, mrn])
   @@index([organizationId])
