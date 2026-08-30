@@ -1,0 +1,11 @@
+export { PrismaService } from '../../../prisma/prisma.service';
+export { AuditService } from '../../../audit/audit.service';
+export { SMS_PROVIDER } from '../../../channels/sms.provider';
+export { EMAIL_PROVIDER } from '../../../channels/email.provider';
+export { JessieIntegrationService } from '../jessie-integration.service';
+export { JessieAuthGuard } from '../jessie-auth.guard';
+export { JessieIntegrationController } from '../jessie-integration.controller';
+export { ConfigService } from '@nestjs/config';
+export { CHAT_PROVIDER } from '../../../ai/chat/chat-provider.interface';
+export { ConversationsService } from '../conversations.service';
+export type { JessieContext } from '../jessie-auth.guard';

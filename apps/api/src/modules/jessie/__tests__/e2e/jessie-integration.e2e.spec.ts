@@ -3,14 +3,17 @@ import { INestApplication, ValidationPipe, VersioningType } from '@nestjs/common
 import { describe, expect, it, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import request from 'supertest';
 
-import { JessieIntegrationController } from '../../jessie-integration.controller';
-import { JessieIntegrationService } from '../../jessie-integration.service';
-import { JessieAuthGuard } from '../../jessie-auth.guard';
-import { PrismaService } from '../../../../prisma/prisma.service';
-import { AuditService } from '../../../../audit/audit.service';
-import { SMS_PROVIDER } from '../../../../channels/sms.provider';
-import { EMAIL_PROVIDER } from '../../../../channels/email.provider';
-import { ConfigService } from '@nestjs/config';
+import {
+  JessieIntegrationController,
+  JessieIntegrationService,
+  JessieAuthGuard,
+  PrismaService,
+  AuditService,
+  SMS_PROVIDER,
+  EMAIL_PROVIDER,
+  ConfigService,
+  CHAT_PROVIDER,
+} from '../test-tokens';
 
 import {
   lookupClientFixtures,
@@ -171,17 +174,26 @@ async function createTestModule(overrides?: {
   prisma.idempotencyKey.create.mockResolvedValue({});
   prisma.auditLog.create.mockResolvedValue({});
 
+  const jessieAuthGuard = new JessieAuthGuard(config, prisma);
+
   const module = await Test.createTestingModule({
     controllers: [JessieIntegrationController],
     providers: [
       JessieIntegrationService,
-      { provide: PrismaService, useValue: prisma },
-      { provide: AuditService, useValue: mockAuditService },
+      { provide: CHAT_PROVIDER, useValue: mockChatProvider },
       { provide: SMS_PROVIDER, useValue: mockSmsProvider },
       { provide: EMAIL_PROVIDER, useValue: mockEmailProvider },
-      { provide: ConfigService, useValue: config },
     ],
-  }).compile();
+  })
+    .overrideProvider(PrismaService)
+    .useValue(prisma)
+    .overrideProvider(AuditService)
+    .useValue(mockAuditService)
+    .overrideProvider(ConfigService)
+    .useValue(config)
+    .overrideProvider(JessieAuthGuard)
+    .useValue(jessieAuthGuard)
+    .compile();
 
   return module;
 }
