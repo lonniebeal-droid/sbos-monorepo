@@ -25,6 +25,11 @@ export interface AppConfig {
     twilioAuthToken?: string;
     twilioFromNumber?: string;
   };
+  redis: {
+    url?: string;
+    /** Enable Redis-backed throttler store for distributed rate limiting */
+    enableThrottlerStore?: boolean;
+  };
 }
 
 export default (): AppConfig => ({
@@ -57,5 +62,9 @@ export default (): AppConfig => ({
     twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
     twilioAuthToken: process.env.TWILIO_AUTH_TOKEN,
     twilioFromNumber: process.env.TWILIO_FROM_NUMBER,
+  },
+  redis: {
+    url: process.env.REDIS_URL,
+    enableThrottlerStore: process.env.REDIS_ENABLE_THROTTLER_STORE === 'true',
   },
 });

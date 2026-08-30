@@ -1,9 +1,10 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerStorageRedisService } from '@nest-lab/throttler-storage-redis';
 
-import configuration from './config/configuration';
+import configuration, { type AppConfig } from './config/configuration';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
@@ -36,6 +37,27 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { PlatformModule } from './modules/platform/platform.module';
 import { HealthController } from './modules/health/health.controller';
 
+/**
+ * Creates a Redis-backed throttler storage if REDIS_URL is configured and
+ * REDIS_ENABLE_THROTTLER_STORE=true. Falls back to in-memory storage otherwise.
+ * This enables distributed rate limiting for multi-instance deployments.
+ */
+async function createThrottlerStorage(configService: ConfigService<AppConfig, true>): Promise<ThrottlerStorageRedisService | undefined> {
+  const redisConfig = configService.get('redis', { infer: true });
+  if (!redisConfig?.url || !redisConfig?.enableThrottlerStore) {
+    return undefined; // Use default in-memory storage
+  }
+
+  try {
+    const storage = new ThrottlerStorageRedisService(redisConfig.url);
+    console.log('[Throttler] Using Redis-backed storage for distributed rate limiting');
+    return storage;
+  } catch (error) {
+    console.warn('[Throttler] Failed to initialize Redis storage, falling back to in-memory:', error instanceof Error ? error.message : String(error));
+    return undefined;
+  }
+}
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -43,12 +65,22 @@ import { HealthController } from './modules/health/health.controller';
       load: [configuration],
       cache: true,
     }),
-    ThrottlerModule.forRoot([
-      {
-        ttl: 60_000,
-        limit: 120,
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService<AppConfig, true>) => {
+        const storage = await createThrottlerStorage(configService);
+        return {
+          throttlers: [
+            {
+              ttl: 60_000,
+              limit: 120,
+            },
+          ],
+          storage,
+        };
       },
-    ]),
+      inject: [ConfigService],
+    }),
     PrismaModule,
     AuditModule,
     AiModule,
