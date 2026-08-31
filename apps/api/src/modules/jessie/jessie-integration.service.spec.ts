@@ -15,18 +15,57 @@ function makeService(overrides?: {
   sms?: Partial<SmsProvider>;
   email?: Partial<EmailProvider>;
 }) {
+  const txMethods = {
+    lead: {
+      create: vi.fn().mockResolvedValue({ id: 'lead-1' }),
+      findUnique: vi.fn(),
+      ...(overrides?.prisma?.lead ?? {}),
+    },
+    appointment: {
+      create: vi.fn().mockResolvedValue({
+        id: 'appt-1',
+        status: 'CONFIRMED',
+        startTime: new Date('2026-09-15T10:00:00.000Z'),
+      }),
+      findFirst: vi.fn().mockResolvedValue(null),
+      findUnique: vi.fn(),
+      ...(overrides?.prisma?.appointment ?? {}),
+    },
+    clinician: {
+      findFirst: vi.fn().mockResolvedValue({ id: 'clin-1' }),
+      ...(overrides?.prisma?.clinician ?? {}),
+    },
+    callbackRequest: {
+      create: vi.fn().mockResolvedValue({ id: 'cb-1' }),
+      findUnique: vi.fn(),
+      ...(overrides?.prisma?.callbackRequest ?? {}),
+    },
+    callLog: {
+      create: vi.fn().mockResolvedValue({ id: 'log-1' }),
+      findUnique: vi.fn(),
+      ...(overrides?.prisma?.callLog ?? {}),
+    },
+    idempotencyKey: {
+      findUnique: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      ...(overrides?.prisma?.idempotencyKey ?? {}),
+    },
+  };
+
   const basePrisma = {
-    client: { findFirst: vi.fn() },
-    lead: { create: vi.fn(), findUnique: vi.fn() },
-    appointment: { create: vi.fn(), findFirst: vi.fn(), findUnique: vi.fn() },
-    clinician: { findFirst: vi.fn() },
+    client: { findFirst: vi.fn(), ...(overrides?.prisma?.client ?? {}) },
+    lead: txMethods.lead,
+    appointment: txMethods.appointment,
+    clinician: txMethods.clinician,
     conversation: { findFirst: vi.fn() },
-    callTransfer: { create: vi.fn() },
-    callbackRequest: { create: vi.fn(), findUnique: vi.fn() },
-    callLog: { create: vi.fn(), findUnique: vi.fn() },
+    callTransfer: { create: vi.fn().mockResolvedValue({ id: 'transfer-1' }) },
+    callbackRequest: txMethods.callbackRequest,
+    callLog: txMethods.callLog,
     organization: { findUnique: vi.fn() },
-    idempotencyKey: { findUnique: vi.fn(), create: vi.fn() },
+    idempotencyKey: txMethods.idempotencyKey,
     auditLog: { create: vi.fn() },
+    $transaction: vi.fn(async (callback) => callback(txMethods)),
   };
   const prisma = { ...basePrisma, ...(overrides?.prisma ?? {}) } as unknown as PrismaService;
   const audit = { record: vi.fn(), ...(overrides?.audit ?? {}) } as unknown as AuditService;

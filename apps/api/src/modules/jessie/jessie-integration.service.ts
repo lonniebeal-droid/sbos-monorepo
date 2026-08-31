@@ -103,20 +103,195 @@ export class JessieIntegrationService {
     return { exists: false };
   }
 
-  private async recordIdempotency(
+  private isUniqueConstraintError(error: unknown): error is { code: string } {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: string }).code === 'P2002'
+    );
+  }
+
+  private async claimIdempotencyKey(
+    tx: any,
     organizationId: string,
     idempotencyKey: string,
     resourceType: string,
-    resourceId: string,
   ): Promise<void> {
-    await this.prisma.idempotencyKey.create({
+    await tx.idempotencyKey.create({
       data: {
         organizationId,
         key: idempotencyKey,
         resourceType,
-        resourceId,
       },
     });
+  }
+
+  private async resolveExistingIdempotentResource<T>(
+    organizationId: string,
+    idempotencyKey: string,
+    resourceType: string,
+    loadById: (resourceId: string) => Promise<T | null>,
+  ): Promise<T | null> {
+    const existing = await this.prisma.idempotencyKey.findUnique({
+      where: { organizationId_key: { organizationId, key: idempotencyKey } },
+      select: { resourceId: true, resourceType: true },
+    });
+
+    if (!existing) {
+      return null;
+    }
+
+    if (existing.resourceType !== resourceType) {
+      throw new BadRequestException(
+        `Idempotency key ${idempotencyKey} already used for different resource type: ${existing.resourceType}`,
+      );
+    }
+
+    if (!existing.resourceId) {
+      return null;
+    }
+
+    return loadById(existing.resourceId);
+  }
+
+  private mapAppointmentStatus(status: string): 'CONFIRMED' | 'REQUESTED' {
+    return status === 'CONFIRMED' ? 'CONFIRMED' : 'REQUESTED';
+  }
+
+  private async createAppointmentWithinTransaction(
+    tx: any,
+    organizationId: string,
+    dto: CreateOrRequestAppointmentRequestDto,
+    preferredStart: Date,
+    preferredEnd: Date,
+    durationMinutes: number,
+  ): Promise<{
+    appointment: { id: string; status: string; startTime: Date };
+    status: 'CONFIRMED' | 'REQUESTED';
+    message?: string;
+  }> {
+    if (dto.preferredClinicianId) {
+      const clinician = await tx.clinician.findFirst({
+        where: { id: dto.preferredClinicianId, organizationId },
+        select: { id: true },
+      });
+
+      if (!clinician) {
+        throw new NotFoundException(`Clinician ${dto.preferredClinicianId} not found`);
+      }
+
+      const conflict = await tx.appointment.findFirst({
+        where: {
+          organizationId,
+          clinicianId: dto.preferredClinicianId,
+          status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+          startTime: { lt: preferredEnd },
+          endTime: { gt: preferredStart },
+        },
+        select: { id: true },
+      });
+
+      if (!conflict) {
+        const appointment = await tx.appointment.create({
+          data: {
+            organizationId,
+            clientId: dto.clientId,
+            clinicianId: dto.preferredClinicianId,
+            type: dto.type as any,
+            status: 'CONFIRMED',
+            startTime: preferredStart,
+            endTime: preferredEnd,
+            durationMinutes,
+            cptCode: dto.reason,
+          },
+        });
+
+        return { appointment, status: 'CONFIRMED' };
+      }
+
+      const appointment = await tx.appointment.create({
+        data: {
+          organizationId,
+          clientId: dto.clientId,
+          clinicianId: dto.preferredClinicianId,
+          type: dto.type as any,
+          status: 'SCHEDULED',
+          startTime: preferredStart,
+          endTime: preferredEnd,
+          durationMinutes,
+          cptCode: dto.reason,
+        },
+      });
+
+      return {
+        appointment,
+        status: 'REQUESTED',
+        message: 'Preferred clinician unavailable at requested time; request queued for review.',
+      };
+    }
+
+    const availableClinician = await tx.clinician.findFirst({
+      where: {
+        organizationId,
+        isAcceptingNewClients: true,
+        appointments: {
+          none: {
+            status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+            startTime: { lt: preferredEnd },
+            endTime: { gt: preferredStart },
+          },
+        },
+      },
+      select: { id: true },
+    });
+
+    if (availableClinician) {
+      const appointment = await tx.appointment.create({
+        data: {
+          organizationId,
+          clientId: dto.clientId,
+          clinicianId: availableClinician.id,
+          type: dto.type as any,
+          status: 'CONFIRMED',
+          startTime: preferredStart,
+          endTime: preferredEnd,
+          durationMinutes,
+          cptCode: dto.reason,
+        },
+      });
+
+      return { appointment, status: 'CONFIRMED' };
+    }
+
+    const anyClinician = await tx.clinician.findFirst({
+      where: { organizationId, isAcceptingNewClients: true },
+      select: { id: true },
+    });
+
+    if (!anyClinician) {
+      throw new BadRequestException('No clinicians available to accept appointments');
+    }
+
+    const appointment = await tx.appointment.create({
+      data: {
+        organizationId,
+        clientId: dto.clientId,
+        clinicianId: anyClinician.id,
+        type: dto.type as any,
+        status: 'SCHEDULED',
+        startTime: preferredStart,
+        endTime: preferredEnd,
+        durationMinutes,
+        cptCode: dto.reason,
+      },
+    });
+
+    return {
+      appointment,
+      status: 'REQUESTED',
+      message: 'No clinician available at requested time; request queued for review.',
+    };
   }
 
   async lookupClient(
@@ -205,40 +380,79 @@ export class JessieIntegrationService {
         select: { id: true },
       });
 
-      await this.emitMakeEvent(ctx.organizationId, {
-        request_id: requestId,
-        conversation_id: 'capture-lead',
-        client_id: existingLead?.id ?? 'unknown',
-        event_type: 'capture_lead',
-        payload: { status: 'EXISTS', leadId: existingLead?.id },
-      });
+      if (!existingLead) {
+        throw new NotFoundException(
+          `Lead not found for idempotency key ${dto.idempotencyKey}`,
+        );
+      }
 
       return {
         success: true,
-        data: { leadId: existingLead!.id, status: 'EXISTS' },
+        data: { leadId: existingLead.id, status: 'EXISTS' },
         requestId,
       };
     }
 
-    const lead = await this.prisma.lead.create({
-      data: {
-        organizationId: ctx.organizationId,
-        idempotencyKey: dto.idempotencyKey,
-        firstName: dto.firstName,
-        lastName: dto.lastName,
-        phone: dto.phone,
-        email: dto.email,
-        reason: dto.reason,
-        source: dto.source,
-      },
-    });
+    let lead;
+    try {
+      lead = await this.prisma.$transaction(async (tx) => {
+        await this.claimIdempotencyKey(
+          tx,
+          ctx.organizationId,
+          dto.idempotencyKey,
+          'Lead',
+        );
 
-    await this.recordIdempotency(
-      ctx.organizationId,
-      dto.idempotencyKey,
-      'Lead',
-      lead.id,
-    );
+        const createdLead = await tx.lead.create({
+          data: {
+            organizationId: ctx.organizationId,
+            idempotencyKey: dto.idempotencyKey,
+            firstName: dto.firstName,
+            lastName: dto.lastName,
+            phone: dto.phone,
+            email: dto.email,
+            reason: dto.reason,
+            source: dto.source,
+          },
+        });
+
+        await tx.idempotencyKey.update({
+          where: {
+            organizationId_key: {
+              organizationId: ctx.organizationId,
+              key: dto.idempotencyKey,
+            },
+          },
+          data: {
+            resourceId: createdLead.id,
+          },
+        });
+
+        return createdLead;
+      });
+    } catch (error: any) {
+      if (this.isUniqueConstraintError(error)) {
+        const existingLead = await this.resolveExistingIdempotentResource(
+          ctx.organizationId,
+          dto.idempotencyKey,
+          'Lead',
+          (resourceId) =>
+            this.prisma.lead.findUnique({
+              where: { id: resourceId },
+              select: { id: true },
+            }),
+        );
+
+        if (existingLead) {
+          return {
+            success: true,
+            data: { leadId: existingLead.id, status: 'EXISTS' },
+            requestId,
+          };
+        }
+      }
+      throw error;
+    }
 
     await this.audit.record({
       organizationId: ctx.organizationId,
@@ -282,20 +496,21 @@ export class JessieIntegrationService {
         select: { id: true, status: true, startTime: true },
       });
 
-      await this.emitMakeEvent(ctx.organizationId, {
-        request_id: requestId,
-        conversation_id: 'create-appointment',
-        client_id: dto.clientId,
-        event_type: 'create_or_request_appointment',
-        payload: { status: 'EXISTS', appointmentId: existingAppointment?.id },
-      });
+      if (!existingAppointment) {
+        throw new NotFoundException(
+          `Appointment not found for idempotency key ${dto.idempotencyKey}`,
+        );
+      }
 
       return {
         success: true,
         data: {
-          appointmentId: existingAppointment!.id,
-          status: existingAppointment!.status === 'SCHEDULED' ? 'CONFIRMED' : 'REQUESTED',
-          confirmedStartTime: existingAppointment!.startTime.toISOString(),
+          appointmentId: existingAppointment.id,
+          status: this.mapAppointmentStatus(existingAppointment.status),
+          confirmedStartTime:
+            existingAppointment.status === 'CONFIRMED'
+              ? existingAppointment.startTime.toISOString()
+              : undefined,
         },
         requestId,
       };
@@ -314,124 +529,71 @@ export class JessieIntegrationService {
     const durationMinutes = dto.durationMinutes ? parseInt(dto.durationMinutes, 10) : 60;
     const preferredEnd = new Date(preferredStart.getTime() + durationMinutes * 60_000);
 
-    let appointment;
-    let status: 'CONFIRMED' | 'REQUESTED' = 'REQUESTED';
-    let message: string | undefined;
+    let appointmentResult;
+    try {
+      appointmentResult = await this.prisma.$transaction(async (tx) => {
+        await this.claimIdempotencyKey(
+          tx,
+          ctx.organizationId,
+          dto.idempotencyKey,
+          'Appointment',
+        );
 
-    if (dto.preferredClinicianId) {
-      const clinician = await this.prisma.clinician.findFirst({
-        where: { id: dto.preferredClinicianId, organizationId: ctx.organizationId },
-        select: { id: true },
-      });
+        const created = await this.createAppointmentWithinTransaction(
+          tx,
+          ctx.organizationId,
+          dto,
+          preferredStart,
+          preferredEnd,
+          durationMinutes,
+        );
 
-      if (!clinician) {
-        throw new NotFoundException(`Clinician ${dto.preferredClinicianId} not found`);
-      }
-
-      const conflict = await this.prisma.appointment.findFirst({
-        where: {
-          organizationId: ctx.organizationId,
-          clinicianId: dto.preferredClinicianId,
-          status: { notIn: ['CANCELLED', 'NO_SHOW'] },
-          startTime: { lt: preferredEnd },
-          endTime: { gt: preferredStart },
-        },
-        select: { id: true },
-      });
-
-      if (!conflict) {
-        appointment = await this.prisma.appointment.create({
-          data: {
-            organizationId: ctx.organizationId,
-            clientId: dto.clientId,
-            clinicianId: dto.preferredClinicianId,
-            type: dto.type as any,
-            startTime: preferredStart,
-            endTime: preferredEnd,
-            durationMinutes,
-            cptCode: dto.reason,
-          },
-        });
-        status = 'CONFIRMED';
-      } else {
-        appointment = await this.prisma.appointment.create({
-          data: {
-            organizationId: ctx.organizationId,
-            clientId: dto.clientId,
-            clinicianId: dto.preferredClinicianId,
-            type: dto.type as any,
-            startTime: preferredStart,
-            endTime: preferredEnd,
-            durationMinutes,
-            cptCode: dto.reason,
-            status: 'SCHEDULED',
-          },
-        });
-        message = 'Preferred clinician unavailable at requested time; request queued for review.';
-      }
-    } else {
-      const availableClinician = await this.prisma.clinician.findFirst({
-        where: {
-          organizationId: ctx.organizationId,
-          isAcceptingNewClients: true,
-          appointments: {
-            none: {
-              status: { notIn: ['CANCELLED', 'NO_SHOW'] },
-              startTime: { lt: preferredEnd },
-              endTime: { gt: preferredStart },
+        await tx.idempotencyKey.update({
+          where: {
+            organizationId_key: {
+              organizationId: ctx.organizationId,
+              key: dto.idempotencyKey,
             },
           },
-        },
-        select: { id: true },
+          data: {
+            resourceId: created.appointment.id,
+          },
+        });
+
+        return created;
       });
+    } catch (error: any) {
+      if (this.isUniqueConstraintError(error)) {
+        const existingAppointment = await this.resolveExistingIdempotentResource(
+          ctx.organizationId,
+          dto.idempotencyKey,
+          'Appointment',
+          (resourceId) =>
+            this.prisma.appointment.findUnique({
+              where: { id: resourceId },
+              select: { id: true, status: true, startTime: true },
+            }),
+        );
 
-      if (availableClinician) {
-        appointment = await this.prisma.appointment.create({
-          data: {
-            organizationId: ctx.organizationId,
-            clientId: dto.clientId,
-            clinicianId: availableClinician.id,
-            type: dto.type as any,
-            startTime: preferredStart,
-            endTime: preferredEnd,
-            durationMinutes,
-            cptCode: dto.reason,
-          },
-        });
-        status = 'CONFIRMED';
-      } else {
-        const anyClinician = await this.prisma.clinician.findFirst({
-          where: { organizationId: ctx.organizationId, isAcceptingNewClients: true },
-          select: { id: true },
-        });
-
-        if (!anyClinician) {
-          throw new BadRequestException('No clinicians available to accept appointments');
+        if (existingAppointment) {
+          return {
+            success: true,
+            data: {
+              appointmentId: existingAppointment.id,
+              status: this.mapAppointmentStatus(existingAppointment.status),
+              confirmedStartTime:
+                existingAppointment.status === 'CONFIRMED'
+                  ? existingAppointment.startTime.toISOString()
+                  : undefined,
+            },
+            requestId,
+          };
         }
-
-        appointment = await this.prisma.appointment.create({
-          data: {
-            organizationId: ctx.organizationId,
-            clientId: dto.clientId,
-            clinicianId: anyClinician.id,
-            type: dto.type as any,
-            startTime: preferredStart,
-            endTime: preferredEnd,
-            durationMinutes,
-            cptCode: dto.reason,
-            status: 'SCHEDULED',
-          },
-        });
-        message = 'No clinician available at requested time; request queued for review.';
       }
+      throw error;
     }
 
-    await this.recordIdempotency(
-      ctx.organizationId,
-      dto.idempotencyKey,
-      'Appointment',
-      appointment.id,
-    );
+    const { appointment, status, message } = appointmentResult;
 
     await this.audit.record({
       organizationId: ctx.organizationId,
@@ -447,7 +609,12 @@ export class JessieIntegrationService {
       conversation_id: 'create-appointment',
       client_id: dto.clientId,
       event_type: 'create_or_request_appointment',
-      payload: { status, appointmentId: appointment.id, confirmedStartTime: appointment.startTime.toISOString() },
+      payload: {
+        status,
+        appointmentId: appointment.id,
+        confirmedStartTime:
+          status === 'CONFIRMED' ? appointment.startTime.toISOString() : undefined,
+      },
     });
 
     return {
@@ -552,17 +719,15 @@ export class JessieIntegrationService {
         select: { id: true, status: true },
       });
 
-      await this.emitMakeEvent(ctx.organizationId, {
-        request_id: requestId,
-        conversation_id: 'send-message-callback',
-        client_id: dto.clientId,
-        event_type: 'send_message_or_callback_request',
-        payload: { status: 'EXISTS', requestId: existing?.id },
-      });
+      if (!existing) {
+        throw new NotFoundException(
+          `Callback request not found for idempotency key ${dto.idempotencyKey}`,
+        );
+      }
 
       return {
         success: true,
-        data: { requestId: existing!.id, status: 'EXISTS' },
+        data: { requestId: existing.id, status: 'EXISTS' },
         requestId,
       };
     }
@@ -576,25 +741,66 @@ export class JessieIntegrationService {
       throw new NotFoundException(`Client ${dto.clientId} not found`);
     }
 
-    const callbackRequest = await this.prisma.callbackRequest.create({
-      data: {
-        organizationId: ctx.organizationId,
-        clientId: dto.clientId,
-        idempotencyKey: dto.idempotencyKey,
-        type: dto.type,
-        message: dto.message,
-        contactValue: dto.contactValue,
-        preferredCallbackTime: dto.preferredCallbackTime ? new Date(dto.preferredCallbackTime) : null,
-        status: 'QUEUED',
-      },
-    });
+    let callbackRequest;
+    try {
+      callbackRequest = await this.prisma.$transaction(async (tx) => {
+        await this.claimIdempotencyKey(
+          tx,
+          ctx.organizationId,
+          dto.idempotencyKey,
+          'CallbackRequest',
+        );
 
-    await this.recordIdempotency(
-      ctx.organizationId,
-      dto.idempotencyKey,
-      'CallbackRequest',
-      callbackRequest.id,
-    );
+        const created = await tx.callbackRequest.create({
+          data: {
+            organizationId: ctx.organizationId,
+            clientId: dto.clientId,
+            idempotencyKey: dto.idempotencyKey,
+            type: dto.type,
+            message: dto.message,
+            contactValue: dto.contactValue,
+            preferredCallbackTime: dto.preferredCallbackTime ? new Date(dto.preferredCallbackTime) : null,
+            status: 'QUEUED',
+          },
+        });
+
+        await tx.idempotencyKey.update({
+          where: {
+            organizationId_key: {
+              organizationId: ctx.organizationId,
+              key: dto.idempotencyKey,
+            },
+          },
+          data: {
+            resourceId: created.id,
+          },
+        });
+
+        return created;
+      });
+    } catch (error: any) {
+      if (this.isUniqueConstraintError(error)) {
+        const existingCallbackRequest = await this.resolveExistingIdempotentResource(
+          ctx.organizationId,
+          dto.idempotencyKey,
+          'CallbackRequest',
+          (resourceId) =>
+            this.prisma.callbackRequest.findUnique({
+              where: { id: resourceId },
+              select: { id: true, status: true },
+            }),
+        );
+
+        if (existingCallbackRequest) {
+          return {
+            success: true,
+            data: { requestId: existingCallbackRequest.id, status: 'EXISTS' },
+            requestId,
+          };
+        }
+      }
+      throw error;
+    }
 
     await this.audit.record({
       organizationId: ctx.organizationId,
@@ -648,17 +854,15 @@ export class JessieIntegrationService {
         select: { id: true },
       });
 
-      await this.emitMakeEvent(ctx.organizationId, {
-        request_id: requestId,
-        conversation_id: dto.conversationId,
-        client_id: 'unknown',
-        event_type: 'log_call_outcome',
-        payload: { status: 'EXISTS', logId: existing?.id },
-      });
+      if (!existing) {
+        throw new NotFoundException(
+          `Call log not found for idempotency key ${dto.idempotencyKey}`,
+        );
+      }
 
       return {
         success: true,
-        data: { logId: existing!.id, status: 'EXISTS' },
+        data: { logId: existing.id, status: 'EXISTS' },
         requestId,
       };
     }
@@ -672,24 +876,65 @@ export class JessieIntegrationService {
       throw new NotFoundException(`Conversation ${dto.conversationId} not found`);
     }
 
-    const callLog = await this.prisma.callLog.create({
-      data: {
-        organizationId: ctx.organizationId,
-        conversationId: dto.conversationId,
-        idempotencyKey: dto.idempotencyKey,
-        outcome: dto.outcome,
-        durationSeconds: dto.durationSeconds ? parseInt(dto.durationSeconds, 10) : null,
-        summary: dto.summary,
-        recordingId: dto.recordingId,
-      },
-    });
+    let callLog;
+    try {
+      callLog = await this.prisma.$transaction(async (tx) => {
+        await this.claimIdempotencyKey(
+          tx,
+          ctx.organizationId,
+          dto.idempotencyKey,
+          'CallLog',
+        );
 
-    await this.recordIdempotency(
-      ctx.organizationId,
-      dto.idempotencyKey,
-      'CallLog',
-      callLog.id,
-    );
+        const created = await tx.callLog.create({
+          data: {
+            organizationId: ctx.organizationId,
+            conversationId: dto.conversationId,
+            idempotencyKey: dto.idempotencyKey,
+            outcome: dto.outcome,
+            durationSeconds: dto.durationSeconds ? parseInt(dto.durationSeconds, 10) : null,
+            summary: dto.summary,
+            recordingId: dto.recordingId,
+          },
+        });
+
+        await tx.idempotencyKey.update({
+          where: {
+            organizationId_key: {
+              organizationId: ctx.organizationId,
+              key: dto.idempotencyKey,
+            },
+          },
+          data: {
+            resourceId: created.id,
+          },
+        });
+
+        return created;
+      });
+    } catch (error: any) {
+      if (this.isUniqueConstraintError(error)) {
+        const existingCallLog = await this.resolveExistingIdempotentResource(
+          ctx.organizationId,
+          dto.idempotencyKey,
+          'CallLog',
+          (resourceId) =>
+            this.prisma.callLog.findUnique({
+              where: { id: resourceId },
+              select: { id: true },
+            }),
+        );
+
+        if (existingCallLog) {
+          return {
+            success: true,
+            data: { logId: existingCallLog.id, status: 'EXISTS' },
+            requestId,
+          };
+        }
+      }
+      throw error;
+    }
 
     await this.audit.record({
       organizationId: ctx.organizationId,
