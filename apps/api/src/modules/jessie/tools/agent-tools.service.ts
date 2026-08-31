@@ -14,6 +14,11 @@ import {
   SMS_PROVIDER,
   type SmsProvider,
 } from '../../../channels/sms.provider';
+import {
+  MAKE_WEBHOOK_PROVIDER,
+  type MakeWebhookProvider,
+  type MakeWebhookPayload,
+} from '../../../channels/make-webhook.provider';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AppointmentsService } from '../../appointments/appointments.service';
 import { AvailabilityService } from '../../scheduling/availability.service';
@@ -45,6 +50,7 @@ export class AgentToolsService {
     private readonly availability: AvailabilityService,
     @Inject(SMS_PROVIDER) private readonly sms: SmsProvider,
     @Inject(EMAIL_PROVIDER) private readonly email: EmailProvider,
+    @Inject(MAKE_WEBHOOK_PROVIDER) private readonly make: MakeWebhookProvider,
   ) {}
 
   private async ensureClientInOrg(
@@ -306,6 +312,49 @@ export class AgentToolsService {
     return { ok: false, tool, error, message };
   }
 
+  /**
+   * Send a Make.com webhook event after the business write completes.
+   * Idempotent replays return the stored business result and never re-send.
+   */
+  private async sendMakeEvent(
+    organizationId: string,
+    clientId: string,
+    event: 'lead_created' | 'lead_updated' | 'escalation_created',
+    conversationId: string | undefined,
+    data: Record<string, unknown>,
+    idempotentReplay: boolean,
+  ): Promise<{ ok: boolean; makeDelivered: boolean; makeError?: string }> {
+    if (idempotentReplay) {
+      return { ok: true, makeDelivered: false, makeError: 'idempotent_replay' };
+    }
+
+    const payload: MakeWebhookPayload = {
+      event,
+      organizationId,
+      clientId,
+      conversationId,
+      data,
+      timestamp: new Date().toISOString(),
+    };
+
+    try {
+      const result = await this.make.send(payload);
+      return {
+        ok: true,
+        makeDelivered: result.ok,
+        makeError: result.error,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.logger.error(`Make webhook provider threw: ${message}`);
+      return {
+        ok: true,
+        makeDelivered: false,
+        makeError: 'provider_exception',
+      };
+    }
+  }
+
   /** Complete an idempotency claim with a structured failure, then return it. */
   private async finishFail(
     claimId: string | undefined,
@@ -491,7 +540,22 @@ export class AgentToolsService {
         },
       };
       await this.completeIdempotent(claimId, organizationId, tool, dto.idempotencyKey, result, conversationId);
-      return result;
+      const makeResult = await this.sendMakeEvent(
+        organizationId,
+        updated.id,
+        'lead_updated',
+        conversationId,
+        { action: 'updated', escalation_required: false },
+        false,
+      );
+      return {
+        ...result,
+        data: {
+          ...result.data,
+          makeDelivered: makeResult.makeDelivered,
+          makeError: makeResult.makeError,
+        },
+      };
     }
 
     const mrn = `LEAD-${Date.now().toString(36).toUpperCase()}`;
@@ -523,7 +587,22 @@ export class AgentToolsService {
       },
     };
     await this.completeIdempotent(claimId, organizationId, tool, dto.idempotencyKey, result, conversationId);
-    return result;
+    const makeResult = await this.sendMakeEvent(
+      organizationId,
+      created.id,
+      'lead_created',
+      conversationId,
+      { action: 'created', escalation_required: false },
+      false,
+    );
+    return {
+      ...result,
+      data: {
+        ...result.data,
+        makeDelivered: makeResult.makeDelivered,
+        makeError: makeResult.makeError,
+      },
+    };
   }
 
   async checkCalendar(
@@ -902,6 +981,21 @@ export class AgentToolsService {
       message: 'Escalation task created for staff follow-up',
     };
     await this.completeIdempotent(claimId, organizationId, tool, dto.idempotencyKey, result, conversationId);
-    return result;
+    const makeResult = await this.sendMakeEvent(
+      organizationId,
+      dto.clientId ?? 'unknown',
+      'escalation_created',
+      conversationId,
+      { taskId: task.id, reason: dto.reason, escalation_required: true },
+      false,
+    );
+    return {
+      ...result,
+      data: {
+        ...result.data,
+        makeDelivered: makeResult.makeDelivered,
+        makeError: makeResult.makeError,
+      },
+    };
   }
 }

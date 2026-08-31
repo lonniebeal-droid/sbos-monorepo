@@ -3,6 +3,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import type { AppConfig } from '../../../config/configuration';
+import type { MakeWebhookProvider } from '../../../channels/make-webhook.provider';
 import { AgentToolsGuard } from './agent-tools.guard';
 import { AgentToolsService } from './agent-tools.service';
 
@@ -15,6 +16,7 @@ function makeService(overrides?: {
   availability?: Record<string, unknown>;
   sms?: Record<string, unknown>;
   email?: Record<string, unknown>;
+  make?: MakeWebhookProvider;
 }) {
   const prisma = {
     client: {
@@ -25,7 +27,7 @@ function makeService(overrides?: {
     },
     clinician: { findFirst: vi.fn() },
     location: { findFirst: vi.fn() },
-    user: { findFirst: vi.fn() },
+    user: { findFirst: vi.fn().mockResolvedValue({ id: 'u1' }) },
     conversation: { findFirst: vi.fn() },
     task: { create: vi.fn() },
     auditLog: {
@@ -64,15 +66,21 @@ function makeService(overrides?: {
     ...overrides?.email,
   };
 
+  const make = {
+    send: vi.fn().mockResolvedValue({ ok: true, statusCode: 200 }),
+    ...overrides?.make,
+  } satisfies MakeWebhookProvider;
+
   const service = new AgentToolsService(
     prisma as never,
     appointments as never,
     availability as never,
     sms as never,
     email as never,
+    make as never,
   );
 
-  return { service, prisma, appointments, availability, sms, email };
+  return { service, prisma, appointments, availability, sms, email, make };
 }
 
 describe('AgentToolsGuard', () => {
@@ -635,6 +643,56 @@ describe('AgentToolsService — atomic idempotency concurrency', () => {
     expect(a.ok || b.ok).toBe(true);
   });
 
+  it('two concurrent same-key lead requests create one client, complete one claim, and send Make once', async () => {
+    const make = {
+      send: vi.fn().mockResolvedValue({ ok: true, statusCode: 200 }),
+    } as MakeWebhookProvider;
+    const { service, prisma } = makeService({ make });
+    let createCalls = 0;
+    prisma.auditLog.create.mockImplementation(async () => {
+      createCalls += 1;
+      if (createCalls === 1) return { id: 'claim-winner' };
+      const err = new Error('Unique constraint failed on AuditLog');
+      (err as { code?: string }).code = 'P2002';
+      throw err;
+    });
+    prisma.auditLog.findFirst.mockResolvedValue({
+      id: 'claim-winner',
+      metadata: {
+        status: 'completed',
+        result: {
+          ok: true,
+          tool: 'save_or_update_lead',
+          data: {
+            action: 'created',
+            clientId: 'lead1',
+            makeDelivered: true,
+          },
+        },
+      },
+    });
+    prisma.client.create.mockResolvedValue({
+      id: 'lead1',
+      mrn: 'LEAD-ABC',
+      firstName: 'A',
+      lastName: 'B',
+      status: 'PROSPECT',
+    });
+
+    const key = 'concurrent-lead-key';
+    const [a, b] = await Promise.all([
+      service.saveOrUpdateLead(org, { firstName: 'A', lastName: 'B', idempotencyKey: key }),
+      service.saveOrUpdateLead(org, { firstName: 'A', lastName: 'B', idempotencyKey: key }),
+    ]);
+
+    expect(prisma.client.create).toHaveBeenCalledTimes(1);
+    expect(prisma.auditLog.update).toHaveBeenCalledTimes(1);
+    expect(make.send).toHaveBeenCalledTimes(1);
+    expect(a.ok).toBe(true);
+    expect(b.ok).toBe(true);
+    expect([a.idempotentReplay === true, b.idempotentReplay === true].filter(Boolean)).toHaveLength(1);
+  });
+
   it('different idempotency keys execute independently', async () => {
     const { service, prisma, sms } = makeService();
     let n = 0;
@@ -769,5 +827,53 @@ describe('AgentToolsService — atomic idempotency concurrency', () => {
     await service.sendSms(otherOrg, { to: '+1555', body: 'b', idempotencyKey: 'shared-key' });
     expect(sms.send).toHaveBeenCalledTimes(2);
     expect(creates).toEqual([org, otherOrg]);
+  });
+
+  it('two concurrent same-key escalations create one task, complete one claim, and send Make once', async () => {
+    const make = {
+      send: vi.fn().mockResolvedValue({ ok: true, statusCode: 200 }),
+    } as MakeWebhookProvider;
+    const { service, prisma } = makeService({ make });
+    let createCalls = 0;
+    prisma.auditLog.create.mockImplementation(async () => {
+      createCalls += 1;
+      if (createCalls === 1) return { id: 'claim-winner' };
+      const err = new Error('Unique constraint failed on AuditLog');
+      (err as { code?: string }).code = 'P2002';
+      throw err;
+    });
+    prisma.auditLog.findFirst.mockResolvedValue({
+      id: 'claim-winner',
+      metadata: {
+        status: 'completed',
+        result: {
+          ok: true,
+          tool: 'transfer_to_human',
+          data: {
+            taskId: 'task1',
+            makeDelivered: true,
+          },
+        },
+      },
+    });
+    prisma.task.create.mockResolvedValue({
+      id: 'task1',
+      status: 'OPEN',
+      priority: 'HIGH',
+      assigneeId: null,
+    });
+
+    const key = 'concurrent-escalation-key';
+    const [a, b] = await Promise.all([
+      service.transferToHuman(org, { reason: 'Help', idempotencyKey: key }),
+      service.transferToHuman(org, { reason: 'Help', idempotencyKey: key }),
+    ]);
+
+    expect(prisma.task.create).toHaveBeenCalledTimes(1);
+    expect(prisma.auditLog.update).toHaveBeenCalledTimes(1);
+    expect(make.send).toHaveBeenCalledTimes(1);
+    expect(a.ok).toBe(true);
+    expect(b.ok).toBe(true);
+    expect([a.idempotentReplay === true, b.idempotentReplay === true].filter(Boolean)).toHaveLength(1);
   });
 });

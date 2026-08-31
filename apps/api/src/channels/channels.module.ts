@@ -14,10 +14,16 @@ import {
   TwilioSmsProvider,
   type SmsProvider,
 } from './sms.provider';
+import {
+  ConsoleMakeWebhookProvider,
+  HttpMakeWebhookProvider,
+  MAKE_WEBHOOK_PROVIDER,
+  type MakeWebhookProvider,
+} from './make-webhook.provider';
 
 /**
- * Delivery channels (email + SMS). Each binds to a hosted provider when its
- * credentials are configured (Resend / Twilio), otherwise a console provider
+ * Delivery channels (email + SMS + Make webhook). Each binds to a hosted
+ * provider when its credentials are configured, otherwise a console provider
  * that logs the message — so the wiring is complete and testable without keys.
  */
 @Global()
@@ -25,6 +31,7 @@ import {
   providers: [
     ConsoleEmailProvider,
     ConsoleSmsProvider,
+    ConsoleMakeWebhookProvider,
     {
       provide: EMAIL_PROVIDER,
       inject: [ConfigService, ConsoleEmailProvider],
@@ -59,7 +66,22 @@ import {
         return console;
       },
     },
+    {
+      provide: MAKE_WEBHOOK_PROVIDER,
+      inject: [ConfigService, ConsoleMakeWebhookProvider],
+      useFactory: (
+        configService: ConfigService<AppConfig, true>,
+        console: ConsoleMakeWebhookProvider,
+      ): MakeWebhookProvider => {
+        const make = configService.get('make', { infer: true });
+        if (make?.webhookUrl) {
+          new Logger('ChannelsModule').log('Make webhook provider: HTTP');
+          return new HttpMakeWebhookProvider(make.webhookUrl);
+        }
+        return console;
+      },
+    },
   ],
-  exports: [EMAIL_PROVIDER, SMS_PROVIDER],
+  exports: [EMAIL_PROVIDER, SMS_PROVIDER, MAKE_WEBHOOK_PROVIDER],
 })
 export class ChannelsModule {}

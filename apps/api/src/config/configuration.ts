@@ -27,6 +27,9 @@ export interface AppConfig {
     twilioAuthToken?: string;
     twilioFromNumber?: string;
   };
+  make?: {
+    webhookUrl?: string;
+  };
   /**
    * Jessie / ElevenLabs agent tool auth.
    * Map of agentSecret → organizationId (never trust org from the request body).
@@ -72,6 +75,9 @@ export default (): AppConfig => {
       twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
       twilioAuthToken: process.env.TWILIO_AUTH_TOKEN,
       twilioFromNumber: process.env.TWILIO_FROM_NUMBER,
+    },
+    make: {
+      webhookUrl: process.env.JESSIE_MAKE_WEBHOOK_URL,
     },
     jessieAgent: {
       secrets: parsed.secrets,
