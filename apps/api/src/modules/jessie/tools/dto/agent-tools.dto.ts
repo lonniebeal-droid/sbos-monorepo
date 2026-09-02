@@ -119,7 +119,7 @@ export class CheckCalendarDto extends AgentToolBaseDto {
   @IsDateString()
   date!: string;
 
-  @ApiPropertyOptional({ example: 50, default: 50 })
+  @ApiPropertyOptional({ example: 50 })
   @IsOptional()
   @IsInt()
   @Min(5)
@@ -223,6 +223,9 @@ export class TransferToHumanDto extends AgentToolBaseDto {
   @IsString()
   assigneeId?: string;
 }
+
+/** Optional body for get_business_information (org resolved from agent secret). */
+export class GetBusinessInformationDto extends AgentToolBaseDto {}
 
 /** Concise structured tool result for voice agents. */
 export interface AgentToolResult {

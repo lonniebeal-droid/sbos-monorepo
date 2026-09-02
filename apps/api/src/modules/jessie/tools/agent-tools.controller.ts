@@ -24,6 +24,7 @@ import {
   SendEmailDto,
   SendSmsDto,
   TransferToHumanDto,
+  GetBusinessInformationDto,
 } from './dto/agent-tools.dto';
 
 type AgentRequest = Request & { agentOrganizationId: string };
@@ -99,5 +100,15 @@ export class AgentToolsController {
   @ApiOperation({ summary: 'Escalate to staff via a high-priority task' })
   transferToHuman(@Req() req: AgentRequest, @Body() dto: TransferToHumanDto) {
     return this.tools.transferToHuman(this.org(req), dto);
+  }
+
+  @Post('get_business_information')
+  @HttpCode(200)
+  @ApiOperation({ summary: 'Organization business profile (services, FAQ, hours) for the agent org' })
+  getBusinessInformation(
+    @Req() req: AgentRequest,
+    @Body() dto: GetBusinessInformationDto,
+  ) {
+    return this.tools.getBusinessInformation(this.org(req), dto);
   }
 }
