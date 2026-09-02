@@ -20,6 +20,7 @@ import { AvailabilityService } from '../../scheduling/availability.service';
 import type {
   AgentToolResult,
   CheckCalendarDto,
+  GetBusinessInformationDto,
   LookupClientDto,
   SaveOrUpdateLeadDto,
   ScheduleAppointmentDto,
@@ -903,5 +904,95 @@ export class AgentToolsService {
     };
     await this.completeIdempotent(claimId, organizationId, tool, dto.idempotencyKey, result, conversationId);
     return result;
+  }
+
+  async getBusinessInformation(
+    organizationId: string,
+    dto: GetBusinessInformationDto,
+  ): Promise<AgentToolResult> {
+    const tool = 'get_business_information';
+    const conversationId = this.resolveConversationId(dto);
+    const claim = await this.claimIdempotent(
+      organizationId,
+      tool,
+      dto.idempotencyKey,
+      conversationId,
+    );
+    if (claim.kind === 'replay') return claim.result;
+    const claimId = claim.kind === 'claimed' ? claim.claimId : undefined;
+
+    const convFail = await this.validateConversationContext(organizationId, tool, dto);
+    if (convFail) {
+      await this.completeIdempotent(
+        claimId,
+        organizationId,
+        tool,
+        dto.idempotencyKey,
+        convFail,
+        conversationId,
+      );
+      return convFail;
+    }
+
+    try {
+      const [services, faqArticles, hoursArticles] = await Promise.all([
+        this.prisma.serviceCode.findMany({
+          where: { organizationId, isActive: true },
+          select: { code: true, description: true, defaultFee: true },
+          orderBy: { code: 'asc' },
+        }),
+        this.prisma.knowledgeArticle.findMany({
+          where: {
+            organizationId,
+            isPublished: true,
+            tags: { has: 'faq' },
+          },
+          select: { title: true, body: true },
+          orderBy: { title: 'asc' },
+        }),
+        this.prisma.knowledgeArticle.findMany({
+          where: {
+            organizationId,
+            isPublished: true,
+            tags: { has: 'hours' },
+          },
+          select: { title: true, body: true },
+          orderBy: { title: 'asc' },
+        }),
+      ]);
+
+      const result: AgentToolResult = {
+        ok: true,
+        tool,
+        data: {
+          services: services.map((s) => ({
+            code: s.code,
+            description: s.description,
+            defaultFee: s.defaultFee.toString(),
+          })),
+          faq: faqArticles.map((a) => ({
+            question: a.title,
+            answer: a.body,
+          })),
+          hours: hoursArticles.map((a) => ({
+            label: a.title,
+            details: a.body,
+          })),
+        },
+      };
+      await this.completeIdempotent(claimId, organizationId, tool, dto.idempotencyKey, result, conversationId);
+      return result;
+    } catch (err) {
+      this.logger.warn(`get_business_information failed: ${(err as Error).message}`);
+      return this.finishFail(
+        claimId,
+        organizationId,
+        tool,
+        dto.idempotencyKey,
+        'query_failed',
+        (err as Error).message || 'Failed to load business information',
+        conversationId,
+      );
+    }
   }
 }

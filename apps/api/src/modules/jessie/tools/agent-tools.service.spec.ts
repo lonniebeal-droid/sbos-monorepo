@@ -33,6 +33,12 @@ function makeService(overrides?: {
       create: vi.fn().mockResolvedValue({ id: 'claim-1' }),
       update: vi.fn().mockResolvedValue({}),
     },
+    serviceCode: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    knowledgeArticle: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
     ...overrides?.prisma,
   };
 
@@ -769,5 +775,67 @@ describe('AgentToolsService — atomic idempotency concurrency', () => {
     await service.sendSms(otherOrg, { to: '+1555', body: 'b', idempotencyKey: 'shared-key' });
     expect(sms.send).toHaveBeenCalledTimes(2);
     expect(creates).toEqual([org, otherOrg]);
+  });
+
+  describe('getBusinessInformation', () => {
+    it('returns services, FAQ, and hours from database', async () => {
+      const { service, prisma } = makeService();
+      prisma.serviceCode.findMany.mockResolvedValue([
+        { code: '90834', description: '30-min check-in', defaultFee: { toString: () => '80.00' } },
+        { code: '90837', description: '50-min therapy', defaultFee: { toString: () => '150.00' } },
+      ]);
+      prisma.knowledgeArticle.findMany
+        .mockResolvedValueOnce([
+          { title: 'What insurance do you accept?', body: 'We accept most major plans.' },
+        ])
+        .mockResolvedValueOnce([
+          { title: 'Office Hours', body: 'Mon-Fri 9am-5pm' },
+        ]);
+
+      const res = await service.getBusinessInformation(org, {});
+      expect(res.ok).toBe(true);
+      expect(res.data?.services).toEqual([
+        { code: '90834', description: '30-min check-in', defaultFee: '80.00' },
+        { code: '90837', description: '50-min therapy', defaultFee: '150.00' },
+      ]);
+      expect(res.data?.faq).toEqual([
+        { question: 'What insurance do you accept?', answer: 'We accept most major plans.' },
+      ]);
+      expect(res.data?.hours).toEqual([
+        { label: 'Office Hours', details: 'Mon-Fri 9am-5pm' },
+      ]);
+    });
+
+    it('returns empty arrays when no data exists', async () => {
+      const { service } = makeService();
+      const res = await service.getBusinessInformation(org, {});
+      expect(res.ok).toBe(true);
+      expect(res.data?.services).toEqual([]);
+      expect(res.data?.faq).toEqual([]);
+      expect(res.data?.hours).toEqual([]);
+    });
+
+    it('enforces tenant filtering on all queries', async () => {
+      const { service, prisma } = makeService();
+      await service.getBusinessInformation(org, {});
+      expect(prisma.serviceCode.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ organizationId: org }) }),
+      );
+      // knowledgeArticle called twice (faq + hours)
+      expect(prisma.knowledgeArticle.findMany).toHaveBeenCalledTimes(2);
+      for (const call of prisma.knowledgeArticle.findMany.mock.calls) {
+        expect(call[0].where).toMatchObject({ organizationId: org });
+      }
+    });
+
+    it('rejects cross-tenant conversation context', async () => {
+      const { service, prisma } = makeService();
+      prisma.conversation.findFirst.mockResolvedValue(null);
+      const res = await service.getBusinessInformation(org, {
+        conversationId: 'foreign-conv',
+      });
+      expect(res.ok).toBe(false);
+      expect(res.error).toBe('not_found');
+    });
   });
 });
