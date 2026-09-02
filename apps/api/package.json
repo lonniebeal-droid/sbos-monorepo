@@ -34,11 +34,14 @@
   "devDependencies": {
     "@nestjs/cli": "^10.4.9",
     "@nestjs/schematics": "^10.2.3",
+    "@nestjs/testing": "10.4.15",
     "@types/bcryptjs": "^2.4.6",
     "@types/express": "^5.0.0",
     "@types/node": "^22.10.5",
     "@types/passport-jwt": "^4.0.1",
     "@types/qrcode": "^1.5.5",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.2.2",
     "typescript": "^5.7.2",
     "vitest": "^3.2.6"
   }
