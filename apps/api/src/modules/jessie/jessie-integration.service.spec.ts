@@ -25,6 +25,8 @@ function makeService(overrides?: {
     callbackRequest: { create: vi.fn(), findUnique: vi.fn() },
     callLog: { create: vi.fn(), findUnique: vi.fn() },
     organization: { findUnique: vi.fn() },
+  serviceCode: { findMany: vi.fn().mockResolvedValue([]) },
+  knowledgeArticle: { findMany: vi.fn().mockResolvedValue([]) },
     idempotencyKey: { findUnique: vi.fn(), create: vi.fn() },
     auditLog: { create: vi.fn() },
   };
@@ -412,7 +414,24 @@ describe('JessieIntegrationService', () => {
   });
 
   describe('getBusinessInformation', () => {
-    it('returns tenant-scoped business info', async () => {
+    it('returns tenant-scoped business info with DB-backed services, faq, and hours', async () => {
+      const serviceCodeFindMany = vi.fn().mockResolvedValue([
+        { description: 'AI Receptionist' },
+        { description: 'Lead Capture' },
+      ]);
+      const knowledgeArticleFindMany = vi.fn().mockResolvedValue([
+        {
+          title: 'Business Hours',
+          body: 'Monday-Friday 9am-6pm',
+          tags: ['hours'],
+        },
+        {
+          title: 'What services do you offer?',
+          body: 'We provide AI receptionist and lead capture services.',
+          tags: ['faq', 'services'],
+        },
+      ]);
+
       const { service } = makeService({
         prisma: {
           organization: {
@@ -428,6 +447,8 @@ describe('JessieIntegrationService', () => {
               timezone: 'America/New_York',
             }),
           },
+          serviceCode: { findMany: serviceCodeFindMany },
+          knowledgeArticle: { findMany: knowledgeArticleFindMany },
           auditLog: { create: vi.fn().mockResolvedValue({}) },
         },
       });
@@ -438,6 +459,78 @@ describe('JessieIntegrationService', () => {
       expect(result.data!.name).toBe('Test Org');
       expect(result.data!.address).toContain('123 Main St');
       expect(result.data!.timezone).toBe('America/New_York');
+      expect(result.data!.hours).toBe('Monday-Friday 9am-6pm');
+      expect(result.data!.services).toEqual(['AI Receptionist', 'Lead Capture']);
+      expect(result.data!.faq).toEqual([
+        {
+          question: 'Business Hours',
+          answer: 'Monday-Friday 9am-6pm',
+          tags: ['hours'],
+        },
+        {
+          question: 'What services do you offer?',
+          answer: 'We provide AI receptionist and lead capture services.',
+          tags: ['faq', 'services'],
+        },
+      ]);
+
+      expect(serviceCodeFindMany).toHaveBeenCalledWith({
+        where: {
+          organizationId: 'org-1',
+          isActive: true,
+        },
+        select: {
+          description: true,
+        },
+        orderBy: {
+          code: 'asc',
+        },
+      });
+
+      expect(knowledgeArticleFindMany).toHaveBeenCalledWith({
+        where: {
+          organizationId: 'org-1',
+          isPublished: true,
+        },
+        select: {
+          title: true,
+          body: true,
+          tags: true,
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+      });
+    });
+
+    it('returns empty services and faq with no invented hours when no business content exists', async () => {
+      const { service } = makeService({
+        prisma: {
+          organization: {
+            findUnique: vi.fn().mockResolvedValue({
+              name: 'Empty Org',
+              phone: null,
+              email: null,
+              addressLine1: null,
+              addressLine2: null,
+              city: null,
+              state: null,
+              postalCode: null,
+              timezone: 'America/New_York',
+            }),
+          },
+          serviceCode: { findMany: vi.fn().mockResolvedValue([]) },
+          knowledgeArticle: { findMany: vi.fn().mockResolvedValue([]) },
+          auditLog: { create: vi.fn().mockResolvedValue({}) },
+        },
+      });
+
+      const result = await service.getBusinessInformation(ctx);
+
+      expect(result.success).toBe(true);
+      expect(result.data!.services).toEqual([]);
+      expect(result.data!.faq).toEqual([]);
+      expect(result.data!.hours).toBeUndefined();
     });
   });
 });

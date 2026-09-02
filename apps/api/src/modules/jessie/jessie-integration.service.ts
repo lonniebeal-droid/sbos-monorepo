@@ -747,13 +747,51 @@ export class JessieIntegrationService {
       organization.postalCode,
     ].filter(Boolean);
 
+    const [serviceCodes, knowledgeArticles] = await Promise.all([
+      this.prisma.serviceCode.findMany({
+        where: {
+          organizationId: ctx.organizationId,
+          isActive: true,
+        },
+        select: {
+          description: true,
+        },
+        orderBy: {
+          code: 'asc',
+        },
+      }),
+      this.prisma.knowledgeArticle.findMany({
+        where: {
+          organizationId: ctx.organizationId,
+          isPublished: true,
+        },
+        select: {
+          title: true,
+          body: true,
+          tags: true,
+        },
+        orderBy: {
+          createdAt: 'asc',
+        },
+      }),
+    ]);
+
+    const hoursArticle = knowledgeArticles.find((article) =>
+      article.tags.some((tag) => /hour|hours|schedule|open/i.test(tag)),
+    );
+
     const response: GetBusinessInformationResponseDto = {
       name: organization.name,
       phone: organization.phone ?? undefined,
       email: organization.email ?? undefined,
       address: addressParts.length > 0 ? addressParts.join(', ') : undefined,
-      hours: 'Mon-Fri 9am-6pm, Sat 10am-2pm',
-      services: ['Individual Therapy', 'Group Therapy', 'Medication Management', 'Crisis Intervention'],
+      hours: hoursArticle?.body,
+      services: serviceCodes.map((service) => service.description),
+      faq: knowledgeArticles.map((article) => ({
+        question: article.title,
+        answer: article.body,
+        tags: article.tags,
+      })),
       timezone: organization.timezone,
     };
 

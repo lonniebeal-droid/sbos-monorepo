@@ -315,6 +315,20 @@ export class LogCallOutcomeResponseDto {
   status!: 'LOGGED' | 'EXISTS';
 }
 
+export class BusinessFaqItemDto {
+  @ApiProperty({ example: 'What services do you offer?' })
+  @IsString()
+  question!: string;
+
+  @ApiProperty({ example: 'We provide the services listed in our business profile.' })
+  @IsString()
+  answer!: string;
+
+  @ApiProperty({ type: [String], example: ['services', 'faq'] })
+  @IsString({ each: true })
+  tags!: string[];
+}
+
 export class GetBusinessInformationResponseDto {
   @ApiProperty({ example: 'Success Behavioral Health' })
   @IsString()
@@ -349,6 +363,12 @@ export class GetBusinessInformationResponseDto {
   @IsOptional()
   @IsString({ each: true })
   services?: string[];
+
+  @ApiPropertyOptional({ type: [BusinessFaqItemDto] })
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => BusinessFaqItemDto)
+  faq?: BusinessFaqItemDto[];
 
   @ApiPropertyOptional({ example: 'America/New_York' })
   @IsOptional()
