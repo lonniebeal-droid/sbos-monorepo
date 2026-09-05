@@ -141,11 +141,26 @@ export class ConversationsService {
     return assistantMessage;
   }
 
-  async close(organizationId: string, id: string) {
-    await this.get(organizationId, id);
-    return this.prisma.conversation.update({
+  async close(organizationId: string, actorId: string, id: string) {
+    const existing = await this.get(organizationId, id);
+    const updated = await this.prisma.conversation.update({
       where: { id },
       data: { status: 'CLOSED' },
     });
+
+    await this.audit.record({
+      organizationId,
+      actorId,
+      action: AuditAction.UPDATE,
+      entityType: 'Conversation',
+      entityId: id,
+      metadata: {
+        previousStatus: existing.status,
+        newStatus: 'CLOSED',
+        kind: existing.kind,
+      },
+    });
+
+    return updated;
   }
 }

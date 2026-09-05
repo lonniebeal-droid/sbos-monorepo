@@ -31,6 +31,7 @@ function makeService(overrides?: {
   jwtService?: Record<string, unknown>;
   mfaService?: Record<string, unknown>;
   prisma?: Record<string, unknown>;
+  audit?: Record<string, unknown>;
 }) {
   const usersService = {
     validateCredentials: vi.fn(),
@@ -70,15 +71,18 @@ function makeService(overrides?: {
     (prisma as any).$transaction = vi.fn(async (fn: any) => fn(prisma));
   }
 
+  const audit = { record: vi.fn().mockResolvedValue(undefined), ...overrides?.audit };
+
   const service = new AuthService(
     usersService,
     jwtService as never,
     configService as never,
     mfaService as never,
     prisma as never,
+    audit as never,
   );
 
-  return { service, usersService, jwtService, mfaService, prisma };
+  return { service, usersService, jwtService, mfaService, prisma, audit };
 }
 
 describe('AuthService.login', () => {
@@ -235,7 +239,7 @@ describe('AuthService.refresh', () => {
 
     expect(usersService.findActiveById).toHaveBeenCalledWith('u1');
     expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
-      where: { jti: 'jti-1', revokedAt: null },
+      where: { jti: 'jti-1', revokedAt: null, expiresAt: { gt: expect.any(Date) } },
       data: { revokedAt: expect.any(Date) },
     });
     expect(jwtService.signAsync).toHaveBeenCalledTimes(2);
@@ -264,7 +268,7 @@ describe('AuthService.refresh', () => {
             expiresAt: new Date(Date.now() + 60_000),
           }),
           update: vi.fn(),
-          updateMany: vi.fn(),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         },
       },
     });
@@ -317,8 +321,9 @@ describe('AuthService.refresh', () => {
     await expect(service.refresh('stolen.token')).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledTimes(1);
     expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
-      where: { userId: 'u1', revokedAt: null },
+      where: { jti: 'jti-stolen', revokedAt: null, expiresAt: { gt: expect.any(Date) } },
       data: { revokedAt: expect.any(Date) },
     });
   });
@@ -339,7 +344,7 @@ describe('AuthService.refresh', () => {
             expiresAt: new Date(Date.now() - 60_000),
           }),
           update: vi.fn(),
-          updateMany: vi.fn(),
+          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
           create: vi.fn(),
         },
       },
@@ -390,6 +395,7 @@ describe('AuthService.resetPassword — regression: reset → new password works
     const prisma = {
       user: {
         findFirst: vi.fn().mockResolvedValue({ id: 'u1', email: 'admin@sbos.health' }),
+        findUnique: vi.fn().mockResolvedValue({ id: 'u1', organizationId: 'org1' }),
         // Capture exactly what resetPassword persists, as the DB would.
         update: vi.fn().mockImplementation(({ data }: { data: { passwordHash: string } }) => {
           storedHash.current = data.passwordHash;

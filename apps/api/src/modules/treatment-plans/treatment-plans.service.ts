@@ -16,7 +16,20 @@ export class TreatmentPlansService {
     private readonly audit: AuditService,
   ) {}
 
-  create(organizationId: string, dto: CreateTreatmentPlanDto) {
+  /** Ensure the client exists in this org (and is not soft-deleted). */
+  private async ensureClientInOrg(organizationId: string, clientId: string) {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+    return client;
+  }
+
+  async create(organizationId: string, dto: CreateTreatmentPlanDto) {
+    await this.ensureClientInOrg(organizationId, dto.clientId);
     return this.prisma.treatmentPlan.create({
       data: {
         organizationId,
@@ -69,17 +82,40 @@ export class TreatmentPlansService {
     return plan;
   }
 
-  async update(organizationId: string, id: string, dto: UpdateTreatmentPlanDto) {
-    await this.findOne(organizationId, id);
+  async update(
+    organizationId: string,
+    actorId: string,
+    id: string,
+    dto: UpdateTreatmentPlanDto,
+  ) {
+    const existing = await this.findOne(organizationId, id);
     const data: Prisma.TreatmentPlanUpdateInput = { ...dto };
     if (dto.status === 'COMPLETED' || dto.status === 'DISCONTINUED') {
       data.endDate = new Date();
     }
-    return this.prisma.treatmentPlan.update({ where: { id }, data });
+    const updated = await this.prisma.treatmentPlan.update({ where: { id }, data });
+
+    if (dto.status && dto.status !== existing.status) {
+      await this.audit.record({
+        organizationId,
+        actorId,
+        action: AuditAction.UPDATE,
+        entityType: 'TreatmentPlan',
+        entityId: id,
+        metadata: {
+          previousStatus: existing.status,
+          newStatus: dto.status,
+          clientId: existing.clientId,
+        },
+      });
+    }
+
+    return updated;
   }
 
   async updateGoal(
     organizationId: string,
+    actorId: string,
     planId: string,
     goalId: string,
     dto: UpdateGoalDto,
@@ -91,13 +127,37 @@ export class TreatmentPlansService {
     if (!goal) {
       throw new NotFoundException(`Goal ${goalId} not found on this plan`);
     }
-    return this.prisma.goal.update({
+    const updated = await this.prisma.goal.update({
       where: { id: goalId },
       data: {
         status: dto.status,
         progressPercent: dto.progressPercent,
       },
     });
+
+    const statusChanged =
+      dto.status !== undefined && dto.status !== goal.status;
+    const progressChanged =
+      dto.progressPercent !== undefined &&
+      dto.progressPercent !== goal.progressPercent;
+    if (statusChanged || progressChanged) {
+      await this.audit.record({
+        organizationId,
+        actorId,
+        action: AuditAction.UPDATE,
+        entityType: 'Goal',
+        entityId: goalId,
+        metadata: {
+          treatmentPlanId: planId,
+          previousStatus: goal.status,
+          newStatus: dto.status ?? goal.status,
+          previousProgressPercent: goal.progressPercent,
+          newProgressPercent: dto.progressPercent ?? goal.progressPercent,
+        },
+      });
+    }
+
+    return updated;
   }
 
   async remove(organizationId: string, actorId: string, id: string) {

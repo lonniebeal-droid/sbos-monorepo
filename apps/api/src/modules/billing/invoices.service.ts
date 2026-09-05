@@ -19,7 +19,21 @@ export class InvoicesService {
     return `INV-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
+  /** Ensure the client exists in this org (and is not soft-deleted). */
+  private async ensureClientInOrg(organizationId: string, clientId: string) {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+    return client;
+  }
+
   async create(organizationId: string, actorId: string, dto: CreateInvoiceDto) {
+    await this.ensureClientInOrg(organizationId, dto.clientId);
+
     const lineItems = dto.lineItems.map((item) => {
       const quantity = item.quantity ?? 1;
       const amount = roundCurrency(quantity * item.unitPrice);

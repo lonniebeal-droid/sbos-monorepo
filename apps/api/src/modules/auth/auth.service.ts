@@ -26,6 +26,8 @@ import * as bcrypt from 'bcryptjs';
 import * as crypto from 'node:crypto';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { AuditAction } from '@sbos/database';
+import { AuditService } from '../../audit/audit.service';
 
 @Injectable()
 export class AuthService {
@@ -37,6 +39,7 @@ export class AuthService {
     private readonly configService: ConfigService<AppConfig, true>,
     private readonly mfaService: MfaService,
     private readonly prisma: PrismaService,
+    private readonly audit: AuditService,
   ) {}
 
   private ttlToSeconds(ttl: string): number {
@@ -120,6 +123,10 @@ export class AuthService {
     }
 
     const tokens = await this.issueTokens(user);
+    await this.audit.record({
+      organizationId: user.organizationId, actorId: user.id, action: AuditAction.LOGIN,
+      entityType: 'User', entityId: user.id, metadata: { method: 'password' },
+    });
     return { ...tokens, user };
   }
 
@@ -149,6 +156,10 @@ export class AuthService {
 
     const user = await this.usersService.findById(payload.sub);
     const tokens = await this.issueTokens(user);
+    await this.audit.record({
+      organizationId: user.organizationId, actorId: user.id, action: AuditAction.LOGIN,
+      entityType: 'User', entityId: user.id, metadata: { method: 'mfa' },
+    });
     return { ...tokens, user };
   }
 
@@ -177,6 +188,11 @@ export class AuthService {
       });
       await tx.refreshToken.deleteMany({ where: { userId } });
     });
+    const user = await this.usersService.findById(userId);
+    await this.audit.record({
+      organizationId: user.organizationId, actorId: userId, action: AuditAction.UPDATE,
+      entityType: 'User', entityId: userId, metadata: { securityEvent: 'mfa_enabled', sessionsInvalidated: true },
+    });
     return { enabled: true };
   }
 
@@ -196,6 +212,11 @@ export class AuthService {
       });
       await tx.refreshToken.deleteMany({ where: { userId } });
     });
+    const user = await this.usersService.findById(userId);
+    await this.audit.record({
+      organizationId: user.organizationId, actorId: userId, action: AuditAction.UPDATE,
+      entityType: 'User', entityId: userId, metadata: { securityEvent: 'mfa_disabled', sessionsInvalidated: true },
+    });
     return { enabled: false };
   }
 
@@ -210,23 +231,35 @@ export class AuthService {
     if (payload.type !== 'refresh' || !payload.jti || typeof payload.passwordVersion !== 'number') {
       throw new UnauthorizedException('Invalid refresh token');
     }
-    const stored = await this.prisma.refreshToken.findUnique({ where: { jti: payload.jti } });
-    if (!stored || stored.revokedAt) {
-      await this.prisma.refreshToken.updateMany({ where: { userId: payload.sub, revokedAt: null }, data: { revokedAt: new Date() } });
-      throw new UnauthorizedException('Refresh token has been revoked');
-    }
-    if (stored.expiresAt < new Date()) throw new UnauthorizedException('Refresh token has expired');
-    let user: UserEntity;
-    try { user = await this.usersService.findActiveById(payload.sub); }
-    catch { throw new UnauthorizedException('Account is no longer active'); }
-    if (user.passwordVersion !== payload.passwordVersion) throw new UnauthorizedException('Invalid or expired refresh token');
-    // Atomic claim prevents two concurrent presenters from both rotating the same token.
+
+    // Claim the presented refresh token atomically. This prevents two concurrent
+    // requests from both rotating the same jti. Expired tokens cannot be claimed.
+    const now = new Date();
     const claimed = await this.prisma.refreshToken.updateMany({
-      where: { jti: payload.jti, revokedAt: null }, data: { revokedAt: new Date() },
+      where: { jti: payload.jti, revokedAt: null, expiresAt: { gt: now } },
+      data: { revokedAt: now },
     });
     if (claimed.count !== 1) {
-      await this.prisma.refreshToken.updateMany({ where: { userId: payload.sub, revokedAt: null }, data: { revokedAt: new Date() } });
-      throw new UnauthorizedException('Refresh token has been revoked');
+      const stored = await this.prisma.refreshToken.findUnique({ where: { jti: payload.jti } });
+      // Reuse of a known revoked token is a theft signal; revoke the remaining family.
+      // An unknown or merely expired jti does not justify revoking unrelated sessions.
+      if (stored?.revokedAt) {
+        await this.prisma.refreshToken.updateMany({
+          where: { userId: payload.sub, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+      throw new UnauthorizedException('Invalid or revoked refresh token');
+    }
+
+    let user: UserEntity;
+    try {
+      user = await this.usersService.findActiveById(payload.sub);
+    } catch {
+      throw new UnauthorizedException('Account is no longer active');
+    }
+    if (user.passwordVersion !== payload.passwordVersion) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
     }
     return this.issueTokens(user);
   }
@@ -240,10 +273,16 @@ export class AuthService {
         { secret: jwtConfig.refreshSecret },
       );
       if (payload.jti) {
-        await this.prisma.refreshToken.updateMany({
+        const revoked = await this.prisma.refreshToken.updateMany({
           where: { jti: payload.jti, revokedAt: null },
           data: { revokedAt: new Date() },
         });
+        if (revoked.count > 0 && payload.sub && payload.organizationId) {
+          await this.audit.record({
+            organizationId: payload.organizationId, actorId: payload.sub, action: AuditAction.LOGOUT,
+            entityType: 'User', entityId: payload.sub, metadata: { sessionRevoked: true },
+          });
+        }
       }
     } catch {
       // Already invalid/expired — nothing to revoke.
@@ -286,12 +325,16 @@ export class AuthService {
       },
     });
 
-    await this.usersService.create(org.id, {
+    const admin = await this.usersService.create(org.id, {
       email: dto.adminEmail,
       password: dto.adminPassword,
       name: 'Administrator',
       role: Role.ORG_ADMIN,
     } as any);
+    await this.audit.record({
+      organizationId: org.id, actorId: admin.id, action: AuditAction.CREATE,
+      entityType: 'Organization', entityId: org.id, metadata: { source: 'bootstrap' },
+    });
 
     return { success: true };
   }
@@ -306,7 +349,7 @@ export class AuthService {
     const email = invite.email.trim().toLowerCase();
     const passwordHash = await bcrypt.hash(dto.password, 10);
     const [firstName, ...rest] = dto.name.trim().split(' ');
-    await this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       const claimed = await tx.userInvite.updateMany({
         where: { id: invite.id, usedAt: null, expiresAt: { gt: new Date() } },
         data: { usedAt: new Date() },
@@ -319,6 +362,11 @@ export class AuthService {
         lastName: rest.join(' '), role: invite.role,
       }});
       if (record.role === 'CLINICIAN') await tx.clinician.create({ data: { organizationId: record.organizationId, userId: record.id } });
+      return record;
+    });
+    await this.audit.record({
+      organizationId: invite.organizationId, actorId: created.id, action: AuditAction.CREATE,
+      entityType: 'User', entityId: created.id, metadata: { source: 'invite_accept', role: invite.role },
     });
     return { success: true };
   }
@@ -350,6 +398,10 @@ export class AuthService {
     if (reset.expiresAt <= new Date()) throw new BadRequestException('Reset token expired');
     if (!(await bcrypt.compare(dto.token, reset.tokenHash))) throw new BadRequestException('Invalid reset token');
     const passwordHash = await bcrypt.hash(dto.password, 10);
+    const user = await this.prisma.user.findUnique({
+      where: { id: reset.userId }, select: { id: true, organizationId: true },
+    });
+    if (!user) throw new BadRequestException('Invalid reset token');
     await this.prisma.$transaction(async (tx) => {
       const claimed = await tx.passwordReset.updateMany({
         where: { id: reset.id, usedAt: null, expiresAt: { gt: new Date() } }, data: { usedAt: new Date() },
@@ -357,6 +409,10 @@ export class AuthService {
       if (claimed.count !== 1) throw new BadRequestException('Reset token already used');
       await tx.user.update({ where: { id: reset.userId }, data: { passwordHash, passwordVersion: { increment: 1 } } });
       await tx.refreshToken.deleteMany({ where: { userId: reset.userId } });
+    });
+    await this.audit.record({
+      organizationId: user.organizationId, actorId: user.id, action: AuditAction.UPDATE,
+      entityType: 'User', entityId: user.id, metadata: { securityEvent: 'password_reset', sessionsInvalidated: true },
     });
     return { success: true };
   }

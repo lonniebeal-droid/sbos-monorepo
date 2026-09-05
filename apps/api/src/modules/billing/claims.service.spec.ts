@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 
 import { ClaimsService } from './claims.service';
@@ -39,15 +39,53 @@ describe('ClaimsService (transitions)', () => {
     expect(updated.status).toBe(ClaimStatus.SUBMITTED);
   });
 
-  it('records an audit entry when creating a claim', async () => {
+  it('creates a claim only after confirming the client belongs to the org', async () => {
     const created = { id: 'c-new', claimNumber: 'CLM-999', billedAmount: 50 };
-    const prisma = { claim: { create: vi.fn().mockResolvedValue(created) } } as any;
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+      claim: { create: vi.fn().mockResolvedValue(created) },
+    } as any;
     const audit = { record: vi.fn() } as any;
     const svc2 = new ClaimsService(prisma, audit);
-    const dto = { clientId: 'c1', appointmentId: 'a1', billedAmount: 50, serviceDate: '2026-08-23' } as any;
+    const dto = {
+      clientId: 'c1',
+      appointmentId: 'a1',
+      billedAmount: 50,
+      serviceDate: '2026-08-23',
+    } as any;
     const result = await svc2.create('org1', 'actor1', dto);
+    expect(prisma.client.findFirst).toHaveBeenCalledWith({
+      where: { id: 'c1', organizationId: 'org1', deletedAt: null },
+      select: { id: true },
+    });
     expect(prisma.claim.create).toHaveBeenCalled();
-    expect(audit.record).toHaveBeenCalledWith(expect.objectContaining({ action: expect.any(String), entityType: 'Claim', entityId: created.id }));
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: expect.any(String),
+        entityType: 'Claim',
+        entityId: created.id,
+      }),
+    );
     expect(result).toBe(created);
+  });
+
+  it('throws NotFoundException and never inserts when clientId is outside the org', async () => {
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue(null) },
+      claim: { create: vi.fn() },
+    } as any;
+    const audit = { record: vi.fn() } as any;
+    const svc2 = new ClaimsService(prisma, audit);
+    const dto = {
+      clientId: 'foreign-client',
+      appointmentId: 'a1',
+      billedAmount: 50,
+      serviceDate: '2026-08-23',
+    } as any;
+
+    await expect(svc2.create('org1', 'actor1', dto)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(prisma.claim.create).not.toHaveBeenCalled();
   });
 });

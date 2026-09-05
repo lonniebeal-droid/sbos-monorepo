@@ -60,7 +60,7 @@ export class TreatmentPlansController {
     @Param('id') id: string,
     @Body() dto: UpdateTreatmentPlanDto,
   ) {
-    return this.service.update(user.organizationId, id, dto);
+    return this.service.update(user.organizationId, user.id, id, dto);
   }
 
   @Patch(':id/goals/:goalId')
@@ -72,7 +72,7 @@ export class TreatmentPlansController {
     @Param('goalId') goalId: string,
     @Body() dto: UpdateGoalDto,
   ) {
-    return this.service.updateGoal(user.organizationId, id, goalId, dto);
+    return this.service.updateGoal(user.organizationId, user.id, id, goalId, dto);
   }
 
   @Delete(':id')
