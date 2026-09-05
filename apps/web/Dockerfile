@@ -24,8 +24,16 @@ RUN pnpm turbo run build --filter=@sbos/web
 FROM base AS runner
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
+# Railway may override the Docker CMD with a pnpm/Corepack start command.
+# The non-login nextjs user has /nonexistent as its passwd home, so give
+# runtime package-manager/cache writes an explicit writable location.
+ENV HOME=/tmp
+ENV XDG_CACHE_HOME=/tmp/.cache
+ENV COREPACK_HOME=/tmp/corepack
 RUN addgroup --system --gid 1001 nodejs \
-  && adduser --system --uid 1001 nextjs
+  && adduser --system --uid 1001 nextjs \
+  && mkdir -p /tmp/.cache /tmp/corepack \
+  && chown -R nextjs:nodejs /tmp/.cache /tmp/corepack
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/.next/static ./apps/web/.next/static
 COPY --from=builder --chown=nextjs:nodejs /app/apps/web/public ./apps/web/public
