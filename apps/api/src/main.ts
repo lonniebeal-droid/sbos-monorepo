@@ -131,7 +131,7 @@ async function bootstrap(): Promise<void> {
   });
 
   const port = configService.get('port', { infer: true });
-  await app.listen(port);
+  await app.listen(port, '0.0.0.0');
   // eslint-disable-next-line no-console
   console.log(`SBOS API listening on http://localhost:${port} (docs at /docs)`);
 }
