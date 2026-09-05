@@ -8,10 +8,14 @@ import type {
   AuthenticatedUser,
   JwtPayload,
 } from '../../../common/interfaces/authenticated-user.interface';
+import { UsersService } from '../../users/users.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
-  constructor(configService: ConfigService<AppConfig, true>) {
+  constructor(
+    configService: ConfigService<AppConfig, true>,
+    private readonly usersService: UsersService,
+  ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
@@ -19,16 +23,16 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: JwtPayload): AuthenticatedUser {
+  async validate(payload: JwtPayload): Promise<AuthenticatedUser> {
     if (payload.type !== 'access') {
       throw new UnauthorizedException('Invalid token type');
     }
-    return {
-      id: payload.sub,
-      email: payload.email,
-      name: payload.name,
-      role: payload.role,
-      organizationId: payload.organizationId,
-    };
+    try {
+      // Resolve identity from the current account record so deactivation and
+      // role/org changes take effect immediately instead of waiting for expiry.
+      return await this.usersService.findActiveById(payload.sub);
+    } catch {
+      throw new UnauthorizedException('Account is no longer active');
+    }
   }
 }

@@ -13,11 +13,22 @@ export class DiagnosesService {
     private readonly audit: AuditService,
   ) {}
 
-  create(organizationId: string, dto: CreateDiagnosisDto) {
+  async create(organizationId: string, dto: CreateDiagnosisDto) {
+    await this.assertClientInOrganization(organizationId, dto.clientId);
     const { clientId, ...rest } = dto;
     return this.prisma.diagnosis.create({
       data: { ...rest, clientId, organizationId },
     });
+  }
+
+  private async assertClientInOrganization(organizationId: string, clientId: string) {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
   }
 
   findForClient(organizationId: string, clientId: string) {

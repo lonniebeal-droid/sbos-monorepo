@@ -51,3 +51,22 @@ describe('DiagnosesService.remove', () => {
     expect(audit.record).not.toHaveBeenCalled();
   });
 });
+
+describe('DiagnosesService.create', () => {
+  it('rejects a client id that is not in the caller organization', async () => {
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue(null) },
+      diagnosis: { create: vi.fn() },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(
+      service.create('org1', {
+        clientId: 'client-in-other-org',
+        icd10Code: 'F41.1',
+        description: 'Generalized anxiety disorder',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.diagnosis.create).not.toHaveBeenCalled();
+  });
+});

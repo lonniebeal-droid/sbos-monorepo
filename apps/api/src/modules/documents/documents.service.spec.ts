@@ -80,3 +80,19 @@ describe('DocumentsService.findForClient (soft-delete filtering)', () => {
     );
   });
 });
+
+describe('DocumentsService.create', () => {
+  it('rejects an associated client from another organization before creating an upload', async () => {
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue(null) },
+      document: { create: vi.fn() },
+    } as unknown as PrismaService;
+    const { service, storage } = makeService({ prisma });
+
+    await expect(
+      service.create('org1', 'user1', { name: 'intake.pdf', clientId: 'other-org-client' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(storage.createUpload).not.toHaveBeenCalled();
+    expect(prisma.document.create).not.toHaveBeenCalled();
+  });
+});

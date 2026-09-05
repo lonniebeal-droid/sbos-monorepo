@@ -13,7 +13,8 @@ export class AssessmentsService {
     private readonly audit: AuditService,
   ) {}
 
-  create(organizationId: string, actorId: string, dto: CreateAssessmentDto) {
+  async create(organizationId: string, actorId: string, dto: CreateAssessmentDto) {
+    await this.assertClientInOrganization(organizationId, dto.clientId);
     const { clientId, administeredAt, responses, ...rest } = dto;
     return this.prisma.assessment.create({
       data: {
@@ -24,6 +25,16 @@ export class AssessmentsService {
         ...(responses ? { responses: responses as Prisma.InputJsonValue } : {}),
       },
     });
+  }
+
+  private async assertClientInOrganization(organizationId: string, clientId: string) {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
   }
 
   findForClient(organizationId: string, clientId: string) {

@@ -46,20 +46,21 @@ export class UsersController {
   @Get('me')
   @ApiOperation({ summary: 'Get the current authenticated user' })
   me(@CurrentUser() user: AuthenticatedUser) {
-    return this.usersService.findById(user.id);
+    return this.usersService.findByIdInOrganization(user.id, user.organizationId);
   }
 
   @Get(':id')
   @Roles(Role.SUPERVISOR)
   @ApiOperation({ summary: 'Get a user by id' })
-  findOne(@Param('id') id: string) {
-    return this.usersService.findById(id);
+  findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
+    return this.usersService.findByIdInOrganization(id, user.organizationId);
   }
 
   @Post()
   @Roles(Role.ORG_ADMIN)
   @ApiOperation({ summary: 'Create a new user' })
-  create(@Body() dto: CreateUserDto) {
-    return this.usersService.create(dto);
+  create(@Body() dto: CreateUserDto, @CurrentUser() user: AuthenticatedUser) {
+    // Tenant identity is established by the verified JWT, never request input.
+    return this.usersService.create(user.organizationId, dto);
   }
 }

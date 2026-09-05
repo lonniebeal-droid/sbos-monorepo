@@ -30,6 +30,10 @@ export function validateRuntimeConfig(config: AppConfig): void {
     problems.push('DATABASE_URL is not set');
   }
 
+  if (config.redis.enabled && !config.redis.url) {
+    problems.push('REDIS_RATE_LIMIT_ENABLED=true but REDIS_URL is not set');
+  }
+
   if (problems.length === 0) return;
 
   const summary = `Insecure/missing configuration:\n - ${problems.join('\n - ')}`;
