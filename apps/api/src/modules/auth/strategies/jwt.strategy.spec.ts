@@ -15,6 +15,7 @@ function makeStrategy(
       name: 'Riley Chen',
       role: Role.CLINICIAN,
       organizationId: 'org1',
+      passwordVersion: 1,
     }),
   },
 ): JwtStrategy {
@@ -36,6 +37,7 @@ const basePayload: JwtPayload = {
   role: Role.CLINICIAN,
   organizationId: 'org1',
   type: 'access',
+  passwordVersion: 1,
 };
 
 /** Passport verifies signature/expiry; this strategy rejects non-access

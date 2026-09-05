@@ -14,6 +14,10 @@ test("roleSatisfies: higher roles satisfy lower requirements", () => {
   assert.equal(roleSatisfies("CLINICIAN", "CLINICIAN"), true);
 });
 
+test('roleSatisfies: ORG_ADMIN never satisfies SUPER_ADMIN', () => {
+  assert.equal(roleSatisfies('ORG_ADMIN', 'SUPER_ADMIN'), false);
+});
+
 test("roleSatisfies: lower roles do not satisfy higher requirements", () => {
   assert.equal(roleSatisfies("CLINICIAN", "ORG_ADMIN"), false);
   assert.equal(roleSatisfies("FRONT_DESK", "SUPERVISOR"), false);

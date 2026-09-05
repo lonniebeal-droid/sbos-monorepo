@@ -34,6 +34,7 @@ export class UsersService {
       name: `${record.firstName} ${record.lastName}`.trim(),
       role: record.role as unknown as Role,
       organizationId: record.organizationId,
+      passwordVersion: record.passwordVersion,
       createdAt: record.createdAt.toISOString(),
     };
   }

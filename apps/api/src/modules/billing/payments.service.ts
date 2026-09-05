@@ -23,6 +23,18 @@ export class PaymentsService {
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
   ) {}
 
+  /** Ensure the client exists in this org (and is not soft-deleted). */
+  private async ensureClientInOrg(organizationId: string, clientId: string) {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+    return client;
+  }
+
   /**
    * Record a payment: charge via the configured provider, persist the payment,
    * and (when applied to an invoice) recompute the invoice balance/status.
@@ -32,6 +44,8 @@ export class PaymentsService {
     userId: string,
     dto: RecordPaymentDto,
   ) {
+    await this.ensureClientInOrg(organizationId, dto.clientId);
+
     // Card/ACH route through the provider; cash/check/adjustment are manual.
     const charge = await this.provider.charge({
       organizationId,

@@ -25,6 +25,9 @@ export class UserEntity {
   @ApiProperty({ example: 'org_success_brand' })
   organizationId!: string;
 
+  /** Internal session generation used for token invalidation; never a secret. */
+  passwordVersion!: number;
+
   @ApiProperty({ example: '2026-07-24T12:00:00.000Z' })
   createdAt!: string;
 }

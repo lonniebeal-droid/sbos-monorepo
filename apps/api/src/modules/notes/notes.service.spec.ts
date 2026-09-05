@@ -1,4 +1,8 @@
-import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { AuditAction, NoteStatus } from '@sbos/database';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -23,10 +27,101 @@ function makeService(overrides?: {
         provider: 'test',
       }),
     } as unknown as NoteAssistant);
-  return { service: new NotesService(prisma, audit, assistant), assistant };
+  return { service: new NotesService(prisma, audit, assistant), assistant, audit };
 }
 
 describe('NotesService', () => {
+  describe('create ownership', () => {
+    it('creates a note only after confirming the client belongs to the org', async () => {
+      const created = {
+        id: 'n1',
+        organizationId: 'org1',
+        clientId: 'c1',
+        type: 'PROGRESS',
+      };
+      const prisma = {
+        client: {
+          findFirst: vi.fn().mockResolvedValue({ id: 'c1' }),
+        },
+        note: {
+          create: vi.fn().mockResolvedValue(created),
+        },
+      } as unknown as PrismaService;
+      const { service, audit } = makeService({ prisma });
+
+      const result = await service.create('org1', 'author1', {
+        clientId: 'c1',
+        clinicianId: 'cl1',
+        type: NoteTypeDto.PROGRESS,
+        content: 'Session summary',
+      });
+
+      expect(prisma.client.findFirst).toHaveBeenCalledWith({
+        where: { id: 'c1', organizationId: 'org1', deletedAt: null },
+        select: { id: true },
+      });
+      expect(prisma.note.create).toHaveBeenCalled();
+      expect(audit.record).toHaveBeenCalledWith(
+        expect.objectContaining({
+          action: AuditAction.CREATE,
+          entityType: 'Note',
+          entityId: 'n1',
+        }),
+      );
+      expect(result).toEqual(created);
+    });
+
+    it('throws NotFoundException and never inserts when clientId is outside the org', async () => {
+      const prisma = {
+        client: {
+          findFirst: vi.fn().mockResolvedValue(null),
+        },
+        note: {
+          create: vi.fn(),
+        },
+      } as unknown as PrismaService;
+      const { service } = makeService({ prisma });
+
+      await expect(
+        service.create('org1', 'author1', {
+          clientId: 'foreign-client',
+          clinicianId: 'cl1',
+          type: NoteTypeDto.PROGRESS,
+          content: 'x',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(prisma.note.create).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException and never inserts when client is soft-deleted', async () => {
+      const prisma = {
+        client: {
+          findFirst: vi.fn().mockResolvedValue(null),
+        },
+        note: {
+          create: vi.fn(),
+        },
+      } as unknown as PrismaService;
+      const { service } = makeService({ prisma });
+
+      await expect(
+        service.create('org1', 'author1', {
+          clientId: 'deleted-client',
+          clinicianId: 'cl1',
+          type: NoteTypeDto.PROGRESS,
+          content: 'x',
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(prisma.client.findFirst).toHaveBeenCalledWith({
+        where: { id: 'deleted-client', organizationId: 'org1', deletedAt: null },
+        select: { id: true },
+      });
+      expect(prisma.note.create).not.toHaveBeenCalled();
+    });
+  });
+
   it('rejects a BIRP note missing required sections', async () => {
     const { service } = makeService();
     await expect(

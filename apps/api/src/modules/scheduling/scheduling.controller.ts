@@ -110,7 +110,7 @@ export class SchedulingController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreateWaitlistDto,
   ) {
-    return this.waitlist.create(user.organizationId, dto);
+    return this.waitlist.create(user.organizationId, user.id, dto);
   }
 
   @Patch('waitlist/:id')
@@ -121,7 +121,7 @@ export class SchedulingController {
     @Param('id') id: string,
     @Body() dto: UpdateWaitlistDto,
   ) {
-    return this.waitlist.updateStatus(user.organizationId, id, dto);
+    return this.waitlist.updateStatus(user.organizationId, user.id, id, dto);
   }
 
   @Delete('waitlist/:id')

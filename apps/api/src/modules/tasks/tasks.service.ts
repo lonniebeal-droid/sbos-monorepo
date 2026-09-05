@@ -13,7 +13,22 @@ export class TasksService {
     private readonly audit: AuditService,
   ) {}
 
-  create(organizationId: string, createdById: string, dto: CreateTaskDto) {
+  /** Ensure the client exists in this org (and is not soft-deleted). */
+  private async ensureClientInOrg(organizationId: string, clientId: string) {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+    return client;
+  }
+
+  async create(organizationId: string, createdById: string, dto: CreateTaskDto) {
+    if (dto.clientId) {
+      await this.ensureClientInOrg(organizationId, dto.clientId);
+    }
     const { dueDate, ...rest } = dto;
     return this.prisma.task.create({
       data: {
@@ -58,8 +73,16 @@ export class TasksService {
     return this.ensure(organizationId, id);
   }
 
-  async update(organizationId: string, id: string, dto: UpdateTaskDto) {
-    await this.ensure(organizationId, id);
+  async update(
+    organizationId: string,
+    actorId: string,
+    id: string,
+    dto: UpdateTaskDto,
+  ) {
+    const existing = await this.ensure(organizationId, id);
+    if (dto.clientId) {
+      await this.ensureClientInOrg(organizationId, dto.clientId);
+    }
     const { dueDate, status, ...rest } = dto;
     const data: Prisma.TaskUpdateInput = { ...rest };
     if (dueDate) data.dueDate = new Date(dueDate);
@@ -67,7 +90,23 @@ export class TasksService {
       data.status = status as TaskStatus;
       if (status === 'COMPLETED') data.completedAt = new Date();
     }
-    return this.prisma.task.update({ where: { id }, data });
+    const updated = await this.prisma.task.update({ where: { id }, data });
+
+    if (status && status !== existing.status) {
+      await this.audit.record({
+        organizationId,
+        actorId,
+        action: AuditAction.UPDATE,
+        entityType: 'Task',
+        entityId: id,
+        metadata: {
+          previousStatus: existing.status,
+          newStatus: status,
+        },
+      });
+    }
+
+    return updated;
   }
 
   async remove(organizationId: string, actorId: string, id: string) {

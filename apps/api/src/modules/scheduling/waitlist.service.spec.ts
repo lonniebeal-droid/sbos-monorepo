@@ -12,6 +12,130 @@ function makeService(overrides?: { prisma?: Partial<PrismaService> }) {
   return { service: new WaitlistService(prisma, audit), audit };
 }
 
+describe('WaitlistService.create ownership', () => {
+  it('creates when clientId belongs to the org and records CREATE audit', async () => {
+    const created = {
+      id: 'w1',
+      organizationId: 'org1',
+      clientId: 'c1',
+      priority: 1,
+    };
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue({ id: 'c1' }) },
+      waitlistEntry: { create: vi.fn().mockResolvedValue(created) },
+    } as unknown as PrismaService;
+    const { service, audit } = makeService({ prisma });
+
+    const result = await service.create('org1', 'actor1', {
+      clientId: 'c1',
+      priority: 1,
+    });
+
+    expect(prisma.client.findFirst).toHaveBeenCalledWith({
+      where: { id: 'c1', organizationId: 'org1', deletedAt: null },
+      select: { id: true },
+    });
+    expect(prisma.waitlistEntry.create).toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org1',
+        actorId: 'actor1',
+        action: AuditAction.CREATE,
+        entityType: 'WaitlistEntry',
+        entityId: 'w1',
+        metadata: expect.objectContaining({ clientId: 'c1', priority: 1 }),
+      }),
+    );
+    expect(result).toEqual(created);
+  });
+
+  it('rejects foreign-org clientId and never creates or audits', async () => {
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue(null) },
+      waitlistEntry: { create: vi.fn() },
+    } as unknown as PrismaService;
+    const { service, audit } = makeService({ prisma });
+
+    await expect(
+      service.create('org1', 'actor1', { clientId: 'foreign-client' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(prisma.waitlistEntry.create).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+
+  it('rejects missing/soft-deleted client and never creates or audits', async () => {
+    const prisma = {
+      client: { findFirst: vi.fn().mockResolvedValue(null) },
+      waitlistEntry: { create: vi.fn() },
+    } as unknown as PrismaService;
+    const { service, audit } = makeService({ prisma });
+
+    await expect(
+      service.create('org1', 'actor1', { clientId: 'deleted-or-missing' }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(prisma.waitlistEntry.create).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+});
+
+describe('WaitlistService.updateStatus', () => {
+  it('updates status and records an UPDATE audit entry', async () => {
+    const existing = { id: 'w1', status: 'WAITING', clientId: 'c1' };
+    const updated = { ...existing, status: 'CONTACTED' };
+    const prisma = {
+      waitlistEntry: {
+        findFirst: vi.fn().mockResolvedValue(existing),
+        update: vi.fn().mockResolvedValue(updated),
+      },
+    } as unknown as PrismaService;
+    const { service, audit } = makeService({ prisma });
+
+    const result = await service.updateStatus('org1', 'actor1', 'w1', {
+      status: 'CONTACTED',
+    } as never);
+
+    expect(prisma.waitlistEntry.update).toHaveBeenCalledWith({
+      where: { id: 'w1' },
+      data: { status: 'CONTACTED' },
+    });
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        organizationId: 'org1',
+        actorId: 'actor1',
+        action: AuditAction.UPDATE,
+        entityType: 'WaitlistEntry',
+        entityId: 'w1',
+        metadata: expect.objectContaining({
+          previousStatus: 'WAITING',
+          newStatus: 'CONTACTED',
+          clientId: 'c1',
+        }),
+      }),
+    );
+    expect(result).toEqual(updated);
+  });
+
+  it('throws NotFoundException and never updates/audits when missing', async () => {
+    const prisma = {
+      waitlistEntry: {
+        findFirst: vi.fn().mockResolvedValue(null),
+        update: vi.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service, audit } = makeService({ prisma });
+
+    await expect(
+      service.updateStatus('org1', 'actor1', 'missing', {
+        status: 'CONTACTED',
+      } as never),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.waitlistEntry.update).not.toHaveBeenCalled();
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+});
+
 describe('WaitlistService.remove', () => {
   it('deletes the waitlist entry and records a DELETE audit entry', async () => {
     const existing = { id: 'w1', clientId: 'c1' };

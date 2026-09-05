@@ -13,8 +13,21 @@ export class MedicationsService {
     private readonly audit: AuditService,
   ) {}
 
-  create(organizationId: string, dto: CreateMedicationDto) {
+  /** Ensure the client exists in this org (and is not soft-deleted). */
+  private async ensureClientInOrg(organizationId: string, clientId: string) {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+    return client;
+  }
+
+  async create(organizationId: string, dto: CreateMedicationDto) {
     const { clientId, startDate, ...rest } = dto;
+    await this.ensureClientInOrg(organizationId, clientId);
     return this.prisma.medication.create({
       data: {
         ...rest,
@@ -42,8 +55,13 @@ export class MedicationsService {
     return medication;
   }
 
-  async update(organizationId: string, id: string, dto: UpdateMedicationDto) {
-    await this.ensure(organizationId, id);
+  async update(
+    organizationId: string,
+    actorId: string,
+    id: string,
+    dto: UpdateMedicationDto,
+  ) {
+    const existing = await this.ensure(organizationId, id);
     const { startDate, ...rest } = dto;
     const data: Prisma.MedicationUpdateInput = { ...rest };
     if (startDate) {
@@ -52,7 +70,24 @@ export class MedicationsService {
     if (dto.status === 'DISCONTINUED' || dto.status === 'COMPLETED') {
       data.endDate = new Date();
     }
-    return this.prisma.medication.update({ where: { id }, data });
+    const updated = await this.prisma.medication.update({ where: { id }, data });
+
+    if (dto.status && dto.status !== existing.status) {
+      await this.audit.record({
+        organizationId,
+        actorId,
+        action: AuditAction.UPDATE,
+        entityType: 'Medication',
+        entityId: id,
+        metadata: {
+          previousStatus: existing.status,
+          newStatus: dto.status,
+          clientId: existing.clientId,
+        },
+      });
+    }
+
+    return updated;
   }
 
   async remove(organizationId: string, actorId: string, id: string) {

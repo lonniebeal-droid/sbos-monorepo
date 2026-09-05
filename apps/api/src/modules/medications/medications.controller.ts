@@ -51,7 +51,7 @@ export class MedicationsController {
     @Param('id') id: string,
     @Body() dto: UpdateMedicationDto,
   ) {
-    return this.medicationsService.update(user.organizationId, id, dto);
+    return this.medicationsService.update(user.organizationId, user.id, id, dto);
   }
 
   @Delete(':id')
