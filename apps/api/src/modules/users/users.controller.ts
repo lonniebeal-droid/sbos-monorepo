@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, Param, Post, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -29,7 +29,9 @@ export class UsersController {
     @Body() dto: InviteUserDto,
     @CurrentUser() user: AuthenticatedUser,
   ) {
-    // Delegate to AuthService for token creation and persistence.
+    if (dto.role === Role.SUPER_ADMIN && user.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException('Only a SUPER_ADMIN may grant SUPER_ADMIN');
+    }
     return this.usersService.createInvite(dto.email, dto.role, user.id, user.organizationId);
   }
 
@@ -60,6 +62,9 @@ export class UsersController {
   @Roles(Role.ORG_ADMIN)
   @ApiOperation({ summary: 'Create a new user' })
   create(@Body() dto: CreateUserDto, @CurrentUser() user: AuthenticatedUser) {
+    if (dto.role === Role.SUPER_ADMIN && user.role !== Role.SUPER_ADMIN) {
+      throw new ForbiddenException('Only a SUPER_ADMIN may grant SUPER_ADMIN');
+    }
     // Tenant identity is established by the verified JWT, never request input.
     return this.usersService.create(user.organizationId, dto);
   }

@@ -27,11 +27,21 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (payload.type !== 'access') {
       throw new UnauthorizedException('Invalid token type');
     }
+    if (typeof payload.passwordVersion !== 'number') {
+      throw new UnauthorizedException('Invalid token version');
+    }
     try {
-      // Resolve identity from the current account record so deactivation and
-      // role/org changes take effect immediately instead of waiting for expiry.
-      return await this.usersService.findActiveById(payload.sub);
-    } catch {
+      // Resolve authorization from current DB state, never stale JWT role/org claims.
+      const user = await this.usersService.findActiveById(payload.sub);
+      if (user.passwordVersion !== payload.passwordVersion) {
+        throw new UnauthorizedException('Session is no longer valid');
+      }
+      return {
+        id: user.id, email: user.email, name: user.name, role: user.role,
+        organizationId: user.organizationId,
+      };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) throw error;
       throw new UnauthorizedException('Account is no longer active');
     }
   }

@@ -22,6 +22,7 @@ const testUser: UserEntity = {
   name: 'Riley Chen',
   role: Role.CLINICIAN,
   organizationId: 'org1',
+  passwordVersion: 1,
   createdAt: '2026-01-01T00:00:00.000Z',
 };
 
@@ -65,6 +66,9 @@ function makeService(overrides?: {
     },
     ...overrides?.prisma,
   };
+  if (!(prisma as any).$transaction) {
+    (prisma as any).$transaction = vi.fn(async (fn: any) => fn(prisma));
+  }
 
   const service = new AuthService(
     usersService,
@@ -210,7 +214,7 @@ describe('AuthService.refresh', () => {
       jwtService: {
         verifyAsync: vi
           .fn()
-          .mockResolvedValue({ sub: 'u1', type: 'refresh', jti: 'jti-1' }),
+          .mockResolvedValue({ sub: 'u1', type: 'refresh', passwordVersion: 1, jti: 'jti-1' }),
       },
       prisma: {
         refreshToken: {
@@ -222,7 +226,7 @@ describe('AuthService.refresh', () => {
             expiresAt: new Date(Date.now() + 60_000),
           }),
           update: vi.fn().mockResolvedValue({}),
-          updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+          updateMany: vi.fn().mockResolvedValue({ count: 1 }),
         },
       },
     });
@@ -230,8 +234,8 @@ describe('AuthService.refresh', () => {
     const result = await service.refresh('some.refresh.token');
 
     expect(usersService.findActiveById).toHaveBeenCalledWith('u1');
-    expect(prisma.refreshToken.update).toHaveBeenCalledWith({
-      where: { jti: 'jti-1' },
+    expect(prisma.refreshToken.updateMany).toHaveBeenCalledWith({
+      where: { jti: 'jti-1', revokedAt: null },
       data: { revokedAt: expect.any(Date) },
     });
     expect(jwtService.signAsync).toHaveBeenCalledTimes(2);
@@ -243,7 +247,7 @@ describe('AuthService.refresh', () => {
       jwtService: {
         verifyAsync: vi
           .fn()
-          .mockResolvedValue({ sub: 'u1', type: 'refresh', jti: 'jti-1' }),
+          .mockResolvedValue({ sub: 'u1', type: 'refresh', passwordVersion: 1, jti: 'jti-1' }),
       },
       usersService: {
         // Mirrors UsersService.findActiveById: a non-ACTIVE (or missing) user
@@ -298,7 +302,7 @@ describe('AuthService.refresh', () => {
       jwtService: {
         verifyAsync: vi
           .fn()
-          .mockResolvedValue({ sub: 'u1', type: 'refresh', jti: 'jti-stolen' }),
+          .mockResolvedValue({ sub: 'u1', type: 'refresh', passwordVersion: 1, jti: 'jti-stolen' }),
       },
       prisma: {
         refreshToken: {
@@ -324,7 +328,7 @@ describe('AuthService.refresh', () => {
       jwtService: {
         verifyAsync: vi
           .fn()
-          .mockResolvedValue({ sub: 'u1', type: 'refresh', jti: 'jti-old' }),
+          .mockResolvedValue({ sub: 'u1', type: 'refresh', passwordVersion: 1, jti: 'jti-old' }),
       },
       prisma: {
         refreshToken: {
@@ -354,7 +358,7 @@ describe('AuthService.logout', () => {
       jwtService: {
         verifyAsync: vi
           .fn()
-          .mockResolvedValue({ sub: 'u1', type: 'refresh', jti: 'jti-1' }),
+          .mockResolvedValue({ sub: 'u1', type: 'refresh', passwordVersion: 1, jti: 'jti-1' }),
       },
     });
 
@@ -397,6 +401,7 @@ describe('AuthService.resetPassword — regression: reset → new password works
           Promise.resolve({ id: `reset-${++resetSeq}`, ...data })),
         findUnique: vi.fn(),
         update: vi.fn().mockResolvedValue({}),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       refreshToken: {
         create: vi.fn().mockResolvedValue({}),
@@ -431,8 +436,8 @@ describe('AuthService.resetPassword — regression: reset → new password works
       expect(oldOk2).toBe(false);
 
       // Reset is single-use and refresh sessions are revoked.
-      expect(prisma.passwordReset.update).toHaveBeenCalledWith(
-        expect.objectContaining({ where: { id: createdReset.id }, data: expect.objectContaining({ usedAt: expect.any(Date) }) }),
+      expect(prisma.passwordReset.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ id: createdReset.id, usedAt: null }), data: expect.objectContaining({ usedAt: expect.any(Date) }) }),
       );
       expect(prisma.refreshToken.deleteMany).toHaveBeenCalledWith({ where: { userId: createdReset.userId } });
 
