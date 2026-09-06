@@ -1,0 +1,56 @@
+import { Injectable } from '@nestjs/common';
+import { AuditAction, Prisma } from '@sbos/database';
+import { randomUUID } from 'node:crypto';
+import { PrismaService } from '../../../prisma/prisma.service';
+import { AuditService } from '../../../audit/audit.service';
+import type { MedicalConnectorVendor, X12Transaction } from './medical-connectors.types';
+import { normalizeScopes, syntheticX12, vendorProfile } from './medical-connectors.types';
+
+type ConnectorRow = { id:string; organizationId:string; vendor:string; baseUrl:string; clientId:string|null; scopes:string|null; status:string; fhirVersion:string|null; lastTestedAt:Date|null; lastError:string|null };
+
+@Injectable()
+export class MedicalConnectorsService {
+  constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
+
+  vendors() { return ['Epic','athenahealth','Oracle Health / Cerner','eClinicalWorks','Generic FHIR R4'].map(v => vendorProfile(v as MedicalConnectorVendor)); }
+
+  async list(organizationId: string) {
+    return this.prisma.$queryRaw<ConnectorRow[]>`SELECT "id","organizationId","vendor","baseUrl","clientId","scopes","status","fhirVersion","lastTestedAt","lastError" FROM "medical_connectors" WHERE "organizationId"=${organizationId} ORDER BY "updatedAt" DESC`;
+  }
+
+  async save(organizationId:string, actorId:string, input:{vendor:MedicalConnectorVendor;baseUrl:string;clientId?:string;scopes?:string}) {
+    const id = randomUUID(); const scopes = normalizeScopes(input.scopes ?? '').join(' ');
+    const rows = await this.prisma.$queryRaw<ConnectorRow[]>(Prisma.sql`INSERT INTO "medical_connectors" ("id","organizationId","vendor","baseUrl","clientId","scopes","status","updatedAt") VALUES (${id},${organizationId},${input.vendor},${input.baseUrl},${input.clientId ?? null},${scopes || null},'not_connected',CURRENT_TIMESTAMP) ON CONFLICT ("organizationId","vendor") DO UPDATE SET "baseUrl"=EXCLUDED."baseUrl","clientId"=EXCLUDED."clientId","scopes"=EXCLUDED."scopes","status"='not_connected',"lastError"=NULL,"updatedAt"=CURRENT_TIMESTAMP RETURNING *`);
+    await this.audit.record({ organizationId, actorId, action: AuditAction.UPDATE, entityType:'medical_connector', entityId:rows[0]?.id, metadata:{ event:'connector.saved', vendor:input.vendor, baseUrl:input.baseUrl } });
+    return rows[0];
+  }
+
+  async test(organizationId:string, actorId:string, id:string) {
+    const rows = await this.prisma.$queryRaw<ConnectorRow[]>`SELECT * FROM "medical_connectors" WHERE "id"=${id} AND "organizationId"=${organizationId} LIMIT 1`;
+    const c = rows[0]; if (!c) throw new Error('Connector not found');
+    await this.prisma.$executeRaw`UPDATE "medical_connectors" SET "status"='testing',"lastTestedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "organizationId"=${organizationId}`;
+    try {
+      const root = c.baseUrl.replace(/\/$/, '');
+      const response = await fetch(`${root}/metadata`, { headers:{Accept:'application/fhir+json, application/json'}, signal:AbortSignal.timeout(10000) });
+      if (!response.ok) throw new Error(`FHIR metadata returned HTTP ${response.status}`);
+      const data:any = await response.json();
+      await this.prisma.$executeRaw`UPDATE "medical_connectors" SET "status"='connected',"fhirVersion"=${data?.fhirVersion ?? null},"lastError"=NULL,"lastTestedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "organizationId"=${organizationId}`;
+      await this.audit.record({ organizationId, actorId, action:AuditAction.UPDATE, entityType:'medical_connector', entityId:id, metadata:{event:'connector.test_passed', fhirVersion:data?.fhirVersion ?? null} });
+      return { ok:true, status:'connected', fhirVersion:data?.fhirVersion, software:data?.software?.name ?? data?.publisher, message:'FHIR CapabilityStatement reached; no patient data requested.' };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Connection test failed';
+      await this.prisma.$executeRaw`UPDATE "medical_connectors" SET "status"='error',"lastError"=${message},"lastTestedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "organizationId"=${organizationId}`;
+      await this.audit.record({ organizationId, actorId, action:AuditAction.UPDATE, entityType:'medical_connector', entityId:id, metadata:{event:'connector.test_failed'} });
+      return { ok:false, status:'error', message };
+    }
+  }
+
+  async disconnect(organizationId:string, actorId:string, id:string) {
+    const changed = await this.prisma.$executeRaw`UPDATE "medical_connectors" SET "status"='not_connected',"lastError"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "organizationId"=${organizationId}`;
+    if (!changed) throw new Error('Connector not found');
+    await this.audit.record({ organizationId, actorId, action:AuditAction.UPDATE, entityType:'medical_connector', entityId:id, metadata:{event:'connector.disconnected'} });
+    return { ok:true, status:'not_connected' as const };
+  }
+
+  previewX12(transaction:X12Transaction, traceId:string) { return syntheticX12(transaction, traceId); }
+}
