@@ -34,6 +34,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { MessagingModule } from './modules/messaging/messaging.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { PlatformModule } from './modules/platform/platform.module';
+import { MedicalConnectorsModule } from './modules/integrations/medical-connectors/medical-connectors.module';
 import { HealthController } from './modules/health/health.controller';
 import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
 
@@ -46,29 +47,14 @@ interface RedisConfig {
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      load: [configuration],
-      cache: true,
-    }),
+    ConfigModule.forRoot({ isGlobal: true, load: [configuration], cache: true }),
     ThrottlerModule.forRootAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => {
         const redisConfig = configService.get<RedisConfig>('redis', { infer: true });
-        const storage = redisConfig?.enabled && redisConfig?.url
-          ? new RedisThrottlerStorage(configService)
-          : undefined;
-
-        return {
-          throttlers: [
-            {
-              ttl: 60_000,
-              limit: 120,
-            },
-          ],
-          storage,
-        };
+        const storage = redisConfig?.enabled && redisConfig?.url ? new RedisThrottlerStorage(configService) : undefined;
+        return { throttlers: [{ ttl: 60_000, limit: 120 }], storage };
       },
     }),
     PrismaModule,
@@ -98,6 +84,7 @@ interface RedisConfig {
     MessagingModule,
     AnalyticsModule,
     PlatformModule,
+    MedicalConnectorsModule,
   ],
   controllers: [HealthController],
   providers: [
