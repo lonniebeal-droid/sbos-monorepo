@@ -13,6 +13,8 @@ const PUBLIC_PATHS = [
   "/api/auth/login",
   "/api/auth/mfa",
   "/api/auth/logout",
+  "/api/auth/epic",
+  "/api/auth/callback/epic",
   "/api/health",
 ];
 
