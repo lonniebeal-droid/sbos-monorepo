@@ -3,6 +3,7 @@ import {
   EPIC_CALLBACK_DEFAULT,
   EPIC_SANDBOX_FHIR_BASE,
   EPIC_SANDBOX_TOKEN,
+  epicClientBasicAuthorization,
 } from "@/lib/epic-smart";
 
 export const runtime = "nodejs";
@@ -37,10 +38,10 @@ export async function GET(request: NextRequest) {
   }
 
   const body = new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: redirectUri, code_verifier: verifier });
-  const basic = Buffer.from(`${encodeURIComponent(clientId)}:${encodeURIComponent(clientSecret)}`).toString("base64");
+  const authorization = epicClientBasicAuthorization(clientId, clientSecret);
   const tokenRes = await fetch(EPIC_SANDBOX_TOKEN, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded", Authorization: `Basic ${basic}` },
+    headers: { "Content-Type": "application/x-www-form-urlencoded", Authorization: authorization },
     body,
     cache: "no-store",
   });
