@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  NotFoundException,
   Body,
   Controller,
   Get,
@@ -19,6 +20,7 @@ import {
 } from 'class-validator';
 
 import { Public } from '../../../common/decorators/public.decorator';
+import { PrismaService } from '../../../prisma/prisma.service';
 import { AppointmentsService } from '../../appointments/appointments.service';
 import { AvailabilityService } from '../../scheduling/availability.service';
 import { ElevenLabsAgentToolsGuard } from './elevenlabs-agent-tools.guard';
@@ -58,6 +60,7 @@ export class ElevenLabsAgentToolsController {
     private readonly config: ConfigService,
     private readonly availability: AvailabilityService,
     private readonly appointments: AppointmentsService,
+    private readonly prisma: PrismaService,
   ) {}
 
   private organizationId(): string {
@@ -78,6 +81,34 @@ export class ElevenLabsAgentToolsController {
       throw new BadRequestException('Agent tools actor is not configured');
     }
     return value;
+  }
+
+  private async validateBookingContext(
+    organizationId: string,
+    actorId: string,
+    clinicianId: string,
+    locationId?: string,
+  ): Promise<void> {
+    const [actor, clinician, location] = await Promise.all([
+      this.prisma.user.findFirst({
+        where: { id: actorId, organizationId, status: 'ACTIVE' },
+        select: { id: true },
+      }),
+      this.prisma.clinician.findFirst({
+        where: { id: clinicianId, organizationId },
+        select: { id: true },
+      }),
+      locationId
+        ? this.prisma.location.findFirst({
+            where: { id: locationId, organizationId, isActive: true },
+            select: { id: true },
+          })
+        : Promise.resolve({ id: 'not-required' }),
+    ]);
+
+    if (!actor) throw new NotFoundException('Agent tools actor not found');
+    if (!clinician) throw new NotFoundException('Clinician not found');
+    if (!location) throw new NotFoundException('Location not found');
   }
 
   @Get('health')
@@ -114,11 +145,15 @@ export class ElevenLabsAgentToolsController {
 
   @Post('book')
   @ApiOperation({ summary: 'Create a tenant-scoped appointment using existing conflict protection' })
-  book(@Body() dto: BookAppointmentToolDto) {
-    return this.appointments.create(
-      this.organizationId(),
-      this.actorId(),
-      dto,
+  async book(@Body() dto: BookAppointmentToolDto) {
+    const organizationId = this.organizationId();
+    const actorId = this.actorId();
+    await this.validateBookingContext(
+      organizationId,
+      actorId,
+      dto.clinicianId,
+      dto.locationId,
     );
+    return this.appointments.create(organizationId, actorId, dto);
   }
 }
