@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   ListChecks,
   Settings,
+  Stethoscope,
   Users,
   type LucideIcon,
 } from "lucide-react";
@@ -53,6 +54,12 @@ export const primaryNav: NavItem[] = [
     href: "/billing",
     icon: CreditCard,
     description: "Claims, invoices, and payments",
+  },
+  {
+    title: "Medical Integrations",
+    href: "/medical-connectors",
+    icon: Stethoscope,
+    description: "FHIR connectors and ClaimFlow EDI readiness",
   },
   {
     title: "Tasks",
