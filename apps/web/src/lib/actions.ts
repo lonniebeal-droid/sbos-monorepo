@@ -331,3 +331,67 @@ export async function updateOrganizationAction(
     return toError(error);
   }
 }
+
+export interface MedicalConnectorInput {
+  vendor: string;
+  baseUrl: string;
+  clientId?: string;
+  scopes?: string;
+}
+
+export type MedicalConnectorActionResult =
+  | { ok: true; data?: Record<string, unknown> }
+  | { ok: false; error: string };
+
+export async function saveMedicalConnectorAction(
+  input: MedicalConnectorInput,
+): Promise<MedicalConnectorActionResult> {
+  try {
+    const data = await apiFetch<Record<string, unknown>>("/medical-connectors", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    revalidatePath("/medical-connectors");
+    return { ok: true, data };
+  } catch (error) {
+    const result = toError(error);
+    return result.ok ? { ok: false, error: "Request failed" } : result;
+  }
+}
+
+export async function testMedicalConnectorAction(id: string): Promise<MedicalConnectorActionResult> {
+  try {
+    const data = await apiFetch<Record<string, unknown>>(`/medical-connectors/${id}/test`, { method: "POST" });
+    revalidatePath("/medical-connectors");
+    return { ok: true, data };
+  } catch (error) {
+    const result = toError(error);
+    return result.ok ? { ok: false, error: "Request failed" } : result;
+  }
+}
+
+export async function disconnectMedicalConnectorAction(id: string): Promise<ActionResult> {
+  try {
+    await apiFetch(`/medical-connectors/${id}/disconnect`, { method: "POST" });
+    revalidatePath("/medical-connectors");
+    return { ok: true };
+  } catch (error) {
+    return toError(error);
+  }
+}
+
+export async function previewSyntheticX12Action(
+  transaction: string,
+): Promise<MedicalConnectorActionResult> {
+  try {
+    const traceId = `SYN-${transaction}-${Date.now()}`;
+    const data = await apiFetch<Record<string, unknown>>("/medical-connectors/billing/synthetic-x12", {
+      method: "POST",
+      body: JSON.stringify({ transaction, traceId }),
+    });
+    return { ok: true, data };
+  } catch (error) {
+    const result = toError(error);
+    return result.ok ? { ok: false, error: "Request failed" } : result;
+  }
+}
