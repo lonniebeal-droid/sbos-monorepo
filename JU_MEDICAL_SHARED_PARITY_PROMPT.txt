@@ -1,0 +1,96 @@
+JU MEDICAL SUITE PARITY COMPLETION TASK
+
+You are working on one of three JU medical applications: SBOS, HealthOS, or ClaimFlow. Treat the suite as a coordinated product family. Anything clinically/operationally necessary that exists in one app and is relevant to the others should be implemented or represented through a shared/provider-neutral architecture in the other apps too, without copying stale/broken code blindly.
+
+PRIMARY GOAL
+Make this app technically "fully loaded" for fast healthcare-business onboarding so that after sale, the remaining delay is external paperwork/credentials/vendor approvals rather than missing application code.
+
+REQUIRED INTEGRATION CATALOG
+Prepare provider-neutral connectors/adapters and admin setup flows for at least:
+- SimplePractice
+- Epic
+- athenahealth
+- Oracle Health / Cerner
+- eClinicalWorks
+- NextGen
+- Veradigm / Allscripts
+- Generic SMART on FHIR R4
+- Generic HL7 v2/interface adapter boundary where appropriate
+
+REQUIRED BILLING / CLEARINGHOUSE READINESS
+Prepare provider-neutral clearinghouse adapters/configuration for at least:
+- Availity
+- Change Healthcare / Optum
+- Generic X12 transport
+Cover these transaction families end-to-end in code/test/demo mode:
+- 270/271 eligibility
+- 837P professional claims
+- 276/277 claim status
+- 835 ERA/remittance
+If the app supports institutional workflows and existing schema reasonably permits it, prepare 837I extension points without fabricating production support.
+
+TECHNICAL RELEASE STANDARD
+For each relevant connector, office admin should be able to:
+1. select vendor/system
+2. see truthful status: code-ready / automated-tested / sandbox-verified / production-verified
+3. configure base URL / tenant / practice identifiers / client ID without secrets committed to git
+4. authorize using appropriate OAuth/SMART flow where supported
+5. test connectivity/capabilities without requesting PHI
+6. sync permitted SYNTHETIC resources in test/demo mode
+7. see health, last sync, errors, retry guidance
+8. reconnect / revoke / disconnect
+9. have tenant isolation and audit logging around every action
+10. never see fake "connected" or fake "verified" states
+
+DATA/CAPABILITY MAPPING WHERE VENDOR SUPPORTS IT
+- patient/client demographics
+- practitioners/providers
+- appointments/scheduling
+- encounters
+- coverage/insurance
+- diagnoses/conditions
+- medications where legally/technically available
+- clinical documents/notes only where permitted
+- claims/billing status where supported
+Use vendor-specific capability flags because not every vendor exposes every resource.
+
+SECURITY/COMPLIANCE RULES
+- NO real PHI in tests, fixtures, logs, screenshots, or prompts.
+- NO hard-coded credentials, client secrets, API keys, SSNs, license numbers, or private owner data.
+- Keep least-privilege scopes, tenant isolation, audit events, retry/backoff, safe error messages, token refresh/revocation.
+- Do not claim HIPAA certification/compliance, executed BAA, vendor registration, clearinghouse enrollment, or production approval unless there is actual evidence.
+- Human/vendor gates should be isolated in docs/checklists, not confused with missing code.
+- Preserve verified baseline and unrelated features.
+
+APP PARITY
+Audit this repository for features that should exist in the other JU medical apps and write a concise parity manifest. Implement missing integration/billing infrastructure relevant to THIS app. Do not rebuild the whole app.
+
+TESTING
+Add/extend deterministic synthetic mocks and tests for every vendor profile and clearinghouse adapter. Test:
+- validation
+- vendor capability mapping
+- tenant isolation / cross-tenant denial
+- auth/refresh/revoke state machine where applicable
+- connection health/error handling
+- X12 generation/parsing/round-trip for supported transactions
+- no real transmission in synthetic mode
+- role restrictions for admin/billing/clinical flows
+Run repository-appropriate tests, typecheck/lint/build, and git diff --check. Fix failures you introduce.
+
+DOCUMENTATION / RECEIPT
+Create or update:
+- JU_MEDICAL_INTEGRATION_PARITY.md
+- JU_VENDOR_REGISTRATION_CHECKLIST.md
+- JU_CLEARINGHOUSE_ENROLLMENT_CHECKLIST.md
+- JU_BAA_VENDOR_MATRIX.md
+- JU_MEDICAL_COMPLETION_RECEIPT.md
+The vendor/BAA/checklist docs must clearly distinguish what can be completed by code vs what needs owner signature, vendor account approval, payment, BAA execution, submitter IDs, payer IDs, MFA, or credentials.
+
+GIT
+- Work only in the current repository/branch.
+- Do not rewrite history or delete unrelated work.
+- Commit completed work with a clear commit message.
+- In receipt include starting SHA, ending SHA, files changed, exact commands run, PASS/FAIL counts, remaining external blockers, and next exact human gate.
+
+IMPORTANT
+Do as much as possible autonomously now. Do not stop merely because production credentials are absent. Build/test the adapter, UI, state machine, mock/sandbox path, docs, and configuration placeholders first. Stop only at a genuine external/legal/vendor gate.
