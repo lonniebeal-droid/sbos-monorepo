@@ -29,6 +29,7 @@ import { TreatmentPlansModule } from './modules/treatment-plans/treatment-plans.
 import { DocumentsModule } from './modules/documents/documents.module';
 import { BillingModule } from './modules/billing/billing.module';
 import { JessieModule } from './modules/jessie/jessie.module';
+import { ElevenLabsAgentToolsModule } from './modules/jessie/agent-tools/elevenlabs-agent-tools.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { MessagingModule } from './modules/messaging/messaging.module';
@@ -79,6 +80,7 @@ interface RedisConfig {
     DocumentsModule,
     BillingModule,
     JessieModule,
+    ElevenLabsAgentToolsModule,
     TasksModule,
     NotificationsModule,
     MessagingModule,
