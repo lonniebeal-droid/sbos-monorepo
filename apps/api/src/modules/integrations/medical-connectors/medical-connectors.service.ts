@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditService } from '../../../audit/audit.service';
 import type { MedicalConnectorVendor, X12Transaction } from './medical-connectors.types';
-import { normalizeScopes, syntheticX12, vendorProfile } from './medical-connectors.types';
+import { MEDICAL_CONNECTOR_VENDORS, normalizeScopes, syntheticX12, vendorProfile } from './medical-connectors.types';
 
 type ConnectorRow = { id:string; organizationId:string; vendor:string; baseUrl:string; clientId:string|null; scopes:string|null; status:string; fhirVersion:string|null; lastTestedAt:Date|null; lastError:string|null };
 
@@ -12,7 +12,7 @@ type ConnectorRow = { id:string; organizationId:string; vendor:string; baseUrl:s
 export class MedicalConnectorsService {
   constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
 
-  vendors() { return ['Epic','athenahealth','Oracle Health / Cerner','eClinicalWorks','Generic FHIR R4'].map(v => vendorProfile(v as MedicalConnectorVendor)); }
+  vendors() { return MEDICAL_CONNECTOR_VENDORS.map(vendorProfile); }
 
   async list(organizationId: string) {
     return this.prisma.$queryRaw<ConnectorRow[]>`SELECT "id","organizationId","vendor","baseUrl","clientId","scopes","status","fhirVersion","lastTestedAt","lastError" FROM "medical_connectors" WHERE "organizationId"=${organizationId} ORDER BY "updatedAt" DESC`;
@@ -61,7 +61,7 @@ export class MedicalConnectorsService {
   async disconnect(organizationId:string, actorId:string, id:string) {
     const changed = await this.prisma.$executeRaw`UPDATE "medical_connectors" SET "status"='not_connected',"lastError"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "organizationId"=${organizationId}`;
     if (!changed) throw new Error('Connector not found');
-    await this.audit.record({ organizationId, actorId, action:AuditAction.UPDATE, entityType:'medical_connector', entityId:id, metadata:{event:'connector.disconnected'} });
+    await this.audit.record({ organizationId, actorId, action: AuditAction.UPDATE, entityType:'medical_connector', entityId:id, metadata:{event:'connector.disconnected'} });
     return { ok:true, status:'not_connected' as const };
   }
 
