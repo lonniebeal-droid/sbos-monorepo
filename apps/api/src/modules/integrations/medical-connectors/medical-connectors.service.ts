@@ -31,12 +31,25 @@ export class MedicalConnectorsService {
     await this.prisma.$executeRaw`UPDATE "medical_connectors" SET "status"='testing',"lastTestedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "organizationId"=${organizationId}`;
     try {
       const root = c.baseUrl.replace(/\/$/, '');
-      const response = await fetch(`${root}/metadata`, { headers:{Accept:'application/fhir+json, application/json'}, signal:AbortSignal.timeout(10000) });
+      const response = await fetch(`${root}/metadata`, { headers:{Accept:'application/fhir+json, application/json, application/fhir+xml, application/xml, text/xml'}, signal:AbortSignal.timeout(10000) });
       if (!response.ok) throw new Error(`FHIR metadata returned HTTP ${response.status}`);
-      const data:any = await response.json();
-      await this.prisma.$executeRaw`UPDATE "medical_connectors" SET "status"='connected',"fhirVersion"=${data?.fhirVersion ?? null},"lastError"=NULL,"lastTestedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "organizationId"=${organizationId}`;
-      await this.audit.record({ organizationId, actorId, action:AuditAction.UPDATE, entityType:'medical_connector', entityId:id, metadata:{event:'connector.test_passed', fhirVersion:data?.fhirVersion ?? null} });
-      return { ok:true, status:'connected', fhirVersion:data?.fhirVersion, software:data?.software?.name ?? data?.publisher, message:'FHIR CapabilityStatement reached; no patient data requested.' };
+      const contentType = response.headers.get('content-type') ?? '';
+      const body = await response.text();
+      let fhirVersion:string|null = null; let software:string|undefined; let isCapability = false;
+      if (contentType.includes('json') || body.trimStart().startsWith('{')) {
+        const data:any = JSON.parse(body);
+        isCapability = data?.resourceType === 'CapabilityStatement';
+        fhirVersion = data?.fhirVersion ?? null;
+        software = data?.software?.name ?? data?.publisher;
+      } else {
+        isCapability = /<(?:[A-Za-z0-9_-]+:)?CapabilityStatement\b/i.test(body);
+        fhirVersion = body.match(/<fhirVersion[^>]*value=["']([^"']+)/i)?.[1] ?? null;
+        software = body.match(/<software[\s\S]*?<name[^>]*value=["']([^"']+)/i)?.[1];
+      }
+      if (!isCapability) throw new Error('FHIR metadata endpoint did not return a CapabilityStatement');
+      await this.prisma.$executeRaw`UPDATE "medical_connectors" SET "status"='sandbox_verified',"fhirVersion"=${fhirVersion},"lastError"=NULL,"lastTestedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "organizationId"=${organizationId}`;
+      await this.audit.record({ organizationId, actorId, action:AuditAction.UPDATE, entityType:'medical_connector', entityId:id, metadata:{event:'connector.sandbox_capability_verified', fhirVersion} });
+      return { ok:true, status:'sandbox_verified', fhirVersion, software, message:'FHIR sandbox CapabilityStatement verified; OAuth/patient-data access is not implied.' };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Connection test failed';
       await this.prisma.$executeRaw`UPDATE "medical_connectors" SET "status"='error',"lastError"=${message},"lastTestedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "organizationId"=${organizationId}`;
