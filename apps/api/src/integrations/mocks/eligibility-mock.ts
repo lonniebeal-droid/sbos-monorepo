@@ -1,0 +1,1 @@
+export type SyntheticEligibility={memberId:string;status:'PENDING'|'ELIGIBLE'|'INELIGIBLE'}; export function generateSyntheticEligibilityPair(){return {inquiry:{memberId:'SYN-MEMBER'},response:{memberId:'SYN-MEMBER',status:'ELIGIBLE' as const}}}
