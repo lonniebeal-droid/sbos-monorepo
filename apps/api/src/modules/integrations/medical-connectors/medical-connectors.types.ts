@@ -3,6 +3,7 @@ export const MEDICAL_CONNECTOR_VENDORS = [
   'Epic',
   'athenahealth',
   'Oracle Health / Cerner',
+  'MEDITECH',
   'eClinicalWorks',
   'NextGen',
   'Veradigm / Allscripts',
