@@ -14,6 +14,7 @@ class SaveConnectorDto {
   @IsOptional() @IsString() @MaxLength(250) clientId?: string;
   @IsOptional() @IsString() @MaxLength(1500) scopes?: string;
 }
+class ValidateNpiDto { @Matches(/^\d{10}$/) npi!: string; }
 class SyntheticX12Dto {
   @IsIn(X12_TRANSACTIONS) transaction!: X12Transaction;
   @Matches(/^SYN-[A-Za-z0-9-]{3,60}$/) traceId!: string;
@@ -27,6 +28,12 @@ export class MedicalConnectorsController {
 
   @Get('vendors') @ApiOperation({ summary: 'List supported standards-first connector profiles' })
   vendors() { return this.connectors.vendors(); }
+
+  @Get('ecosystem/capabilities') @Roles(Role.ORG_ADMIN, Role.BILLING)
+  ecosystemCapabilities() { return this.connectors.ecosystemCapabilities(); }
+
+  @Post('provider/npi/validate') @Roles(Role.ORG_ADMIN, Role.BILLING)
+  validateNpi(@Body() dto:ValidateNpiDto) { return this.connectors.validateProviderNpi(dto.npi); }
 
   @Get() @Roles(Role.ORG_ADMIN)
   list(@CurrentUser() user: AuthenticatedUser) { return this.connectors.list(user.organizationId); }

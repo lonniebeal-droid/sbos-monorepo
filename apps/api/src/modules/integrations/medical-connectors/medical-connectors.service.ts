@@ -5,6 +5,7 @@ import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditService } from '../../../audit/audit.service';
 import type { MedicalConnectorVendor, X12Transaction } from './medical-connectors.types';
 import { MEDICAL_CONNECTOR_VENDORS, normalizeScopes, syntheticX12, vendorProfile } from './medical-connectors.types';
+import { MEDICAL_ECOSYSTEM_CAPABILITIES, validateNpiChecksum } from './medical-ecosystem.types';
 
 type ConnectorRow = { id:string; organizationId:string; vendor:string; baseUrl:string; clientId:string|null; scopes:string|null; status:string; fhirVersion:string|null; lastTestedAt:Date|null; lastError:string|null };
 
@@ -12,6 +13,19 @@ type ConnectorRow = { id:string; organizationId:string; vendor:string; baseUrl:s
 export class MedicalConnectorsService {
   constructor(private readonly prisma: PrismaService, private readonly audit: AuditService) {}
   vendors() { return MEDICAL_CONNECTOR_VENDORS.map(vendorProfile); }
+  ecosystemCapabilities() { return MEDICAL_ECOSYSTEM_CAPABILITIES; }
+  async validateProviderNpi(npi:string) {
+    if(!validateNpiChecksum(npi)) return {ok:false,checksumValid:false,registryVerified:false,message:'NPI failed the 10-digit checksum; no registry lookup performed.'};
+    const url=new URL('https://npiregistry.cms.hhs.gov/api/');
+    url.searchParams.set('version','2.1'); url.searchParams.set('number',npi);
+    try {
+      const response=await fetch(url,{headers:{Accept:'application/json'},signal:AbortSignal.timeout(10000)});
+      if(!response.ok) throw new Error(`NPPES returned HTTP ${response.status}`);
+      const data:any=await response.json(); const result=data?.results?.[0];
+      if(!result) return {ok:true,checksumValid:true,registryVerified:false,active:false,message:'NPI checksum is valid but no registry record was returned. NPI validation is not licensure or credential verification.'};
+      return {ok:true,checksumValid:true,registryVerified:true,active:result?.basic?.status==='A',enumerationType:result?.enumeration_type??null,taxonomies:Array.isArray(result?.taxonomies)?result.taxonomies.map((t:any)=>({code:t?.code??null,desc:t?.desc??null,primary:t?.primary===true})):[],message:'Public NPPES record verified. This does not establish licensure, credentialing, DEA authority, EPCS authority, or payer enrollment.'};
+    } catch(error) { const message=error instanceof Error?error.message:'NPPES lookup failed'; return {ok:false,checksumValid:true,registryVerified:false,message}; }
+  }
   async list(organizationId: string) { return this.prisma.$queryRaw<ConnectorRow[]>`SELECT "id","organizationId","vendor","baseUrl","clientId","scopes","status","fhirVersion","lastTestedAt","lastError" FROM "medical_connectors" WHERE "organizationId"=${organizationId} ORDER BY "updatedAt" DESC`; }
   async save(organizationId:string, actorId:string, input:{vendor:MedicalConnectorVendor;baseUrl:string;clientId?:string;scopes?:string}) { const id=randomUUID(); const scopes=normalizeScopes(input.scopes??'').join(' '); const rows=await this.prisma.$queryRaw<ConnectorRow[]>(Prisma.sql`INSERT INTO "medical_connectors" ("id","organizationId","vendor","baseUrl","clientId","scopes","status","updatedAt") VALUES (${id},${organizationId},${input.vendor},${input.baseUrl},${input.clientId??null},${scopes||null},'not_connected',CURRENT_TIMESTAMP) ON CONFLICT ("organizationId","vendor") DO UPDATE SET "baseUrl"=EXCLUDED."baseUrl","clientId"=EXCLUDED."clientId","scopes"=EXCLUDED."scopes","status"='not_connected',"lastError"=NULL,"updatedAt"=CURRENT_TIMESTAMP RETURNING *`); await this.audit.record({organizationId,actorId,action:AuditAction.UPDATE,entityType:'medical_connector',entityId:rows[0]?.id,metadata:{event:'connector.saved',vendor:input.vendor,baseUrl:input.baseUrl}}); return rows[0]; }
   async test(organizationId:string, actorId:string, id:string) {
