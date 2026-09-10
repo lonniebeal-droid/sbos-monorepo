@@ -14,7 +14,7 @@ export const MEDICAL_CONNECTOR_VENDORS = [
 ] as const;
 
 export type MedicalConnectorVendor = (typeof MEDICAL_CONNECTOR_VENDORS)[number];
-export type MedicalConnectorStatus = 'not_connected' | 'testing' | 'capability_verified' | 'sandbox_verified' | 'connected' | 'error';
+export type MedicalConnectorStatus = 'not_connected' | 'testing' | 'configuration_validated' | 'capability_verified' | 'sandbox_verified' | 'connected' | 'error';
 
 export const X12_TRANSACTIONS = ['270','271','837','837P','837I','276','277','278','835'] as const;
 export type X12Transaction = (typeof X12_TRANSACTIONS)[number];
@@ -23,24 +23,26 @@ type VendorProfile = {
   vendor: MedicalConnectorVendor;
   standard: 'FHIR R4' | 'Vendor API + X12' | 'HL7 v2' | 'X12';
   authMode: 'SMART on FHIR' | 'OAuth 2.0 / vendor-specific' | 'Interface credentials / vendor-specific' | 'Clearinghouse credentials / vendor-specific' | 'Transport-specific';
+  testStrategy: 'fhir-capability' | 'configuration-only';
   suggestedScopes: string[];
 };
 
 const SMART_SCOPES = ['openid','fhirUser','patient/Patient.read','patient/Appointment.read','patient/Encounter.read','patient/Coverage.read'];
 
 const PROFILE_OVERRIDES: Partial<Record<MedicalConnectorVendor, Omit<VendorProfile, 'vendor'>>> = {
-  'SimplePractice': { standard:'Vendor API + X12', authMode:'OAuth 2.0 / vendor-specific', suggestedScopes:[] },
-  'athenahealth': { standard:'Vendor API + X12', authMode:'OAuth 2.0 / vendor-specific', suggestedScopes:[] },
-  'Generic HL7 v2': { standard:'HL7 v2', authMode:'Interface credentials / vendor-specific', suggestedScopes:[] },
-  'Availity': { standard:'X12', authMode:'Clearinghouse credentials / vendor-specific', suggestedScopes:[] },
-  'Change Healthcare / Optum': { standard:'X12', authMode:'Clearinghouse credentials / vendor-specific', suggestedScopes:[] },
-  'Generic X12': { standard:'X12', authMode:'Transport-specific', suggestedScopes:[] },
+  'SimplePractice': { standard:'Vendor API + X12', authMode:'OAuth 2.0 / vendor-specific', testStrategy:'configuration-only', suggestedScopes:[] },
+  'athenahealth': { standard:'Vendor API + X12', authMode:'OAuth 2.0 / vendor-specific', testStrategy:'configuration-only', suggestedScopes:[] },
+  'Generic HL7 v2': { standard:'HL7 v2', authMode:'Interface credentials / vendor-specific', testStrategy:'configuration-only', suggestedScopes:[] },
+  'Availity': { standard:'X12', authMode:'Clearinghouse credentials / vendor-specific', testStrategy:'configuration-only', suggestedScopes:[] },
+  'Change Healthcare / Optum': { standard:'X12', authMode:'Clearinghouse credentials / vendor-specific', testStrategy:'configuration-only', suggestedScopes:[] },
+  'Generic X12': { standard:'X12', authMode:'Transport-specific', testStrategy:'configuration-only', suggestedScopes:[] },
 };
 
 export const vendorProfile = (vendor: MedicalConnectorVendor): VendorProfile => ({
   vendor,
   standard: 'FHIR R4',
   authMode: 'SMART on FHIR',
+  testStrategy: 'fhir-capability',
   suggestedScopes: [...SMART_SCOPES],
   ...PROFILE_OVERRIDES[vendor],
 });
