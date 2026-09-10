@@ -31,6 +31,7 @@ These checks verify only that the named public/sandbox endpoint is reachable and
 
 | Vendor endpoint | Result | Evidence |
 |---|---|---|
+| Epic R4 sandbox | VERIFIED capability only | HTTP 200; `resourceType=CapabilityStatement`; `fhirVersion=4.0.1`; `software=Epic`; `status=active` from `https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4/metadata`. This does not change the existing Epic OAuth/client-provisioning external gate. |
 | Oracle Health / Cerner open R4 sandbox | VERIFIED capability only | HTTP 200; `resourceType=CapabilityStatement`; `fhirVersion=4.0.1`; `status=active` from `https://fhir-open.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d/metadata`. |
 | Veradigm R4 sandbox | VERIFIED capability only | HTTP 200; `resourceType=CapabilityStatement`; `fhirVersion=4.0.1`; `software=Veradigm FHIR`; `status=active` from `https://fhir.fhirpoint.open.allscripts.com/fhirroute/fhir/CP00101/metadata`. |
 | athenaPractice V25 sandbox | VERIFIED capability only | HTTP 200; `resourceType=CapabilityStatement`; `fhirVersion=4.0.1`; `software=R4 API Server`; `status=active` from `https://ap25sandbox.fhirapi.athenahealth.com/demoAPIServer/fhir/r4/metadata`. |
