@@ -5,6 +5,7 @@ export const VENDOR_PROFILES:VendorProfile[]=[
 {id:'epic',displayName:'Epic',type:'fhir',capabilities:['Patient','Appointment','Encounter','Coverage'],auth:'smart',syntheticOnly:true},
 {id:'athenahealth',displayName:'athenahealth',type:'ehr',capabilities:['patients','appointments','claims'],auth:'oauth2',syntheticOnly:true},
 {id:'cerner',displayName:'Oracle Health / Cerner',type:'fhir',capabilities:['Patient','Appointment','Encounter'],auth:'smart',syntheticOnly:true},
+{id:'meditech',displayName:'MEDITECH',type:'fhir',capabilities:['Patient','Appointment','Encounter','Coverage'],auth:'smart',syntheticOnly:true},
 {id:'eclinicalworks',displayName:'eClinicalWorks',type:'ehr',capabilities:['patients','appointments','claims'],auth:'oauth2',syntheticOnly:true},
 {id:'nextgen',displayName:'NextGen',type:'ehr',capabilities:['patients','appointments','claims'],auth:'oauth2',syntheticOnly:true},
 {id:'veradigm',displayName:'Veradigm / Allscripts',type:'ehr',capabilities:['patients','appointments','claims'],auth:'oauth2',syntheticOnly:true},
