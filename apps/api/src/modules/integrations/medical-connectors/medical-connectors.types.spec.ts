@@ -7,10 +7,12 @@ describe('medical connector contracts', () => {
   });
 
   it('keeps SMART vendors on FHIR R4 + SMART', () => {
-    const profile = vendorProfile('Epic');
-    expect(profile.standard).toBe('FHIR R4');
-    expect(profile.authMode).toBe('SMART on FHIR');
-    expect(profile.suggestedScopes).toContain('patient/Encounter.read');
+    for (const vendor of ['Epic','MEDITECH'] as const) {
+      const profile = vendorProfile(vendor);
+      expect(profile.standard).toBe('FHIR R4');
+      expect(profile.authMode).toBe('SMART on FHIR');
+      expect(profile.suggestedScopes).toContain('patient/Encounter.read');
+    }
   });
 
   it('uses truthful non-FHIR profiles for clearinghouse and interface connectors', () => {
@@ -19,9 +21,10 @@ describe('medical connector contracts', () => {
     expect(vendorProfile('Generic X12')).toMatchObject({ standard:'X12', authMode:'Transport-specific' });
   });
 
-  it('exposes the reconciled 12-option integration catalog without duplicate labels', () => {
-    expect(MEDICAL_CONNECTOR_VENDORS).toHaveLength(12);
+  it('exposes the reconciled expanded integration catalog without duplicate labels', () => {
+    expect(MEDICAL_CONNECTOR_VENDORS).toHaveLength(13);
     expect(new Set(MEDICAL_CONNECTOR_VENDORS).size).toBe(MEDICAL_CONNECTOR_VENDORS.length);
+    expect(MEDICAL_CONNECTOR_VENDORS).toContain('MEDITECH');
     expect(MEDICAL_CONNECTOR_VENDORS).toContain('NextGen');
     expect(MEDICAL_CONNECTOR_VENDORS).toContain('Veradigm / Allscripts');
     expect(MEDICAL_CONNECTOR_VENDORS).toContain('Change Healthcare / Optum');
