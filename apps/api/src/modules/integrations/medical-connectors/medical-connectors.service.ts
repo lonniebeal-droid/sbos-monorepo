@@ -47,9 +47,9 @@ export class MedicalConnectorsService {
         software = body.match(/<software[\s\S]*?<name[^>]*value=["']([^"']+)/i)?.[1];
       }
       if (!isCapability) throw new Error('FHIR metadata endpoint did not return a CapabilityStatement');
-      await this.prisma.$executeRaw`UPDATE "medical_connectors" SET "status"='sandbox_verified',"fhirVersion"=${fhirVersion},"lastError"=NULL,"lastTestedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "organizationId"=${organizationId}`;
-      await this.audit.record({ organizationId, actorId, action:AuditAction.UPDATE, entityType:'medical_connector', entityId:id, metadata:{event:'connector.sandbox_capability_verified', fhirVersion} });
-      return { ok:true, status:'sandbox_verified', fhirVersion, software, message:'FHIR sandbox CapabilityStatement verified; OAuth/patient-data access is not implied.' };
+      await this.prisma.$executeRaw`UPDATE "medical_connectors" SET "status"='capability_verified',"fhirVersion"=${fhirVersion},"lastError"=NULL,"lastTestedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "organizationId"=${organizationId}`;
+      await this.audit.record({ organizationId, actorId, action:AuditAction.UPDATE, entityType:'medical_connector', entityId:id, metadata:{event:'connector.capability_verified', fhirVersion} });
+      return { ok:true, status:'capability_verified', fhirVersion, software, message:'FHIR CapabilityStatement verified; this does not imply sandbox identity, OAuth authorization, or patient-data access.' };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Connection test failed';
       await this.prisma.$executeRaw`UPDATE "medical_connectors" SET "status"='error',"lastError"=${message},"lastTestedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "id"=${id} AND "organizationId"=${organizationId}`;

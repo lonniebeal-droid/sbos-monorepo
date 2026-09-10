@@ -1,6 +1,6 @@
 export const MEDICAL_CONNECTOR_VENDORS = ['Epic','athenahealth','Oracle Health / Cerner','eClinicalWorks','Generic FHIR R4'] as const;
 export type MedicalConnectorVendor = (typeof MEDICAL_CONNECTOR_VENDORS)[number];
-export type MedicalConnectorStatus = 'not_connected' | 'testing' | 'sandbox_verified' | 'connected' | 'error';
+export type MedicalConnectorStatus = 'not_connected' | 'testing' | 'capability_verified' | 'sandbox_verified' | 'connected' | 'error';
 export const X12_TRANSACTIONS = ['270','271','837','276','277','835'] as const;
 export type X12Transaction = (typeof X12_TRANSACTIONS)[number];
 
