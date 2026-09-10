@@ -26,6 +26,15 @@ Rule: no category is called connection-complete while an applicable item is `MIS
 | Document exchange / C-CDA / USCDI | IMPLEMENTED-SYNTHETIC | PR #28 adds FHIR DocumentReference/Binary exchange descriptors and explicitly recognizes XML content as C-CDA-compatible transport content. | Receiving-network authorization and production C-CDA/USCDI profile/conformance validation remain external/implementation-guide specific; synthetic support is not certification. |
 | Security / consent / lifecycle | IMPLEMENTED-SYNTHETIC | Existing SMART PKCE/state/token controls, audit logging, disconnect/reconnect semantics, least-privilege scopes, and connector tests separate capability/config validation from authorization. Existing `apps/api/src/e2e/security.spec.ts` contains explicit cross-organization tenant-isolation checks for clients, claims, appointments and notes plus role/visibility negative cases. PR #28 adds consent revocation and unsafe resource-id/URL negative tests. | Production penetration testing, vendor OAuth failure-mode exercises and organization-specific security acceptance remain external; local negative-auth/tenant-isolation evidence is no longer MISSING. |
 
+## Live public FHIR capability verification — 2026-09-10
+These checks verify only that the named public/sandbox endpoint is reachable and advertises an active FHIR R4 CapabilityStatement. They do **not** prove that JU Medical has vendor OAuth credentials, patient/practice authorization, write access, production approval, or PHI access.
+
+| Vendor endpoint | Result | Evidence |
+|---|---|---|
+| Oracle Health / Cerner open R4 sandbox | VERIFIED capability only | HTTP 200; `resourceType=CapabilityStatement`; `fhirVersion=4.0.1`; `status=active` from `https://fhir-open.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d/metadata`. |
+| Veradigm R4 sandbox | VERIFIED capability only | HTTP 200; `resourceType=CapabilityStatement`; `fhirVersion=4.0.1`; `software=Veradigm FHIR`; `status=active` from `https://fhir.fhirpoint.open.allscripts.com/fhirroute/fhir/CP00101/metadata`. |
+| athenaPractice V25 sandbox | VERIFIED capability only | HTTP 200; `resourceType=CapabilityStatement`; `fhirVersion=4.0.1`; `software=R4 API Server`; `status=active` from `https://ap25sandbox.fhirapi.athenahealth.com/demoAPIServer/fhir/r4/metadata`. |
+
 ## Count reconciliation
 The original broader admin documentation named 12 distinct selectable integration options: 9 EHR/PMS/interface options plus 3 clearinghouse/X12 options. Older text saying "11 vendors" was inconsistent because the legacy mock registry omitted Generic SMART on FHIR R4 while the admin dropdown documentation listed it. PR #27 first reconciled that discrepancy, then expanded the supported synthetic catalog to 13 by explicitly adding MEDITECH based on its documented FHIR R4/Greenfield developer path.
 
