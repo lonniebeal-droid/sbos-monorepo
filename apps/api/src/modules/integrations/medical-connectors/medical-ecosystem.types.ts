@@ -12,16 +12,43 @@ export const MEDICAL_ECOSYSTEM_CAPABILITIES = [
 
 export type FhirEcosystemResource = 'MedicationRequest'|'Observation'|'DiagnosticReport'|'ImagingStudy'|'DocumentReference'|'Binary'|'Practitioner'|'Location'|'Organization'|'Appointment';
 
+const FHIR_ID = /^[A-Za-z0-9.-]{1,64}$/;
+
 export function fhirResourcePath(resource: FhirEcosystemResource, id?: string) {
-  if (id && !/^[A-Za-z0-9.-]{1,64}$/.test(id)) throw new Error('Invalid FHIR resource id');
-  return `/${resource}${id ? `/${id}` : ''}`;
+  if (id !== undefined && !FHIR_ID.test(id)) throw new Error('Invalid FHIR resource id');
+  return `/${resource}${id !== undefined ? `/${id}` : ''}`;
+}
+
+export type SyntheticMedicationRequestInput = {
+  patientId: string;
+  practitionerId: string;
+  rxNormCode: string;
+  medicationDisplay?: string;
+};
+
+export function buildSyntheticMedicationRequest(input: SyntheticMedicationRequestInput) {
+  if (!FHIR_ID.test(input.patientId) || !FHIR_ID.test(input.practitionerId)) throw new Error('Invalid FHIR resource id');
+  if (!/^\d{1,12}$/.test(input.rxNormCode)) throw new Error('Invalid RxNorm code');
+  return {
+    resourceType: 'MedicationRequest' as const,
+    status: 'draft' as const,
+    intent: 'order' as const,
+    subject: { reference: `Patient/${input.patientId}` },
+    requester: { reference: `Practitioner/${input.practitionerId}` },
+    medicationCodeableConcept: {
+      coding: [{ system: 'http://www.nlm.nih.gov/research/umls/rxnorm', code: input.rxNormCode, ...(input.medicationDisplay ? { display: input.medicationDisplay } : {}) }],
+    },
+    syntheticOnly: true as const,
+  };
 }
 
 export function dicomWebPaths(baseUrl: string) {
   const url = new URL(baseUrl);
   if (!['https:','http:'].includes(url.protocol)) throw new Error('DICOMweb endpoint must use HTTP(S)');
-  const root = baseUrl.replace(/\/$/, '');
-  return { qido:`${root}/studies`, wado:`${root}/studies`, stow:`${root}/studies` };
+  if (url.hash) throw new Error('DICOMweb endpoint must not include a fragment');
+  url.pathname = `${url.pathname.replace(/\/$/, '')}/studies`;
+  const studies = url.toString();
+  return { qido:studies, wado:studies, stow:studies };
 }
 
 export function validateNpiChecksum(npi: string) {
