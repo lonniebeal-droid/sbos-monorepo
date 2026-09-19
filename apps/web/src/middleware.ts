@@ -9,6 +9,7 @@ import {
 } from "@/lib/auth";
 
 const PUBLIC_PATHS = [
+  "/",
   "/login",
   "/api/auth/login",
   "/api/auth/mfa",
