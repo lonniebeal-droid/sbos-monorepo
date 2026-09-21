@@ -11,8 +11,8 @@
     "lint": "tsc --noEmit PASS (api + web)",
     "build": "database PASS, core PASS, API PASS, web 22 pages PASS"
   },
-  "commit": "cfcb38936fcd2115fbd1057adf465442c75dad87",
-  "pr": null,
+  "commit": "4763c42",
+  "pr": "https://github.com/lonniebeal-droid/sbos-monorepo/pull/37",
   "blocker": "Railway production deployment is FAILED/REMOVED. All 3 services (sbos-api, sbos-web, claimflow-demo) return HTTP 404. railway.json is deprecated and needs migration to .railway/railway.ts.",
   "next_step": "Fix Railway production deployment: migrate railway.json to .railway/railway.ts, set env vars in Railway dashboard, redeploy from main, verify health endpoints return HTTP 200."
 }
