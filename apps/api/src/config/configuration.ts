@@ -29,12 +29,22 @@ export interface AppConfig {
   };
   /**
    * Jessie / ElevenLabs agent tool auth.
-   * Map of agentSecret → organizationId (never trust org from the request body).
+   * Map of agentSecret -> organizationId (never trust org from the request body).
    * Env: JESSIE_AGENT_SECRETS=orgId1:secret1,orgId2:secret2
    */
   jessieAgent: {
-    /** secret → organizationId */
+    /** secret -> organizationId */
     secrets: Record<string, string>;
+  };
+  redis: {
+    /** Redis connection URL for distributed rate limiting. Optional; falls back to in-memory if unset. */
+    url?: string;
+    /** Enable Redis-backed rate limiting (requires REDIS_URL). Defaults to false. */
+    enabled: boolean;
+    /** Connection timeout in ms. Default: 5000. */
+    connectTimeout: number;
+    /** Max retries for Redis connection. Default: 3. */
+    maxRetriesPerRequest: number;
   };
 }
 
@@ -75,6 +85,12 @@ export default (): AppConfig => {
     },
     jessieAgent: {
       secrets: parsed.secrets,
+    },
+    redis: {
+      url: process.env.REDIS_URL,
+      enabled: process.env.REDIS_RATE_LIMIT_ENABLED === 'true',
+      connectTimeout: parseInt(process.env.REDIS_CONNECT_TIMEOUT ?? '5000', 10),
+      maxRetriesPerRequest: parseInt(process.env.REDIS_MAX_RETRIES ?? '3', 10),
     },
   };
 };
