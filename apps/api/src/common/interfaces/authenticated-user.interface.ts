@@ -17,8 +17,8 @@ export interface JwtPayload {
   role: Role;
   organizationId: string;
   type: 'access' | 'refresh';
-  /** Session version; must match User.passwordVersion or token is rejected. */
-  passwordVersion?: number;
+  /** Credential generation; must match the current User.passwordVersion. */
+  passwordVersion: number;
   /** Unique id for refresh tokens, used for rotation/revocation. */
   jti?: string;
 }
