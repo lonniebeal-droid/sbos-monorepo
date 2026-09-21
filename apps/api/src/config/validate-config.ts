@@ -50,6 +50,10 @@ export function validateRuntimeConfig(config: AppConfig): void {
     problems.push('DATABASE_URL is not set');
   }
 
+  if (config.redis.enabled && !config.redis.url) {
+    problems.push('REDIS_RATE_LIMIT_ENABLED=true but REDIS_URL is not set');
+  }
+
   // Re-parse raw env so malformed entries surface. Never include secret values.
   try {
     const parsed = parseAgentSecrets(process.env.JESSIE_AGENT_SECRETS);
