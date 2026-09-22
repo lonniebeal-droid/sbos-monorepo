@@ -56,7 +56,8 @@ docker compose up --build
 - Web: http://localhost:3000 · API: http://localhost:4000 (docs at `/docs`)
 - The API container applies Prisma migrations on start.
 - Images use multi-stage builds with Turborepo pruning; the web image runs the
-  Next.js standalone server. CI (GitHub Actions) builds both images and runs
+  Next.js standalone server. CI (GitHub Actions) buil
+ds both images and runs
   build/lint/test on every push.
 
 ## Development sign-in
@@ -81,3 +82,6 @@ See [`docs/`](docs/):
 ## License
 
 See [LICENSE](LICENSE).
+
+
+<!-- Railway redeployment trigger: 2026-09-22T03:57:49.126Z -->
