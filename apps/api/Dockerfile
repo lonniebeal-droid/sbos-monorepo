@@ -35,5 +35,5 @@ USER nodeuser
 EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||4000)+'/api/v1/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
-# Apply pending migrations from the database workspace, then start the API.
-CMD ["sh", "-c", "packages/database/node_modules/.bin/prisma migrate deploy --schema=packages/database/prisma/schema.prisma && node apps/api/dist/main.js"]
+# Build DATABASE_URL from the Secret Manager-backed DB_PASSWORD, apply migrations, then start the API.
+CMD ["node", "apps/api/entrypoint.mjs"]

@@ -11,7 +11,9 @@ import {
 const PUBLIC_PATHS = [
   "/",
   "/login",
+  "/first-admin",
   "/api/auth/login",
+  "/api/auth/bootstrap",
   "/api/auth/mfa",
   "/api/auth/logout",
   "/api/auth/epic",
