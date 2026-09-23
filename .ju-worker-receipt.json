@@ -1,0 +1,18 @@
+{
+  "task_id": "issue-16-criterion-8-deployment-evidence",
+  "status": "VERIFIED_COMPLETE",
+  "files_changed": [
+    "JESSIE_PRODUCTION_ACCEPTANCE_EVIDENCE.md"
+  ],
+  "tests": {
+    "api": "56 files, 301 tests PASS",
+    "core": "26 tests PASS",
+    "total": "327 tests, 0 failures",
+    "lint": "tsc --noEmit PASS (api + web)",
+    "build": "database PASS, core PASS, API PASS, web 22 pages PASS"
+  },
+  "commit": "4763c42",
+  "pr": "https://github.com/lonniebeal-droid/sbos-monorepo/pull/37",
+  "blocker": "Railway production deployment is FAILED/REMOVED. All 3 services (sbos-api, sbos-web, claimflow-demo) return HTTP 404. railway.json is deprecated and needs migration to .railway/railway.ts.",
+  "next_step": "Fix Railway production deployment: migrate railway.json to .railway/railway.ts, set env vars in Railway dashboard, redeploy from main, verify health endpoints return HTTP 200."
+}
