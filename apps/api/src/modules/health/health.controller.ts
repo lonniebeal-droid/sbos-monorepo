@@ -1,5 +1,6 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, HttpStatus, Res } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 
 import { Public } from '../../common/decorators/public.decorator';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -12,7 +13,7 @@ export class HealthController {
   @Public()
   @Get()
   @ApiOperation({ summary: 'Liveness and readiness probe (includes DB check)' })
-  async check() {
+  async check(@Res({ passthrough: true }) response: Response) {
     const start = process.hrtime.bigint();
     let dbStatus = 'up';
     let dbLatencyMs: number | null = null;
@@ -24,6 +25,9 @@ export class HealthController {
     }
 
     const status = dbStatus === 'up' ? 'ok' : 'degraded';
+    response.status(
+      status === 'ok' ? HttpStatus.OK : HttpStatus.SERVICE_UNAVAILABLE,
+    );
     return {
       status,
       service: 'sbos-api',

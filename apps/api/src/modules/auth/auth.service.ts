@@ -53,6 +53,13 @@ export class AuthService {
     return value * (multipliers[unit] ?? 60);
   }
 
+  private tokensEqual(left: string, right: string): boolean {
+    const leftBuffer = Buffer.from(left, 'utf8');
+    const rightBuffer = Buffer.from(right, 'utf8');
+    if (leftBuffer.length !== rightBuffer.length) return false;
+    return crypto.timingSafeEqual(leftBuffer, rightBuffer);
+  }
+
   private async issueTokens(user: UserEntity): Promise<AuthTokensDto> {
     const jwtConfig = this.configService.get('jwt', { infer: true });
     const basePayload = {
@@ -270,7 +277,7 @@ export class AuthService {
     if (!envToken) {
       throw new BadRequestException('Bootstrap is not enabled');
     }
-    if (dto.token !== envToken) {
+    if (!this.tokensEqual(dto.token, envToken)) {
       throw new UnauthorizedException('Invalid bootstrap token');
     }
 

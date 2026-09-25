@@ -90,7 +90,7 @@ export class AppointmentsService {
     }
   }
 
-  async create(organizationId: string, actorId: string, dto: CreateAppointmentDto) {
+  async create(organizationId: string, actorId: string | null, dto: CreateAppointmentDto, auditExtra?: Record<string, unknown>) {
     await this.ensureClientInOrg(organizationId, dto.clientId);
     await this.ensureClinicianInOrg(organizationId, dto.clinicianId);
     if (dto.locationId) {
@@ -122,7 +122,7 @@ export class AppointmentsService {
 
     await this.audit.record({
       organizationId,
-      actorId,
+      actorId: actorId ?? null,
       action: AuditAction.CREATE,
       entityType: 'Appointment',
       entityId: appointment.id,
@@ -130,6 +130,7 @@ export class AppointmentsService {
         clientId: appointment.clientId,
         clinicianId: appointment.clinicianId,
         startTime: appointment.startTime,
+        ...(auditExtra ?? {}),
       },
     });
 
