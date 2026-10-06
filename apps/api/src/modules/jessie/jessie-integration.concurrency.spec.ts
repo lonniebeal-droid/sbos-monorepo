@@ -6,6 +6,8 @@ import { SmsProvider } from '../../channels/sms.provider';
 import { EmailProvider } from '../../channels/email.provider';
 import { CallOutcomeEnum } from './dto/jessie-integration.dto';
 
+// Needs a real Postgres; skip cleanly in CI where DATABASE_URL is not provided.
+const hasDb = Boolean(process.env.DATABASE_URL);
 const prisma = new PrismaClient();
 const audit = new AuditService(prisma as any);
 
@@ -26,14 +28,17 @@ const ctx = {
 };
 
 beforeAll(async () => {
+  if (!hasDb) return;
   await prisma.$connect();
 });
 
 afterAll(async () => {
+  if (!hasDb) return;
   await prisma.$disconnect();
 });
 
 beforeEach(async () => {
+  if (!hasDb) return;
   await prisma.auditLog.deleteMany({ where: { organizationId: ctx.organizationId } });
   await prisma.idempotencyKey.deleteMany({ where: { organizationId: ctx.organizationId } });
   await prisma.lead.deleteMany({ where: { organizationId: ctx.organizationId } });
@@ -98,7 +103,7 @@ beforeEach(async () => {
   });
 });
 
-describe('JessieIntegrationService - Concurrent Idempotency', () => {
+describe.skipIf(!hasDb)('JessieIntegrationService - Concurrent Idempotency', () => {
   describe('captureLead - concurrent duplicate requests', () => {
     it('handles concurrent duplicate lead creation - only one lead created', async () => {
       const idempotencyKey = `idem-lead-concurrent-${Date.now()}`;
