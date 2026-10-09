@@ -93,6 +93,13 @@ describe('RolesGuard', () => {
     ).toThrow(ForbiddenException);
   });
 
+  it('BILLING does NOT satisfy FRONT_DESK requirement (isolated functional roles)', () => {
+    const guard = guardWithRequiredRoles([Role.FRONT_DESK]);
+    expect(() =>
+      guard.canActivate(contextWithUser({ role: Role.BILLING })),
+    ).toThrow(ForbiddenException);
+  });
+
   it('SUPER_ADMIN satisfies all functional roles', () => {
     for (const role of [
       Role.ORG_ADMIN,
