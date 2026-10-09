@@ -19,8 +19,14 @@ export class InvoicesService {
     return `INV-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
-  /** Ensure the client exists in this org (and is not soft-deleted). */
-  private async ensureClientInOrg(organizationId: string, clientId: string) {
+  /**
+   * Client-supplied clientId must belong to this organization (and not be
+   * soft-deleted). Prevents cross-tenant invoice attachment.
+   */
+  private async ensureClientInOrg(
+    organizationId: string,
+    clientId: string,
+  ): Promise<void> {
     const client = await this.prisma.client.findFirst({
       where: { id: clientId, organizationId, deletedAt: null },
       select: { id: true },
@@ -28,7 +34,6 @@ export class InvoicesService {
     if (!client) {
       throw new NotFoundException(`Client ${clientId} not found`);
     }
-    return client;
   }
 
   async create(organizationId: string, actorId: string, dto: CreateInvoiceDto) {

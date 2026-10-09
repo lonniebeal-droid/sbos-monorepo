@@ -30,18 +30,6 @@ export class AppointmentsService {
     @Inject(SMS_PROVIDER) private readonly sms: SmsProvider,
   ) {}
 
-  /** Ensure the client exists in this org (and is not soft-deleted). */
-  private async ensureClientInOrg(organizationId: string, clientId: string) {
-    const client = await this.prisma.client.findFirst({
-      where: { id: clientId, organizationId, deletedAt: null },
-      select: { id: true },
-    });
-    if (!client) {
-      throw new NotFoundException(`Client ${clientId} not found`);
-    }
-    return client;
-  }
-
   /** Best-effort appointment confirmation SMS (no-op with the console provider). */
   private async sendConfirmation(clientId: string, start: Date): Promise<void> {
     const client = await this.prisma.client.findUnique({
@@ -59,7 +47,56 @@ export class AppointmentsService {
       );
   }
 
-  async create(organizationId: string, actorId: string, dto: CreateAppointmentDto) {
+  /**
+   * Client-supplied ownership IDs must belong to this organization.
+   * Prevents cross-tenant appointment attachment via clientId/clinicianId/locationId.
+   */
+  private async ensureClientInOrg(
+    organizationId: string,
+    clientId: string,
+  ): Promise<void> {
+    const client = await this.prisma.client.findFirst({
+      where: { id: clientId, organizationId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!client) {
+      throw new NotFoundException(`Client ${clientId} not found`);
+    }
+  }
+
+  private async ensureClinicianInOrg(
+    organizationId: string,
+    clinicianId: string,
+  ): Promise<void> {
+    const clinician = await this.prisma.clinician.findFirst({
+      where: { id: clinicianId, organizationId },
+      select: { id: true },
+    });
+    if (!clinician) {
+      throw new NotFoundException(`Clinician ${clinicianId} not found`);
+    }
+  }
+
+  private async ensureLocationInOrg(
+    organizationId: string,
+    locationId: string,
+  ): Promise<void> {
+    const location = await this.prisma.location.findFirst({
+      where: { id: locationId, organizationId },
+      select: { id: true },
+    });
+    if (!location) {
+      throw new NotFoundException(`Location ${locationId} not found`);
+    }
+  }
+
+  async create(organizationId: string, actorId: string | null, dto: CreateAppointmentDto, auditExtra?: Record<string, unknown>) {
+    await this.ensureClientInOrg(organizationId, dto.clientId);
+    await this.ensureClinicianInOrg(organizationId, dto.clinicianId);
+    if (dto.locationId) {
+      await this.ensureLocationInOrg(organizationId, dto.locationId);
+    }
+
     const start = new Date(dto.startTime);
     const end = new Date(dto.endTime);
     if (end <= start) {
@@ -87,7 +124,7 @@ export class AppointmentsService {
 
     await this.audit.record({
       organizationId,
-      actorId,
+      actorId: actorId ?? null,
       action: AuditAction.CREATE,
       entityType: 'Appointment',
       entityId: appointment.id,
@@ -95,6 +132,7 @@ export class AppointmentsService {
         clientId: appointment.clientId,
         clinicianId: appointment.clinicianId,
         startTime: appointment.startTime,
+        ...(auditExtra ?? {}),
       },
     });
 
@@ -128,6 +166,12 @@ export class AppointmentsService {
    * reported so the caller can resolve them.
    */
   async createRecurring(organizationId: string, dto: CreateRecurringDto) {
+    await this.ensureClientInOrg(organizationId, dto.clientId);
+    await this.ensureClinicianInOrg(organizationId, dto.clinicianId);
+    if (dto.locationId) {
+      await this.ensureLocationInOrg(organizationId, dto.locationId);
+    }
+
     const start = new Date(dto.startTime);
     const end = new Date(dto.endTime);
     if (end <= start) {

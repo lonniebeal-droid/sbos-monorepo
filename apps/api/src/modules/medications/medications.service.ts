@@ -13,8 +13,14 @@ export class MedicationsService {
     private readonly audit: AuditService,
   ) {}
 
-  /** Ensure the client exists in this org (and is not soft-deleted). */
-  private async ensureClientInOrg(organizationId: string, clientId: string) {
+  /**
+   * Client-supplied ownership IDs must belong to this organization.
+   * Prevents cross-tenant medication attachment via clientId/prescriberId.
+   */
+  private async ensureClientInOrg(
+    organizationId: string,
+    clientId: string,
+  ): Promise<void> {
     const client = await this.prisma.client.findFirst({
       where: { id: clientId, organizationId, deletedAt: null },
       select: { id: true },
@@ -22,12 +28,28 @@ export class MedicationsService {
     if (!client) {
       throw new NotFoundException(`Client ${clientId} not found`);
     }
-    return client;
+  }
+
+  private async ensureClinicianInOrg(
+    organizationId: string,
+    clinicianId: string,
+  ): Promise<void> {
+    const clinician = await this.prisma.clinician.findFirst({
+      where: { id: clinicianId, organizationId },
+      select: { id: true },
+    });
+    if (!clinician) {
+      throw new NotFoundException(`Clinician ${clinicianId} not found`);
+    }
   }
 
   async create(organizationId: string, dto: CreateMedicationDto) {
+    await this.ensureClientInOrg(organizationId, dto.clientId);
+    if (dto.prescriberId) {
+      await this.ensureClinicianInOrg(organizationId, dto.prescriberId);
+    }
+
     const { clientId, startDate, ...rest } = dto;
-    await this.ensureClientInOrg(organizationId, clientId);
     return this.prisma.medication.create({
       data: {
         ...rest,

@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { LoggerModule } from 'nestjs-pino';
 
 import configuration from './config/configuration';
 import { validateConfig } from './config/validate-config';
@@ -47,15 +46,6 @@ import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storag
       load: [configuration],
       validate: validateConfig,
     }),
-    LoggerModule.forRoot({
-      pinoHttp: {
-        transport:
-          process.env.NODE_ENV !== 'production'
-            ? { target: 'pino-pretty', options: { singleLine: true } }
-            : undefined,
-        autoLogging: false,
-      },
-    }),
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
@@ -66,7 +56,7 @@ import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storag
           },
         ],
         storage: config.get<boolean>('REDIS_RATE_LIMIT_ENABLED')
-          ? new RedisThrottlerStorage(config.get<string>('REDIS_URL')!)
+          ? new RedisThrottlerStorage(config)
           : undefined,
       }),
     }),

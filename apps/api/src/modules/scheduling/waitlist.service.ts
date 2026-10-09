@@ -12,8 +12,14 @@ export class WaitlistService {
     private readonly audit: AuditService,
   ) {}
 
-  /** Ensure the client exists in this org (and is not soft-deleted). */
-  private async ensureClientInOrg(organizationId: string, clientId: string) {
+  /**
+   * Client-supplied ownership IDs must belong to this organization.
+   * Prevents cross-tenant waitlist attachment via clientId/clinicianId.
+   */
+  private async ensureClientInOrg(
+    organizationId: string,
+    clientId: string,
+  ): Promise<void> {
     const client = await this.prisma.client.findFirst({
       where: { id: clientId, organizationId, deletedAt: null },
       select: { id: true },
@@ -21,11 +27,26 @@ export class WaitlistService {
     if (!client) {
       throw new NotFoundException(`Client ${clientId} not found`);
     }
-    return client;
+  }
+
+  private async ensureClinicianInOrg(
+    organizationId: string,
+    clinicianId: string,
+  ): Promise<void> {
+    const clinician = await this.prisma.clinician.findFirst({
+      where: { id: clinicianId, organizationId },
+      select: { id: true },
+    });
+    if (!clinician) {
+      throw new NotFoundException(`Clinician ${clinicianId} not found`);
+    }
   }
 
   async create(organizationId: string, actorId: string, dto: CreateWaitlistDto) {
     await this.ensureClientInOrg(organizationId, dto.clientId);
+    if (dto.clinicianId) {
+      await this.ensureClinicianInOrg(organizationId, dto.clinicianId);
+    }
 
     const entry = await this.prisma.waitlistEntry.create({
       data: { ...dto, organizationId },

@@ -30,7 +30,28 @@ export class ClientsService {
     @Inject(EMAIL_PROVIDER) private readonly email: EmailProvider,
   ) {}
 
+  /**
+   * Optional primaryClinicianId must belong to this organization.
+   * Prevents cross-tenant clinician binding on the client chart.
+   */
+  private async ensureClinicianInOrg(
+    organizationId: string,
+    clinicianId: string,
+  ): Promise<void> {
+    const clinician = await this.prisma.clinician.findFirst({
+      where: { id: clinicianId, organizationId },
+      select: { id: true },
+    });
+    if (!clinician) {
+      throw new NotFoundException(`Clinician ${clinicianId} not found`);
+    }
+  }
+
   async create(organizationId: string, actorId: string, dto: CreateClientDto) {
+    if (dto.primaryClinicianId) {
+      await this.ensureClinicianInOrg(organizationId, dto.primaryClinicianId);
+    }
+
     const existing = await this.prisma.client.findFirst({
       where: { organizationId, mrn: dto.mrn },
       select: { id: true },
@@ -136,6 +157,9 @@ export class ClientsService {
     dto: UpdateClientDto,
   ) {
     await this.findOne(organizationId, id);
+    if (dto.primaryClinicianId) {
+      await this.ensureClinicianInOrg(organizationId, dto.primaryClinicianId);
+    }
     const { dateOfBirth, ...rest } = dto;
     const updated = await this.prisma.client.update({
       where: { id },
