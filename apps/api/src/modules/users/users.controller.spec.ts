@@ -34,6 +34,6 @@ describe('UsersController privileged role grants', () => {
     const controller = new UsersController(service as never);
     const superUser = { ...baseUser, role: Role.SUPER_ADMIN };
     await controller.create({ email: 'super2@example.test', name: 'Super Two', password: 'Passw0rd!', role: Role.SUPER_ADMIN }, superUser);
-    expect(service.create).toHaveBeenCalledWith('org-1', expect.objectContaining({ role: Role.SUPER_ADMIN }));
+    expect(service.create).toHaveBeenCalledWith('org-1', Role.SUPER_ADMIN, expect.objectContaining({ role: Role.SUPER_ADMIN }));
   });
 });
