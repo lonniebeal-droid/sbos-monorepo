@@ -63,6 +63,28 @@ describe('AssessmentsService', () => {
       expect(callData.administeredAt).toBeInstanceOf(Date);
       expect(callData.responses).toBeUndefined();
     });
+
+    it('rejects create when clientId is not in the actor organization', async () => {
+      const create = vi.fn();
+      const prisma = {
+        client: { findFirst: vi.fn().mockResolvedValue(null) },
+        assessment: { create },
+      } as unknown as PrismaService;
+      const { service } = makeService(prisma);
+
+      await expect(
+        service.create('org1', 'actor1', {
+          clientId: 'c-other',
+          instrument: 'PHQ-9',
+          score: 5,
+        }),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(create).not.toHaveBeenCalled();
+      expect(prisma.client.findFirst).toHaveBeenCalledWith({
+        where: { id: 'c-other', organizationId: 'org1', deletedAt: null },
+        select: { id: true },
+      });
+    });
   });
 
   it('rejects an assessment for a client in another organization', async () => {

@@ -32,6 +32,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Public()
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
   @Post('bootstrap')
   @HttpCode(201)
   @ApiOperation({ summary: 'One-time initial admin bootstrap (requires env token)' })
