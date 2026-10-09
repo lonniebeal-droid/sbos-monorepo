@@ -310,6 +310,29 @@ export async function addAssessmentAction(
   }
 }
 
+export interface NewAdmissionInput {
+  clientId: string;
+  program: string;
+  levelOfCare?: string;
+  status?: string;
+  admittedAt?: string;
+}
+
+export async function addAdmissionAction(
+  input: NewAdmissionInput,
+): Promise<ActionResult> {
+  try {
+    await apiFetch("/admissions", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    revalidatePath(`/clients/${input.clientId}`);
+    return { ok: true };
+  } catch (error) {
+    return toError(error);
+  }
+}
+
 export interface UpdateOrganizationInput {
   name?: string;
   npi?: string;
