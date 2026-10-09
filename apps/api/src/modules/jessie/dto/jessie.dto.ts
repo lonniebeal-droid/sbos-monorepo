@@ -94,3 +94,6 @@ export class CreateKnowledgeArticleDto {
 export class UpdateKnowledgeArticleDto extends PartialType(
   CreateKnowledgeArticleDto,
 ) {}
+
+// Re-export integration DTOs
+export * from './jessie-integration.dto';

@@ -1,0 +1,11 @@
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -f
+      - apps/api/Dockerfile
+      - -t
+      - us-east1-docker.pkg.dev/success-brand-staging/cloud-run-source-deploy/ju-sbos-api:sbos-fix
+      - .
+images:
+  - us-east1-docker.pkg.dev/success-brand-staging/cloud-run-source-deploy/ju-sbos-api:sbos-fix
