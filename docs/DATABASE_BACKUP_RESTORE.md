@@ -1,1 +1,75 @@
-IyBEYXRhYmFzZSBCYWNrdXAgKyBSZXN0b3JlIFByb2NlZHVyZQoKKipSZXBvc2l0b3J5OioqIGxvbm5pZWJlYWwtZHJvaWQvc2Jvcy1tb25vcmVwbwoqKklzc3VlOioqICMxNCAtIFAxIG1lZGljYWwgcHJvZHVjdGlvbiBsYW5lLCBUYXNrICM1CioqRGF0ZToqKiAyMDI2LTEwLTEwCgojIyBDdXJyZW50IFN0YXRlCgotIERhdGFiYXNlOiBQb3N0Z3JlU1FMICh2aWEgUHJpc21hLCBgcGFja2FnZXMvZGF0YWJhc2UvcHJpc21hL3NjaGVtYS5wcmlzbWFgKQotIFByb2R1Y3Rpb24gaG9zdGluZzogUmFpbHdheSBQb3N0Z3JlcyAoYXR0YWNoZWQgdG8gYFNCT1MgRGVtb2AgcHJvamVjdCkKLSBNaWdyYXRpb25zOiBhcHBsaWVkIGF0IGNvbnRhaW5lciBzdGFydHVwIChgYXBwcy9hcGkvRG9ja2VyZmlsZWAgbGluZSAzOCkKCiMjIEJBQSBXYXJuaW5nCgo+ICoqRG8gTk9UIHByb2Nlc3MgUEhJIHRocm91Z2ggUmFpbHdheSB1bnRpbCBhIEJBQSBpcyBjb25maXJtZWQqKiAoSXNzdWUgIzE0KS4KPiBJZiBSYWlsd2F5IFBvc3RncmVzIGNhbm5vdCBiZSBjb3ZlcmVkIHVuZGVyIGEgQkFBLCBtaWdyYXRlIHRvIHRoZSBob3N0ZWQKPiBISVBBQS1yZWFkeSBTdXBhYmFzZSBwcm9qZWN0IChvciBhbm90aGVyIGNvdmVyZWQgZGF0YWJhc2UpIEJFRk9SRSBhbnkgUEhJCj4gdG91Y2hlcyB0aGUgZGF0YWJhc2UuIFRoZSBwcm9jZWR1cmUgYmVsb3cgdXNlcyBzeW50aGV0aWMgZGF0YSBvbmx5LgoKIyMgQXV0b21hdGVkIEJhY2t1cCAoUmFpbHdheSkKClJhaWx3YXkgcHJvdmlkZXMgYXV0b21hdGljIGRhaWx5IGJhY2t1cHMgZm9yIFBvc3RncmVzLiBWZXJpZnkgaW4gZGFzaGJvYXJkOgoxLiBSYWlsd2F5IHByb2plY3QgYFNCT1MgRGVtb2AgPiBQb3N0Z3JlcyBzZXJ2aWNlID4gQmFja3VwcyB0YWIKMi4gQ29uZmlybSBkYWlseSBzbmFwc2hvdHMgYXJlIGVuYWJsZWQgYW5kIHJldGFpbmVkIHBlciBwb2xpY3kKMy4gTm90ZSB0aGUgYmFja3VwIHdpbmRvdzsgYXZvaWQgc2NoZW1hIG1pZ3JhdGlvbnMgZHVyaW5nIGl0CgojIyBNYW51YWwgQmFja3VwIChwZ19kdW1wKQoKYGBgYmFzaAojIEZyb20gYW55IG1hY2hpbmUgd2l0aCBwc3FsICsgbmV0d29yayBhY2Nlc3MgdG8gUmFpbHdheSBQb3N0Z3JlczoKcGdfZHVtcCAiJERBVEFCQVNFX1VSTCIgXAogIC0tZm9ybWF0PWN1c3RvbSBcCiAgLS1maWxlPSJzYm9zLWJhY2t1cC0kKGRhdGUgKyVZJW0lZC0lSCVNJVMpLmR1bXAiIFwKICAtLW5vLW93bmVyIC0tbm8tcHJpdmlsZWdlcwoKIyBWZXJpZnkgdGhlIGR1bXAgaXMgcmVzdG9yYWJsZSAoaGVhZGVyIGNoZWNrKToKcGdfcmVzdG9yZSAtLWxpc3QgInNib3MtYmFja3VwLSouZHVtcCIgfCBoZWFkIC0yMApgYGAKClN0b3JlIGR1bXBzIGVuY3J5cHRlZCBhdCByZXN0LiBOZXZlciBjb21taXQgZHVtcHMgdG8gZ2l0LgoKIyMgUmVzdG9yZSBUZXN0IChTeW50aGV0aWMgRGF0YSBPbmx5KQoKYGBgYmFzaAojIDEuIENyZWF0ZSBhbiBlbXB0eSB0ZXN0IGRhdGFiYXNlIChOT1QgcHJvZHVjdGlvbik6CmNyZWF0ZWRiIHNib3NfcmVzdG9yZV90ZXN0CgojIDIuIFJlc3RvcmUgdGhlIGR1bXA6CnBnX3Jlc3RvcmUgLS1kYm5hbWU9InBvc3RncmVzcWw6Ly91c2VyOnBhc3NAaG9zdDo1NDMyL3Nib3NfcmVzdG9yZV90ZXN0IiBcCiAgLS1uby1vd25lciAtLW5vLXByaXZpbGVnZXMgInNib3MtYmFja3VwLSouZHVtcCIKCiMgMy4gUnVuIFByaXNtYSBtaWdyYXRpb25zIHRvIGNvbmZpcm0gc2NoZW1hIHBhcml0eToKREFUQUJBU0VfVVJMPSJwb3N0Z3Jlc3FsOi8vdXNlcjpwYXNzQGhvc3Q6NTQzMi9zYm9zX3Jlc3RvcmVfdGVzdCIgXAogIHBucG0gLS1maWx0ZXIgQHNib3MvZGF0YWJhc2UgcHJpc21hIG1pZ3JhdGUgZGVwbG95CgojIDQuIFNtb2tlLWNoZWNrIHJvdyBjb3VudHMgb24ga2V5IHRhYmxlczoKcHNxbCAiJFRFU1RfREFUQUJBU0VfVVJMIiAtYyAiU0VMRUNUIGNvdW50KCopIEZST00gXCJVc2VyXCI7Igpwc3FsICIkVEVTVF9EQVRBQkFTRV9VUkwiIC1jICJTRUxFQ1QgY291bnQoKikgRlJPTSBcIkF1ZGl0TG9nXCI7IgoKIyA1LiBEcm9wIHRoZSB0ZXN0IGRhdGFiYXNlIHdoZW4gZG9uZToKZHJvcGRiIHNib3NfcmVzdG9yZV90ZXN0CmBgYAoKUnVuIHRoZSByZXN0b3JlIHRlc3QgbW9udGhseSBhbmQgYWZ0ZXIgYW55IG1ham9yIG1pZ3JhdGlvbi4gUmVjb3JkIHRoZQpyZXN1bHQgKGRhdGUsIGR1bXAgZmlsZSwgcm93IGNvdW50cywgcGFzcy9mYWlsKSBpbiB0aGUgb3BzIGxvZy4KCiMjIE1pZ3JhdGlvbiB0byBCQUEtQ292ZXJlZCBEYXRhYmFzZSAoV2hlbiBSZXF1aXJlZCkKCjEuIFByb3Zpc2lvbiB0aGUgSElQQUEtcmVhZHkgU3VwYWJhc2UgUG9zdGdyZXMgKG9yIG90aGVyIGNvdmVyZWQgaG9zdCkuCjIuIFNldCB0aGUgbmV3IGBEQVRBQkFTRV9VUkxgIGluIFJhaWx3YXkgZW52aXJvbm1lbnQgKHN0YWdpbmcgZmlyc3QpLgozLiBgcHJpc21hIG1pZ3JhdGUgZGVwbG95YCBhZ2FpbnN0IHRoZSBuZXcgZGF0YWJhc2UuCjQuIEJhY2tmaWxsOiBgcGdfZHVtcGAgZnJvbSBSYWlsd2F5LCBgcGdfcmVzdG9yZWAgdG8gdGhlIG5ldyBob3N0Lgo1LiBWZXJpZnkgcm93IGNvdW50cyBtYXRjaCwgcnVuIHRoZSBBUEkgc21va2UgdGVzdHMuCjYuIEN1dCBvdmVyIGBEQVRBQkFTRV9VUkxgIGluIHByb2R1Y3Rpb247IGtlZXAgdGhlIFJhaWx3YXkgREIgcmVhZC1vbmx5CiAgIGZvciA3IGRheXMgYXMgcm9sbGJhY2sgaW5zdXJhbmNlLCB0aGVuIGRlY29tbWlzc2lvbi4K
+# Database Backup + Restore Procedure
+
+**Repository:** lonniebeal-droid/sbos-monorepo
+**Issue:** #14 - P1 medical production lane, Task #5
+**Date:** 2026-10-10
+
+## Current State
+
+- Database: PostgreSQL (via Prisma, `packages/database/prisma/schema.prisma`)
+- Production hosting: Railway Postgres (attached to `SBOS Demo` project)
+- Migrations: applied at container startup (`apps/api/Dockerfile` line 38)
+
+## BAA Warning
+
+> **Do NOT process PHI through Railway until a BAA is confirmed** (Issue #14).
+> If Railway Postgres cannot be covered under a BAA, migrate to the hosted
+> HIPAA-ready Supabase project (or another covered database) BEFORE any PHI
+> touches the database. The procedure below uses synthetic data only.
+
+## Automated Backup (Railway)
+
+Railway provides automatic daily backups for Postgres. Verify in dashboard:
+1. Railway project `SBOS Demo` > Postgres service > Backups tab
+2. Confirm daily snapshots are enabled and retained per policy
+3. Note the backup window; avoid schema migrations during it
+
+## Manual Backup (pg_dump)
+
+```bash
+# From any machine with psql + network access to Railway Postgres:
+pg_dump "$DATABASE_URL" \
+  --format=custom \
+  --file="sbos-backup-$(date +%Y%m%d-%H%M%S).dump" \
+  --no-owner --no-privileges
+
+# Verify the dump is restorable (header check):
+pg_restore --list "sbos-backup-*.dump" | head -20
+```
+
+Store dumps encrypted at rest. Never commit dumps to git.
+
+## Restore Test (Synthetic Data Only)
+
+```bash
+# 1. Create an empty test database (NOT production):
+createdb sbos_restore_test
+
+# 2. Restore the dump:
+pg_restore --dbname="postgresql://user:pass@host:5432/sbos_restore_test" \
+  --no-owner --no-privileges "sbos-backup-*.dump"
+
+# 3. Run Prisma migrations to confirm schema parity:
+DATABASE_URL="postgresql://user:pass@host:5432/sbos_restore_test" \
+  pnpm --filter @sbos/database prisma migrate deploy
+
+# 4. Smoke-check row counts on key tables:
+psql "$TEST_DATABASE_URL" -c "SELECT count(*) FROM \"User\";"
+psql "$TEST_DATABASE_URL" -c "SELECT count(*) FROM \"AuditLog\";"
+
+# 5. Drop the test database when done:
+dropdb sbos_restore_test
+```
+
+Run the restore test monthly and after any major migration. Record the
+result (date, dump file, row counts, pass/fail) in the ops log.
+
+## Migration to BAA-Covered Database (When Required)
+
+1. Provision the HIPAA-ready Supabase Postgres (or other covered host).
+2. Set the new `DATABASE_URL` in Railway environment (staging first).
+3. `prisma migrate deploy` against the new database.
+4. Backfill: `pg_dump` from Railway, `pg_restore` to the new host.
+5. Verify row counts match, run the API smoke tests.
+6. Cut over `DATABASE_URL` in production; keep the Railway DB read-only
+   for 7 days as rollback insurance, then decommission.
