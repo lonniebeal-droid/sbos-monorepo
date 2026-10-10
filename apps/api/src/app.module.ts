@@ -1,1 +1,104 @@
-aW1wb3J0IHsgTW9kdWxlIH0gZnJvbSAnQG5lc3Rqcy9jb21tb24nOwppbXBvcnQgeyBDb25maWdNb2R1bGUsIENvbmZpZ1NlcnZpY2UgfSBmcm9tICdAbmVzdGpzL2NvbmZpZyc7CmltcG9ydCB7IEFQUF9GSUxURVIsIEFQUF9HVUFSRCwgQVBQX0lOVEVSQ0VQVE9SIH0gZnJvbSAnQG5lc3Rqcy9jb3JlJzsKaW1wb3J0IHsgVGhyb3R0bGVyTW9kdWxlLCBUaHJvdHRsZXJHdWFyZCB9IGZyb20gJ0BuZXN0anMvdGhyb3R0bGVyJzsKCmltcG9ydCBjb25maWd1cmF0aW9uIGZyb20gJy4vY29uZmlnL2NvbmZpZ3VyYXRpb24nOwppbXBvcnQgeyB2YWxpZGF0ZUNvbmZpZyB9IGZyb20gJy4vY29uZmlnL3ZhbGlkYXRlLWNvbmZpZyc7CmltcG9ydCB7IEFsbEV4Y2VwdGlvbnNGaWx0ZXIgfSBmcm9tICcuL2NvbW1vbi9maWx0ZXJzL2FsbC1leGNlcHRpb25zLmZpbHRlcic7CmltcG9ydCB7IExvZ2dpbmdJbnRlcmNlcHRvciB9IGZyb20gJy4vY29tbW9uL2ludGVyY2VwdG9ycy9sb2dnaW5nLmludGVyY2VwdG9yJzsKaW1wb3J0IHsgSnd0QXV0aEd1YXJkIH0gZnJvbSAnLi9jb21tb24vZ3VhcmRzL2p3dC1hdXRoLmd1YXJkJzsKaW1wb3J0IHsgUm9sZXNHdWFyZCB9IGZyb20gJy4vY29tbW9uL2d1YXJkcy9yb2xlcy5ndWFyZCc7CmltcG9ydCB7IFByaXNtYU1vZHVsZSB9IGZyb20gJy4vcHJpc21hL3ByaXNtYS5tb2R1bGUnOwppbXBvcnQgeyBBdWRpdE1vZHVsZSB9IGZyb20gJy4vYXVkaXQvYXVkaXQubW9kdWxlJzsKaW1wb3J0IHsgU3RvcmFnZU1vZHVsZSB9IGZyb20gJy4vc3RvcmFnZS9zdG9yYWdlLm1vZHVsZSc7CmltcG9ydCB7IENoYW5uZWxzTW9kdWxlIH0gZnJvbSAnLi9jaGFubmVscy9jaGFubmVscy5tb2R1bGUnOwppbXBvcnQgeyBBdXRoTW9kdWxlIH0gZnJvbSAnLi9tb2R1bGVzL2F1dGgvYXV0aC5tb2R1bGUnOwppbXBvcnQgeyBVc2Vyc01vZHVsZSB9IGZyb20gJy4vbW9kdWxlcy91c2Vycy91c2Vycy5tb2R1bGUnOwppbXBvcnQgeyBPcmdhbml6YXRpb25zTW9kdWxlIH0gZnJvbSAnLi9tb2R1bGVzL29yZ2FuaXphdGlvbnMvb3JnYW5pemF0aW9ucy5tb2R1bGUnOwppbXBvcnQgeyBMb2NhdGlvbnNNb2R1bGUgfSBmcm9tICcuL21vZHVsZXMvbG9jYXRpb25zL2xvY2F0aW9ucy5tb2R1bGUnOwppbXBvcnQgeyBDbGllbnRzTW9kdWxlIH0gZnJvbSAnLi9tb2R1bGVzL2NsaWVudHMvY2xpZW50cy5tb2R1bGUnOwppbXBvcnQgeyBDbGluaWNpYW5zTW9kdWxlIH0gZnJvbSAnLi9tb2R1bGVzL2NsaW5pY2lhbnMvY2xpbmljaWFucy5tb2R1bGUnOwppbXBvcnQgeyBBcHBvaW50bWVudHNNb2R1bGUgfSBmcm9tICcuL21vZHVsZXMvYXBwb2ludG1lbnRzL2FwcG9pbnRtZW50cy5tb2R1bGUnOwppbXBvcnQgeyBTY2hlZHVsaW5nTW9kdWxlIH0gZnJvbSAnLi9tb2R1bGVzL3NjaGVkdWxpbmcvc2NoZWR1bGluZy5tb2R1bGUnOwppbXBvcnQgeyBOb3Rlc01vZHVsZSB9IGZyb20gJy4vbW9kdWxlcy9ub3Rlcy9ub3Rlcy5tb2R1bGUnOwppbXBvcnQgeyBEaWFnbm9zZXNNb2R1bGUgfSBmcm9tICcuL21vZHVsZXMvZGlhZ25vc2VzL2RpYWdub3Nlcy5tb2R1bGUnOwppbXBvcnQgeyBBc3Nlc3NtZW50c01vZHVsZSB9IGZyb20gJy4vbW9kdWxlcy9hc3Nlc3NtZW50cy9hc3Nlc3NtZW50cy5tb2R1bGUnOwppbXBvcnQgeyBBZG1pc3Npb25zTW9kdWxlIH0gZnJvbSAnLi9tb2R1bGVzL2FkbWlzc2lvbnMvYWRtaXNzaW9ucy5tb2R1bGUnOwppbXBvcnQgeyBNZWRpY2F0aW9uc01vZHVsZSB9IGZyb20gJy4vbW9kdWxlcy9tZWRpY2F0aW9ucy9tZWRpY2F0aW9ucy5tb2R1bGUnOwppbXBvcnQgeyBUcmVhdG1lbnRQbGFuc01vZHVsZSB9IGZyb20gJy4vbW9kdWxlcy90cmVhdG1lbnQtcGxhbnMvdHJlYXRtZW50LXBsYW5zLm1vZHVsZSc7CmltcG9ydCB7IERvY3VtZW50c01vZHVsZSB9IGZyb20gJy4vbW9kdWxlcy9kb2N1bWVudHMvZG9jdW1lbnRzLm1vZHVsZSc7CmltcG9ydCB7IEJpbGxpbmdNb2R1bGUgfSBmcm9tICcuL21vZHVsZXMvYmlsbGluZy9iaWxsaW5nLm1vZHVsZSc7CmltcG9ydCB7IEplc3NpZU1vZHVsZSB9IGZyb20gJy4vbW9kdWxlcy9qZXNzaWUvamVzc2llLm1vZHVsZSc7CmltcG9ydCB7IEVsZXZlbkxhYnNBZ2VudFRvb2xzTW9kdWxlIH0gZnJvbSAnLi9tb2R1bGVzL2plc3NpZS9hZ2VudC10b29scy9lbGV2ZW5sYWJzLWFnZW50LXRvb2xzLm1vZHVsZSc7CmltcG9ydCB7IFRhc2tzTW9kdWxlIH0gZnJvbSAnLi9tb2R1bGVzL3Rhc2tzL3Rhc2tzLm1vZHVsZSc7CmltcG9ydCB7IE5vdGlmaWNhdGlvbnNNb2R1bGUgfSBmcm9tICcuL21vZHVsZXMvbm90aWZpY2F0aW9ucy9ub3RpZmljYXRpb25zLm1vZHVsZSc7CmltcG9ydCB7IE1lc3NhZ2luZ01vZHVsZSB9IGZyb20gJy4vbW9kdWxlcy9tZXNzYWdpbmcvbWVzc2FnaW5nLm1vZHVsZSc7CmltcG9ydCB7IEFuYWx5dGljc01vZHVsZSB9IGZyb20gJy4vbW9kdWxlcy9hbmFseXRpY3MvYW5hbHl0aWNzLm1vZHVsZSc7CmltcG9ydCB7IFBsYXRmb3JtTW9kdWxlIH0gZnJvbSAnLi9tb2R1bGVzL3BsYXRmb3JtL3BsYXRmb3JtLm1vZHVsZSc7CmltcG9ydCB7IE1lZGljYWxDb25uZWN0b3JzTW9kdWxlIH0gZnJvbSAnLi9tb2R1bGVzL2ludGVncmF0aW9ucy9tZWRpY2FsLWNvbm5lY3RvcnMvbWVkaWNhbC1jb25uZWN0b3JzLm1vZHVsZSc7CmltcG9ydCB7IEhlYWx0aENvbnRyb2xsZXIgfSBmcm9tICcuL21vZHVsZXMvaGVhbHRoL2hlYWx0aC5jb250cm9sbGVyJzsKaW1wb3J0IHsgUGF5bWVudHNNb2R1bGUgfSBmcm9tICcuL3BheW1lbnRzL3BheW1lbnRzLm1vZHVsZSc7CmltcG9ydCB7IFJlZGlzVGhyb3R0bGVyU3RvcmFnZSB9IGZyb20gJy4vY29tbW9uL3Rocm90dGxlci9yZWRpcy10aHJvdHRsZXIuc3RvcmFnZSc7CgpATW9kdWxlKHsKICBpbXBvcnRzOiBbCiAgICBDb25maWdNb2R1bGUuZm9yUm9vdCh7CiAgICAgIGlzR2xvYmFsOiB0cnVlLAogICAgICBsb2FkOiBbY29uZmlndXJhdGlvbl0sCiAgICAgIHZhbGlkYXRlOiB2YWxpZGF0ZUNvbmZpZywKICAgIH0pLAogICAgVGhyb3R0bGVyTW9kdWxlLmZvclJvb3RBc3luYyh7CiAgICAgIGluamVjdDogW0NvbmZpZ1NlcnZpY2VdLAogICAgICB1c2VGYWN0b3J5OiAoY29uZmlnOiBDb25maWdTZXJ2aWNlKSA9PiAoewogICAgICAgIHRocm90dGxlcnM6IFsKICAgICAgICAgIHsKICAgICAgICAgICAgdHRsOiBjb25maWcuZ2V0PG51bWJlcj4oJ1RIUk9UVExFX1RUTCcsIDYwKSAqIDEwMDAsCiAgICAgICAgICAgIGxpbWl0OiBjb25maWcuZ2V0PG51bWJlcj4oJ1RIUk9UVExFX0xJTUlUJywgMTAwKSwKICAgICAgICAgIH0sCiAgICAgICAgXSwKICAgICAgICBzdG9yYWdlOiBjb25maWcuZ2V0PGJvb2xlYW4+KCdSRURJU19SQVRFX0xJTUlUX0VOQUJMRUQnKQogICAgICAgICAgPyBuZXcgUmVkaXNUaHJvdHRsZXJTdG9yYWdlKGNvbmZpZykKICAgICAgICAgIDogdW5kZWZpbmVkLAogICAgICB9KSwKICAgIH0pLAogICAgUHJpc21hTW9kdWxlLAogICAgQXVkaXRNb2R1bGUsCiAgICBTdG9yYWdlTW9kdWxlLAogICAgQ2hhbm5lbHNNb2R1bGUsCiAgICBBdXRoTW9kdWxlLAogICAgVXNlcnNNb2R1bGUsCiAgICBPcmdhbml6YXRpb25zTW9kdWxlLAogICAgTG9jYXRpb25zTW9kdWxlLAogICAgQ2xpZW50c01vZHVsZSwKICAgIENsaW5pY2lhbnNNb2R1bGUsCiAgICBBcHBvaW50bWVudHNNb2R1bGUsCiAgICBTY2hlZHVsaW5nTW9kdWxlLAogICAgTm90ZXNNb2R1bGUsCiAgICBEaWFnbm9zZXNNb2R1bGUsCiAgICBBc3Nlc3NtZW50c01vZHVsZSwKICAgIEFkbWlzc2lvbnNNb2R1bGUsCiAgICBNZWRpY2F0aW9uc01vZHVsZSwKICAgIFRyZWF0bWVudFBsYW5zTW9kdWxlLAogICAgRG9jdW1lbnRzTW9kdWxlLAogICAgUGF5bWVudHNNb2R1bGUsCiAgICBCaWxsaW5nTW9kdWxlLAogICAgSmVzc2llTW9kdWxlLAogICAgRWxldmVuTGFic0FnZW50VG9vbHNNb2R1bGUsCiAgICBUYXNrc01vZHVsZSwKICAgIE5vdGlmaWNhdGlvbnNNb2R1bGUsCiAgICBNZXNzYWdpbmdNb2R1bGUsCiAgICBBbmFseXRpY3NNb2R1bGUsCiAgICBQbGF0Zm9ybU1vZHVsZSwKICAgIE1lZGljYWxDb25uZWN0b3JzTW9kdWxlLAogIF0sCiAgY29udHJvbGxlcnM6IFtIZWFsdGhDb250cm9sbGVyXSwKICBwcm92aWRlcnM6IFsKICAgIHsgcHJvdmlkZTogQVBQX0ZJTFRFUiwgdXNlQ2xhc3M6IEFsbEV4Y2VwdGlvbnNGaWx0ZXIgfSwKICAgIHsgcHJvdmlkZTogQVBQX0lOVEVSQ0VQVE9SLCB1c2VDbGFzczogTG9nZ2luZ0ludGVyY2VwdG9yIH0sCiAgICB7IHByb3ZpZGU6IEFQUF9HVUFSRCwgdXNlQ2xhc3M6IFRocm90dGxlckd1YXJkIH0sCiAgICB7IHByb3ZpZGU6IEFQUF9HVUFSRCwgdXNlQ2xhc3M6IEp3dEF1dGhHdWFyZCB9LAogICAgeyBwcm92aWRlOiBBUFBfR1VBUkQsIHVzZUNsYXNzOiBSb2xlc0d1YXJkIH0sCiAgXSwKfSkKZXhwb3J0IGNsYXNzIEFwcE1vZHVsZSB7fQo=
+import { Module } from '@nestjs/common';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+
+import configuration from './config/configuration';
+import { validateConfig } from './config/validate-config';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
+import { RolesGuard } from './common/guards/roles.guard';
+import { PrismaModule } from './prisma/prisma.module';
+import { AuditModule } from './audit/audit.module';
+import { StorageModule } from './storage/storage.module';
+import { ChannelsModule } from './channels/channels.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { LocationsModule } from './modules/locations/locations.module';
+import { ClientsModule } from './modules/clients/clients.module';
+import { CliniciansModule } from './modules/clinicians/clinicians.module';
+import { AppointmentsModule } from './modules/appointments/appointments.module';
+import { SchedulingModule } from './modules/scheduling/scheduling.module';
+import { NotesModule } from './modules/notes/notes.module';
+import { DiagnosesModule } from './modules/diagnoses/diagnoses.module';
+import { AssessmentsModule } from './modules/assessments/assessments.module';
+import { AdmissionsModule } from './modules/admissions/admissions.module';
+import { MedicationsModule } from './modules/medications/medications.module';
+import { TreatmentPlansModule } from './modules/treatment-plans/treatment-plans.module';
+import { DocumentsModule } from './modules/documents/documents.module';
+import { BillingModule } from './modules/billing/billing.module';
+import { JessieModule } from './modules/jessie/jessie.module';
+import { ElevenLabsAgentToolsModule } from './modules/jessie/agent-tools/elevenlabs-agent-tools.module';
+import { TasksModule } from './modules/tasks/tasks.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { MessagingModule } from './modules/messaging/messaging.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { PlatformModule } from './modules/platform/platform.module';
+import { MedicalConnectorsModule } from './modules/integrations/medical-connectors/medical-connectors.module';
+import { HealthController } from './modules/health/health.controller';
+import { PaymentsModule } from './payments/payments.module';
+import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [configuration],
+      validate: validateConfig,
+    }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            ttl: config.get<number>('THROTTLE_TTL', 60) * 1000,
+            limit: config.get<number>('THROTTLE_LIMIT', 100),
+          },
+        ],
+        storage: config.get<boolean>('REDIS_RATE_LIMIT_ENABLED')
+          ? new RedisThrottlerStorage(config)
+          : undefined,
+      }),
+    }),
+    PrismaModule,
+    AuditModule,
+    StorageModule,
+    ChannelsModule,
+    AuthModule,
+    UsersModule,
+    OrganizationsModule,
+    LocationsModule,
+    ClientsModule,
+    CliniciansModule,
+    AppointmentsModule,
+    SchedulingModule,
+    NotesModule,
+    DiagnosesModule,
+    AssessmentsModule,
+    AdmissionsModule,
+    MedicationsModule,
+    TreatmentPlansModule,
+    DocumentsModule,
+    PaymentsModule,
+    BillingModule,
+    JessieModule,
+    ElevenLabsAgentToolsModule,
+    TasksModule,
+    NotificationsModule,
+    MessagingModule,
+    AnalyticsModule,
+    PlatformModule,
+    MedicalConnectorsModule,
+  ],
+  controllers: [HealthController],
+  providers: [
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
+    { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    { provide: APP_GUARD, useClass: JwtAuthGuard },
+    { provide: APP_GUARD, useClass: RolesGuard },
+  ],
+})
+export class AppModule {}
