@@ -38,6 +38,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { PlatformModule } from './modules/platform/platform.module';
 import { MedicalConnectorsModule } from './modules/integrations/medical-connectors/medical-connectors.module';
 import { HealthController } from './modules/health/health.controller';
+import { PaymentsModule } from './payments/payments.module';
 import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
 
 @Module({
@@ -80,6 +81,7 @@ import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storag
     MedicationsModule,
     TreatmentPlansModule,
     DocumentsModule,
+    PaymentsModule,
     BillingModule,
     JessieModule,
     ElevenLabsAgentToolsModule,
