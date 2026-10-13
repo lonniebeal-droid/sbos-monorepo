@@ -43,6 +43,15 @@ Epic OAuth, Oracle Health, MEDITECH, athenahealth, Veradigm, eClinicalWorks, Nex
 | 1 | Production PHI | BAA not confirmed | BLOCKED |
 | 2 | Database Migration | BAA status unknown | BLOCKED |
 
+### DONE - 2026-10-10 Update (Issue #14 Tasks #5, #6)
+| # | Item | Evidence | Status |
+|---|------|----------|--------|
+| 14 | Backup/Restore Procedure | docs/DATABASE_BACKUP_RESTORE.md | DONE |
+| 15 | CI Dependency Audit | pnpm audit step documented in PR #46; workflow change pending (requires workflows permission) | PENDING |
+| 16 | Production Config Validation | validate-config.ts fail-fast on insecure/missing secrets | VERIFIED |
+| 17 | CORS Hardening | env-driven corsOrigins, credentials:true, ValidationPipe whitelist | VERIFIED |
+| 18 | Audit Logging | AuditService writes to DB; logger excludes PHI (entityType/id only) | VERIFIED |
+
 ## SUMMARY
 - DONE: 21 items
 - VERIFIED: 6 items
