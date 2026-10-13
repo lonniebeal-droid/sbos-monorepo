@@ -29,6 +29,7 @@ import { MedicationsModule } from './modules/medications/medications.module';
 import { TreatmentPlansModule } from './modules/treatment-plans/treatment-plans.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { PaymentsModule } from './payments/payments.module';
 import { JessieModule } from './modules/jessie/jessie.module';
 import { ElevenLabsAgentToolsModule } from './modules/jessie/agent-tools/elevenlabs-agent-tools.module';
 import { TasksModule } from './modules/tasks/tasks.module';
@@ -82,6 +83,7 @@ import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storag
     TreatmentPlansModule,
     DocumentsModule,
     BillingModule,
+    PaymentsModule,
     JessieModule,
     ElevenLabsAgentToolsModule,
     TasksModule,
