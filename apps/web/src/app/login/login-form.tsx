@@ -41,7 +41,8 @@ export function LoginForm({
 
   function goToDashboard() {
     const callbackUrl = searchParams.get("callbackUrl") ?? "/dashboard";
-    router.push(callbackUrl);
+    const safeCallback = callbackUrl.startsWith("/") && !callbackUrl.startsWith("//") && !callbackUrl.includes("\\") ? callbackUrl : "/dashboard";
+    router.push(safeCallback);
     router.refresh();
   }
 
