@@ -59,7 +59,12 @@ export async function POST(request: Request) {
     );
   }
 
-  const data = (await apiResponse.json()) as ApiLoginResponse;
+  let data: ApiLoginResponse;
+  try {
+    data = (await apiResponse.json()) as ApiLoginResponse;
+  } catch {
+    return NextResponse.json({ error: "Invalid authentication service response" }, { status: 502 });
+  }
 
   // MFA-enabled account: relay the challenge; the client completes it at
   // /api/auth/mfa. No cookies are set yet.
