@@ -44,7 +44,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const data = (await apiResponse.json()) as AuthedApiResponse;
+  let data: AuthedApiResponse;
+  try {
+    data = (await apiResponse.json()) as AuthedApiResponse;
+  } catch {
+    return NextResponse.json({ error: "Invalid authentication service response" }, { status: 502 });
+  }
+  if (!data?.accessToken || !data?.refreshToken || !data?.user) {
+    return NextResponse.json({ error: "Incomplete authentication service response" }, { status: 502 });
+  }
   const response = NextResponse.json({ user: data.user });
   await issueSessionCookies(response, data);
   return response;
