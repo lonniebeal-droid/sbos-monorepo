@@ -1,3 +1,5 @@
+import { parseAgentSecrets } from './agent-secrets';
+
 export interface AppConfig {
   port: number;
   corsOrigins: string[];
@@ -24,6 +26,9 @@ export interface AppConfig {
     twilioAccountSid?: string;
     twilioAuthToken?: string;
     twilioFromNumber?: string;
+  };
+  jessieAgent: {
+    secrets: Record<string, string>;
   };
   redis: {
     /** Redis connection URL for distributed rate limiting. Optional; falls back to in-memory if unset. */
@@ -67,6 +72,9 @@ export default (): AppConfig => ({
     twilioAccountSid: process.env.TWILIO_ACCOUNT_SID,
     twilioAuthToken: process.env.TWILIO_AUTH_TOKEN,
     twilioFromNumber: process.env.TWILIO_FROM_NUMBER,
+  },
+  jessieAgent: {
+    secrets: parseAgentSecrets(process.env.JESSIE_AGENT_SECRETS).secrets,
   },
   redis: {
     url: process.env.REDIS_URL,

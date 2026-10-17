@@ -59,7 +59,12 @@ export class AppointmentsService {
       );
   }
 
-  async create(organizationId: string, actorId: string, dto: CreateAppointmentDto) {
+  async create(
+    organizationId: string,
+    actorId: string | null,
+    dto: CreateAppointmentDto,
+    auditExtra?: Record<string, unknown>,
+  ) {
     const start = new Date(dto.startTime);
     const end = new Date(dto.endTime);
     if (end <= start) {
@@ -87,7 +92,7 @@ export class AppointmentsService {
 
     await this.audit.record({
       organizationId,
-      actorId,
+      actorId: actorId ?? undefined,
       action: AuditAction.CREATE,
       entityType: 'Appointment',
       entityId: appointment.id,
@@ -95,6 +100,7 @@ export class AppointmentsService {
         clientId: appointment.clientId,
         clinicianId: appointment.clinicianId,
         startTime: appointment.startTime,
+        ...(auditExtra ?? {}),
       },
     });
 
