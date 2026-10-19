@@ -1,0 +1,3 @@
+services:
+  api:
+    image: sbos-api:rollback-20261019
