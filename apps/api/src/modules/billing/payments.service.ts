@@ -45,6 +45,20 @@ export class PaymentsService {
     dto: RecordPaymentDto,
   ) {
     await this.ensureClientInOrg(organizationId, dto.clientId);
+    if (dto.claimId) {
+      const claim = await this.prisma.claim.findFirst({
+        where: { id: dto.claimId, organizationId },
+        select: { id: true },
+      });
+      if (!claim) throw new NotFoundException(`Claim ${dto.claimId} not found`);
+    }
+    if (dto.invoiceId) {
+      const invoice = await this.prisma.invoice.findFirst({
+        where: { id: dto.invoiceId, organizationId },
+        select: { id: true },
+      });
+      if (!invoice) throw new NotFoundException(`Invoice ${dto.invoiceId} not found`);
+    }
 
     // Card/ACH route through the provider; cash/check/adjustment are manual.
     const charge = await this.provider.charge({

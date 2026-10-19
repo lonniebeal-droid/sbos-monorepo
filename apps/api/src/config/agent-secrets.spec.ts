@@ -24,6 +24,7 @@ function baseConfig(overrides?: Partial<AppConfig>): AppConfig {
     email: { fromAddress: 'no-reply@sbos.health' },
     sms: {},
     jessieAgent: { secrets: {} },
+    redis: { enabled: false, connectTimeout: 5000, maxRetriesPerRequest: 3 },
     ...overrides,
   };
 }
