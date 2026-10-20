@@ -36,6 +36,7 @@ import {
 
 function makeMockPrisma(): PrismaService {
   return {
+    jessieBusinessConfig: { findUnique: vi.fn().mockResolvedValue(null) },
     organization: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),
@@ -172,6 +173,28 @@ describe('JessieIntegrationService', () => {
   });
 
   describe('lookupClient', () => {
+    it('loads only active configuration for the authenticated tenant', async () => {
+      const findUnique = vi.fn().mockResolvedValue({
+        isActive: true, profile: { greeting: 'Welcome to tenant A', services: ['Consulting'], bookingEnabled: true, clientId: 'org-b' },
+      });
+      const { service } = makeService({ prisma: {
+        organization: { findFirst: vi.fn().mockResolvedValue({
+          id: 'org-a', name: 'Tenant A', slug: 'tenant-a', phone: null,
+          timezone: 'America/New_York', isActive: true, locations: [],
+        }) },
+        jessieBusinessConfig: { findUnique },
+      } });
+      const result = await service.lookupClient('org-a', {
+        identifierType: LookupIdentifierType.ORGANIZATION_ID, identifierValue: 'org-a',
+      });
+      expect(findUnique).toHaveBeenCalledWith({ where: { organizationId: 'org-a' },
+        select: { profile: true, isActive: true } });
+      expect(result.greeting).toBe('Welcome to tenant A');
+      expect(result.services).toEqual(['Consulting']);
+      expect(result.clientId).toBe('org-a');
+      expect(result.bookingEnabled).toBe(false);
+    });
+
     const orgId = 'org_123';
     const clientId = orgId;
 

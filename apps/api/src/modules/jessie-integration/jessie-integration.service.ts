@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, ConflictException, Logger } from '@nestjs/common';
+import { applyJessieProfile } from './jessie-business-profile';
 import { AuditAction } from '@sbos/database';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../audit/audit.service';
@@ -203,6 +204,15 @@ export class JessieIntegrationService {
     };
   }
 
+  private async configuredBusinessProfile(organization: OrganizationProfile) {
+    const base = this.buildBusinessProfile(organization);
+    const config = await this.prisma.jessieBusinessConfig.findUnique({
+      where: { organizationId: organization.id },
+      select: { profile: true, isActive: true },
+    });
+    return config?.isActive ? applyJessieProfile(base, config.profile) : base;
+  }
+
   async lookupClient(
     organizationId: string,
     dto: LookupClientRequestDto,
@@ -244,7 +254,7 @@ export class JessieIntegrationService {
     }
 
     return {
-      ...this.buildBusinessProfile(organization),
+      ...await this.configuredBusinessProfile(organization),
     };
   }
 
@@ -552,7 +562,7 @@ export class JessieIntegrationService {
       organizationId,
       dto.clientId,
     );
-    const business = this.buildBusinessProfile(organization);
+    const business = await this.configuredBusinessProfile(organization);
     return {
       clientId: business.clientId,
       businessName: business.businessName,

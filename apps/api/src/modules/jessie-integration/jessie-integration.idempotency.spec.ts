@@ -23,6 +23,7 @@ import {
 
 function makeMockPrisma(): PrismaService {
   return {
+    jessieBusinessConfig: { findUnique: vi.fn().mockResolvedValue(null) },
     organization: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),
