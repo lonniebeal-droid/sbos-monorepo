@@ -3,6 +3,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import { ClientStatus, type Prisma } from '@sbos/database';
 
@@ -14,6 +15,11 @@ import {
   SMS_PROVIDER,
   type SmsProvider,
 } from '../../../channels/sms.provider';
+import {
+  MAKE_WEBHOOK_PROVIDER,
+  type MakeWebhookPayload,
+  type MakeWebhookProvider,
+} from '../../../channels/make-webhook.provider';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AppointmentsService } from '../../appointments/appointments.service';
 import { AvailabilityService } from '../../scheduling/availability.service';
@@ -46,6 +52,9 @@ export class AgentToolsService {
     private readonly availability: AvailabilityService,
     @Inject(SMS_PROVIDER) private readonly sms: SmsProvider,
     @Inject(EMAIL_PROVIDER) private readonly email: EmailProvider,
+    @Optional()
+    @Inject(MAKE_WEBHOOK_PROVIDER)
+    private readonly make?: MakeWebhookProvider,
   ) {}
 
   private async ensureClientInOrg(
@@ -436,6 +445,53 @@ export class AgentToolsService {
     return result;
   }
 
+  /**
+   * Best-effort Make webhook delivery for agent-tool side effects.
+   *
+   * Never throws and never rolls back the business write: the business
+   * operation always completes first, and delivery outcome is reported via
+   * makeDelivered / makeError in the result data. Error codes are fixed
+   * strings -- provider internals (including webhook URLs) never reach the
+   * response.
+   */
+  private async notifyMake(
+    payload: MakeWebhookPayload,
+  ): Promise<{ makeDelivered: boolean; makeError?: string }> {
+    if (!this.make) {
+      return { makeDelivered: false, makeError: 'not_configured' };
+    }
+    try {
+      const result = await this.make.send(payload);
+      if (result.ok) {
+        return { makeDelivered: true };
+      }
+      return {
+        makeDelivered: false,
+        makeError: result.error ?? 'delivery_failed',
+      };
+    } catch {
+      this.logger.error('Make webhook provider threw; reporting provider_exception');
+      return { makeDelivered: false, makeError: 'provider_exception' };
+    }
+  }
+
+  private makePayload(
+    event: MakeWebhookPayload['event'],
+    organizationId: string,
+    clientId: string,
+    data: Record<string, unknown>,
+    conversationId?: string,
+  ): MakeWebhookPayload {
+    return {
+      event,
+      organizationId,
+      clientId,
+      ...(conversationId ? { conversationId } : {}),
+      data,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
   async saveOrUpdateLead(
     organizationId: string,
     dto: SaveOrUpdateLeadDto,
@@ -481,6 +537,12 @@ export class AgentToolsService {
           ...(dto.dateOfBirth ? { dateOfBirth: new Date(dto.dateOfBirth) } : {}),
         },
       });
+      const makeResult = await this.notifyMake(
+        this.makePayload('lead_updated', organizationId, updated.id, {
+          action: 'updated',
+          escalation_required: false,
+        }, conversationId),
+      );
       const result: AgentToolResult = {
         ok: true,
         tool,
@@ -489,6 +551,8 @@ export class AgentToolsService {
           clientId: updated.id,
           name: `${updated.firstName} ${updated.lastName}`.trim(),
           status: updated.status,
+          makeDelivered: makeResult.makeDelivered,
+          ...(makeResult.makeError ? { makeError: makeResult.makeError } : {}),
         },
       };
       await this.completeIdempotent(claimId, organizationId, tool, dto.idempotencyKey, result, conversationId);
@@ -512,6 +576,15 @@ export class AgentToolsService {
       },
     });
 
+    const makeResult = await this.notifyMake(
+        this.makePayload('lead_created', organizationId, created.id, {
+          action: 'created',
+          escalation_required: false,
+          ...(created.email ? { email: created.email } : {}),
+          ...(created.phone ? { phone: created.phone } : {}),
+          ...(created.notes ? { notes: created.notes } : {}),
+        }, conversationId),
+      );
     const result: AgentToolResult = {
       ok: true,
       tool,
@@ -521,6 +594,8 @@ export class AgentToolsService {
         mrn: created.mrn,
         name: `${created.firstName} ${created.lastName}`.trim(),
         status: created.status,
+        makeDelivered: makeResult.makeDelivered,
+        ...(makeResult.makeError ? { makeError: makeResult.makeError } : {}),
       },
     };
     await this.completeIdempotent(claimId, organizationId, tool, dto.idempotencyKey, result, conversationId);
@@ -891,6 +966,13 @@ export class AgentToolsService {
       },
     });
 
+    const makeResult = await this.notifyMake(
+        this.makePayload('escalation_created', organizationId, dto.clientId ?? '', {
+          action: 'escalated',
+          escalation_required: true,
+          reason: dto.reason,
+        }, conversationId),
+      );
     const result: AgentToolResult = {
       ok: true,
       tool,
@@ -899,6 +981,8 @@ export class AgentToolsService {
         status: task.status,
         priority: task.priority,
         assigneeId: task.assigneeId,
+        makeDelivered: makeResult.makeDelivered,
+        ...(makeResult.makeError ? { makeError: makeResult.makeError } : {}),
       },
       message: 'Escalation task created for staff follow-up',
     };

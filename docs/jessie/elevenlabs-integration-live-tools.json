@@ -1,0 +1,439 @@
+{
+  "description": "Jessie SBOS live API tool contracts. Do not commit secrets.",
+  "baseUrl": "https://lonnies-macbook-air.tail11453f.ts.net:8443/api/v1/jessie/integration",
+  "authHeader": "x-sbos-agent-secret",
+  "tools": [
+    {
+      "name": "lookup_client",
+      "method": "POST",
+      "url": "https://lonnies-macbook-air.tail11453f.ts.net:8443/api/v1/jessie/integration/lookup-client",
+      "authHeader": "x-sbos-agent-secret",
+      "parameters": [
+        {
+          "name": "identifierType",
+          "type": "string",
+          "required": true,
+          "enum": [
+            "inbound_number",
+            "called_phone_number",
+            "line_identifier",
+            "client_slug",
+            "organization_id",
+            "metadata"
+          ]
+        },
+        {
+          "name": "identifierValue",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "conversationId",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "requestId",
+          "type": "string",
+          "required": false
+        }
+      ]
+    },
+    {
+      "name": "capture_lead",
+      "method": "POST",
+      "url": "https://lonnies-macbook-air.tail11453f.ts.net:8443/api/v1/jessie/integration/capture-lead",
+      "authHeader": "x-sbos-agent-secret",
+      "parameters": [
+        {
+          "name": "clientId",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "callerName",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "callerPhone",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "callerEmail",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "reasonForCall",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "serviceInterest",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "urgency",
+          "type": "string",
+          "required": false,
+          "enum": [
+            "low",
+            "normal",
+            "high",
+            "emergency"
+          ]
+        },
+        {
+          "name": "preferredCallbackTime",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "conversationId",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "requestId",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "appointment_request",
+      "method": "POST",
+      "url": "https://lonnies-macbook-air.tail11453f.ts.net:8443/api/v1/jessie/integration/appointment-request",
+      "authHeader": "x-sbos-agent-secret",
+      "parameters": [
+        {
+          "name": "clientId",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "callerName",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "callerPhone",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "service",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "requestedDate",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "requestedTime",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "timezone",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "notes",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "conversationId",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "requestId",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "transfer_call",
+      "method": "POST",
+      "url": "https://lonnies-macbook-air.tail11453f.ts.net:8443/api/v1/jessie/integration/transfer-call",
+      "authHeader": "x-sbos-agent-secret",
+      "parameters": [
+        {
+          "name": "clientId",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "intent",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "urgency",
+          "type": "string",
+          "required": false,
+          "enum": [
+            "routine",
+            "urgent",
+            "emergency"
+          ]
+        },
+        {
+          "name": "callerStatus",
+          "type": "string",
+          "required": false,
+          "enum": [
+            "new",
+            "existing",
+            "vip"
+          ]
+        },
+        {
+          "name": "businessHoursContext",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "conversationId",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "requestId",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "callback_message",
+      "method": "POST",
+      "url": "https://lonnies-macbook-air.tail11453f.ts.net:8443/api/v1/jessie/integration/callback-message",
+      "authHeader": "x-sbos-agent-secret",
+      "parameters": [
+        {
+          "name": "clientId",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "callerName",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "callerPhone",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "callerEmail",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "message",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "callbackRequested",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "name": "preferredCallbackTime",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "urgency",
+          "type": "string",
+          "required": false,
+          "enum": [
+            "low",
+            "normal",
+            "high",
+            "emergency"
+          ]
+        },
+        {
+          "name": "conversationId",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "requestId",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "call_outcome",
+      "method": "POST",
+      "url": "https://lonnies-macbook-air.tail11453f.ts.net:8443/api/v1/jessie/integration/call-outcome",
+      "authHeader": "x-sbos-agent-secret",
+      "parameters": [
+        {
+          "name": "clientId",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "businessName",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "callerName",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "callerPhone",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "callerEmail",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "intent",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "serviceInterest",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "leadQuality",
+          "type": "string",
+          "required": true,
+          "enum": [
+            "high",
+            "medium",
+            "low",
+            "unknown"
+          ]
+        },
+        {
+          "name": "urgency",
+          "type": "string",
+          "required": true,
+          "enum": [
+            "low",
+            "normal",
+            "high",
+            "emergency"
+          ]
+        },
+        {
+          "name": "appointmentRequested",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "name": "appointmentCreated",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "name": "transferRequested",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "name": "transferCompleted",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "name": "callbackRequested",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "name": "toolErrors",
+          "type": "array",
+          "required": false
+        },
+        {
+          "name": "resolution",
+          "type": "string",
+          "required": true,
+          "enum": [
+            "resolved",
+            "transferred",
+            "callback_scheduled",
+            "appointment_requested",
+            "voicemail_left",
+            "abandoned",
+            "escalated"
+          ]
+        },
+        {
+          "name": "followUpRequired",
+          "type": "boolean",
+          "required": true
+        },
+        {
+          "name": "callSummary",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "conversationId",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "requestId",
+          "type": "string",
+          "required": true
+        }
+      ]
+    },
+    {
+      "name": "business_information",
+      "method": "POST",
+      "url": "https://lonnies-macbook-air.tail11453f.ts.net:8443/api/v1/jessie/integration/business-information",
+      "authHeader": "x-sbos-agent-secret",
+      "parameters": [
+        {
+          "name": "clientId",
+          "type": "string",
+          "required": true
+        },
+        {
+          "name": "conversationId",
+          "type": "string",
+          "required": false
+        },
+        {
+          "name": "requestId",
+          "type": "string",
+          "required": false
+        }
+      ]
+    }
+  ]
+}
