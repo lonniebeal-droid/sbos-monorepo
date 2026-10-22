@@ -16,7 +16,7 @@ describe('ElevenLabsWebhookGuard', () => {
   });
 
   const createMockRequest = (headers: Record<string, string>, rawBody: string) => ({
-    headers,
+    headers: { 'elevenlabs-signature': headers['x-elevenlabs-signature'] && headers['x-elevenlabs-timestamp'] ? `t=${headers['x-elevenlabs-timestamp']},v0=${headers['x-elevenlabs-signature']}` : undefined },
     rawBody,
   });
 
@@ -135,4 +135,16 @@ describe('ElevenLabsWebhookGuard', () => {
       guard.canActivate({ switchToHttp: () => ({ getRequest: () => req }) } as any),
     ).toThrow(UnauthorizedException);
   });
+});
+it.each(['NaN', 'Infinity', '123abc', '', '-1'])('rejects malformed timestamp %s', timestamp => {
+ const crypto = require('crypto'); const body='{}'; const key='test';
+ const digest=crypto.createHmac('sha256',key).update(`${timestamp}.${body}`).digest('hex');
+ const guard=new ElevenLabsWebhookGuard({get:()=>key} as any);
+ const req={headers:{'elevenlabs-signature':`t=${timestamp},v0=${digest}`},rawBody:body};
+ expect(()=>guard.canActivate({switchToHttp:()=>({getRequest:()=>req})} as any)).toThrow(UnauthorizedException);
+});
+it('rejects ambiguous repeated timestamp', () => {
+ const guard=new ElevenLabsWebhookGuard({get:()=> 'key'} as any);
+ const req={headers:{'elevenlabs-signature':`t=1234567890,t=1234567890,v0=${'a'.repeat(64)}`},rawBody:'{}'};
+ expect(()=>guard.canActivate({switchToHttp:()=>({getRequest:()=>req})} as any)).toThrow(UnauthorizedException);
 });

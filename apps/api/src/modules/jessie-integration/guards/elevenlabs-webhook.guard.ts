@@ -8,8 +8,17 @@ export class ElevenLabsWebhookGuard implements CanActivate {
 
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
-    const signature = request.headers['x-elevenlabs-signature'] as string | undefined;
-    const timestamp = request.headers['x-elevenlabs-timestamp'] as string | undefined;
+    const header = request.headers['elevenlabs-signature'];
+    if (typeof header !== 'string' || header.length > 2048) {
+      throw new UnauthorizedException('Missing ElevenLabs webhook signature');
+    }
+    const fields = header.split(',').map((part: string) => part.trim().split('='));
+    const timestamps = fields.filter((part: string[]) => part[0] === 't');
+    const signatures = fields.filter((part: string[]) => part[0] === 'v0').map((part: string[]) => part[1]);
+    const timestamp = timestamps.length === 1 ? timestamps[0][1] : undefined;
+    if (!timestamp || !/^\d{10,11}$/.test(timestamp) || !signatures.length || signatures.some((value: string) => !/^[a-f0-9]{64}$/i.test(value))) {
+      throw new UnauthorizedException('Malformed ElevenLabs webhook signature');
+    }
     const rawBody = request.rawBody as Buffer | string | undefined;
     const body =
       typeof rawBody === 'string'
@@ -18,7 +27,7 @@ export class ElevenLabsWebhookGuard implements CanActivate {
           ? rawBody.toString('utf8')
           : undefined;
 
-    if (!signature || !timestamp || !body) {
+    if (!body) {
       throw new UnauthorizedException('Missing ElevenLabs webhook headers');
     }
 
@@ -28,15 +37,15 @@ export class ElevenLabsWebhookGuard implements CanActivate {
     }
 
     const expectedSignature = this.computeSignature(webhookSecret, timestamp, body);
-    const isValid = this.timingSafeEqual(signature, expectedSignature);
+    const isValid = signatures.some((signature: string) => this.timingSafeEqual(signature.toLowerCase(), expectedSignature));
 
     if (!isValid) {
       throw new UnauthorizedException('Invalid ElevenLabs webhook signature');
     }
 
     const now = Math.floor(Date.now() / 1000);
-    const requestTime = parseInt(timestamp, 10);
-    if (Math.abs(now - requestTime) > 300) {
+    const requestTime = Number(timestamp);
+    if (!Number.isSafeInteger(requestTime) || Math.abs(now - requestTime) > 300) {
       throw new UnauthorizedException('ElevenLabs webhook timestamp expired');
     }
 
