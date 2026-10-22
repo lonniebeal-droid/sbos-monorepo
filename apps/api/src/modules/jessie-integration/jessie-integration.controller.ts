@@ -62,7 +62,8 @@ type AgentRequest = Request & { agentOrganizationId: string };
     'Agent tool secret configured in JESSIE_AGENT_SECRETS for the target organization',
   required: true,
 })
-@Controller({ path: 'jessie/integration', version: '1' })
+// Dedicated machine-to-machine route avoids the legacy JWT controller's URLs.
+@Controller({ path: ['jessie/agent/integration', 'jessie/integration'], version: '1' })
 @UseGuards(AgentToolsGuard)
 export class JessieIntegrationController {
   constructor(private readonly service: JessieIntegrationService) {}
