@@ -39,19 +39,8 @@ export class HttpMakeWebhookProvider implements MakeWebhookProvider {
   private readonly url: string;
   private readonly timeoutMs = 10000;
 
-  constructor(url: string) {
+  constructor(url: string, private readonly apiKey?: string) {
     this.url = url;
-  }
-
-  private redactUrl(url: string): string {
-    try {
-      const u = new URL(url);
-      u.password = '***';
-      u.username = '***';
-      return u.toString();
-    } catch {
-      return '[invalid-url]';
-    }
   }
 
   async send(payload: MakeWebhookPayload): Promise<MakeWebhookResult> {
@@ -63,17 +52,18 @@ export class HttpMakeWebhookProvider implements MakeWebhookProvider {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          ...(this.apiKey ? { 'x-make-apikey': this.apiKey } : {}),
         },
         body: JSON.stringify(payload),
+        redirect: 'error',
         signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
 
       if (!response.ok) {
-        const body = await response.text().catch(() => '');
         this.logger.error(
-          `Make webhook error (${response.status}): ${this.redactUrl(this.url)} - ${body}`,
+          `Make webhook returned HTTP ${response.status}`,
         );
         return {
           ok: false,
@@ -85,11 +75,10 @@ export class HttpMakeWebhookProvider implements MakeWebhookProvider {
       return { ok: true, statusCode: response.status };
     } catch (err) {
       clearTimeout(timeoutId);
-      const message = err instanceof Error ? err.message : String(err);
       const isTimeout = err instanceof DOMException && err.name === 'AbortError';
 
       this.logger.error(
-        `Make webhook ${isTimeout ? 'timeout' : 'failed'}: ${this.redactUrl(this.url)} - ${message}`,
+        `Make webhook ${isTimeout ? 'timeout' : 'network failure'}`,
       );
 
       return {
@@ -98,4 +87,15 @@ export class HttpMakeWebhookProvider implements MakeWebhookProvider {
       };
     }
   }
+}
+
+export function createMakeWebhookProvider(url?: string, apiKey?: string): MakeWebhookProvider {
+  if (!url?.trim()) return { send: async () => ({ ok: false, error: 'not_configured' }) };
+  const target = new URL(url.trim());
+  if (target.protocol !== 'https:' || target.username || target.password || target.port ||
+      !/^hook(?:\.[a-z0-9-]+)?\.make\.com$/.test(target.hostname) || target.search || target.hash) {
+    throw new Error('MAKE_WEBHOOK_URL must be a direct HTTPS Make webhook URL');
+  }
+  if (!apiKey?.trim()) throw new Error('MAKE_WEBHOOK_API_KEY is required for Make delivery');
+  return new HttpMakeWebhookProvider(target.toString(), apiKey.trim());
 }

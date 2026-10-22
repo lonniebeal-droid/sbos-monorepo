@@ -1,6 +1,8 @@
 import { Global, Logger, Module } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { MAKE_WEBHOOK_PROVIDER, createMakeWebhookProvider } from './make-webhook.provider';
+
 import type { AppConfig } from '../config/configuration';
 import {
   ConsoleEmailProvider,
@@ -23,6 +25,13 @@ import {
 @Global()
 @Module({
   providers: [
+    {
+      provide: MAKE_WEBHOOK_PROVIDER,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => createMakeWebhookProvider(
+        config.get<string>('MAKE_WEBHOOK_URL'), config.get<string>('MAKE_WEBHOOK_API_KEY'),
+      ),
+    },
     ConsoleEmailProvider,
     ConsoleSmsProvider,
     {
@@ -60,6 +69,6 @@ import {
       },
     },
   ],
-  exports: [EMAIL_PROVIDER, SMS_PROVIDER],
+  exports: [EMAIL_PROVIDER, SMS_PROVIDER, MAKE_WEBHOOK_PROVIDER],
 })
 export class ChannelsModule {}
