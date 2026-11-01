@@ -9,7 +9,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-sbos}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -22,7 +22,7 @@ services:
     image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -60,8 +60,10 @@ services:
       ELEVENLABS_AGENT_TOOLS_SECRET: ${ELEVENLABS_AGENT_TOOLS_SECRET:-}
       ELEVENLABS_AGENT_TOOLS_ORGANIZATION_ID: ${ELEVENLABS_AGENT_TOOLS_ORGANIZATION_ID:-}
       ELEVENLABS_AGENT_TOOLS_ACTOR_ID: ${ELEVENLABS_AGENT_TOOLS_ACTOR_ID:-}
+      JESSIE_AGENT_SECRETS: ${JESSIE_AGENT_SECRETS:-}
+      JESSIE_ELEVENLABS_WEBHOOK_SECRET: ${JESSIE_ELEVENLABS_WEBHOOK_SECRET:-}
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     healthcheck:
       test:
         - CMD

@@ -61,6 +61,15 @@ export class ConversationsService {
     }
 
     const kind = (dto.kind ?? 'RECEPTIONIST') as AssistantKind;
+    if (dto.clientId) {
+      const client = await this.prisma.client.findFirst({
+        where: { id: dto.clientId, organizationId, deletedAt: null },
+        select: { id: true },
+      });
+      if (!client) {
+        throw new NotFoundException('Client not found in organization');
+      }
+    }
     const conversation = await this.prisma.conversation.create({
       data: {
         organizationId,

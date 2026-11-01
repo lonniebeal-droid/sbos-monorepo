@@ -278,6 +278,7 @@ model Organization {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  jessieBusinessConfig JessieBusinessConfig?
   users          User[]
   locations      Location[]
   clinicians     Clinician[]
@@ -1441,4 +1442,15 @@ model AuditLog {
   @@index([actorId])
   @@index([entityType, entityId])
   @@index([createdAt])
+}
+
+// Tenant-scoped receptionist configuration. No booking is confirmed by this record.
+model JessieBusinessConfig {
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  profile        Json     @default("{}")
+  isActive       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 }
