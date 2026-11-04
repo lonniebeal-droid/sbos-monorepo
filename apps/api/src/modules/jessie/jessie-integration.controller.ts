@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 
+import { Public } from '../../common/decorators/public.decorator';
 import { JessieAuthGuard, JessieContext } from './jessie-auth.guard';
 import {
   LookupClientRequestDto,
@@ -31,6 +32,7 @@ import { JessieIntegrationService } from './jessie-integration.service';
 @ApiTags('Jessie Integration')
 @ApiBearerAuth()
 @Controller({ path: 'jessie/integration', version: '1' })
+@Public() // Service-secret routes bypass global JWT; JessieAuthGuard still authenticates them.
 @UseGuards(JessieAuthGuard)
 export class JessieIntegrationController {
   constructor(private readonly service: JessieIntegrationService) {}
