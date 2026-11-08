@@ -185,7 +185,7 @@ describe('Jessie appointment slot safety (issue #57)', () => {
 
   it('scopes conflict, time-off and waitlist queries to the caller organization', async () => {
     const s = makeService();
-    s.appointmentFindFirst.mockResolvedValue({ id: 'conflict' });
+    s.timeOffFindFirst.mockResolvedValue({ id: 'pto-1' });
 
     await s.service.createOrRequestAppointment(ctx, baseDto);
 
@@ -199,11 +199,8 @@ describe('Jessie appointment slot safety (issue #57)', () => {
         where: expect.objectContaining({ organizationId: 'org-1' }),
       }),
     );
-    expect(s.clinicianFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({ organizationId: 'org-1' }),
-      }),
-    );
+    // The service short-circuits on time off before checking weekly windows.
+    expect(s.availabilityFindMany).not.toHaveBeenCalled();
     expect(s.waitlistCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({ organizationId: 'org-1' }),
