@@ -12,6 +12,13 @@ const PUBLIC_PATHS = [
   "/",
   "/login",
   "/first-admin",
+  // Unauthenticated account-recovery and invitation flows.
+  "/forgot",
+  "/reset",
+  "/accept-invite",
+  "/api/auth/forgot",
+  "/api/auth/reset",
+  "/api/auth/invite",
   "/api/auth/login",
   "/api/auth/bootstrap",
   "/api/auth/mfa",
