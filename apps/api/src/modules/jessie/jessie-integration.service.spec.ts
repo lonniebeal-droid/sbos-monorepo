@@ -33,7 +33,21 @@ function makeService(overrides?: {
     },
     clinician: {
       findFirst: vi.fn().mockResolvedValue({ id: 'clin-1' }),
+      findMany: vi.fn().mockResolvedValue([{ id: 'clin-1' }]),
       ...(overrides?.prisma?.clinician ?? {}),
+    },
+    clinicianAvailability: {
+      findMany: vi.fn().mockResolvedValue([]),
+      ...(overrides?.prisma?.clinicianAvailability ?? {}),
+    },
+    clinicianTimeOff: {
+      findFirst: vi.fn().mockResolvedValue(null),
+      ...(overrides?.prisma?.clinicianTimeOff ?? {}),
+    },
+    waitlistEntry: {
+      create: vi.fn().mockResolvedValue({ id: 'wl-1', status: 'WAITING' }),
+      findUnique: vi.fn(),
+      ...(overrides?.prisma?.waitlistEntry ?? {}),
     },
     callbackRequest: {
       create: vi.fn().mockResolvedValue({ id: 'cb-1' }),
@@ -58,6 +72,9 @@ function makeService(overrides?: {
     lead: txMethods.lead,
     appointment: txMethods.appointment,
     clinician: txMethods.clinician,
+    clinicianAvailability: txMethods.clinicianAvailability,
+    clinicianTimeOff: txMethods.clinicianTimeOff,
+    waitlistEntry: txMethods.waitlistEntry,
     conversation: { findFirst: vi.fn() },
     callTransfer: { create: vi.fn().mockResolvedValue({ id: 'transfer-1' }) },
     callbackRequest: txMethods.callbackRequest,
@@ -71,7 +88,7 @@ function makeService(overrides?: {
   const audit = { record: vi.fn(), ...(overrides?.audit ?? {}) } as unknown as AuditService;
   const sms = { send: vi.fn().mockResolvedValue({}), ...(overrides?.sms ?? {}) } as unknown as SmsProvider;
   const email = { send: vi.fn().mockResolvedValue({}), ...(overrides?.email ?? {}) } as unknown as EmailProvider;
-  return { service: new JessieIntegrationService(prisma, audit, sms, email), audit, prisma: prisma as any, sms, email };
+  return { service: new JessieIntegrationService(prisma, audit, sms, email), audit, prisma: prisma as any, sms, email, tx: txMethods };
 }
 
 const ctx = {
@@ -262,7 +279,7 @@ describe('JessieIntegrationService', () => {
     });
 
     it('queues appointment request when clinician unavailable', async () => {
-      const { service } = makeService({
+      const { service, tx } = makeService({
         prisma: {
           idempotencyKey: { findUnique: vi.fn().mockResolvedValue(null), create: vi.fn() },
           client: { findFirst: vi.fn().mockResolvedValue({ id: 'client-1' }) },
@@ -292,6 +309,10 @@ describe('JessieIntegrationService', () => {
       expect(result.success).toBe(true);
       expect(result.data!.status).toBe('REQUESTED');
       expect(result.data!.message).toContain('unavailable');
+      expect(result.data!.waitlistEntryId).toBe('wl-1');
+      // Safety invariant (issue #57): no calendar-counted appointment persisted.
+      expect(tx.appointment.create).not.toHaveBeenCalled();
+      expect(tx.waitlistEntry.create).toHaveBeenCalled();
     });
 
     it('throws when client not found', async () => {

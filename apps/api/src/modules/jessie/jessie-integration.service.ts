@@ -38,6 +38,18 @@ interface AuthenticatedContext {
   isServiceAccount: boolean;
 }
 
+/**
+ * Result of the Jessie appointment-create path. Exactly one of 'appointment'
+ * (a real, calendar-counted booking) or 'waitlistEntry' (a non-booking
+ * request) is set.
+ */
+interface AppointmentCreateResult {
+  appointment?: { id: string; status: string; startTime: Date };
+  waitlistEntry?: { id: string; status: string };
+  status: 'CONFIRMED' | 'REQUESTED';
+  message?: string;
+}
+
 @Injectable()
 export class JessieIntegrationService {
   private readonly logger = new Logger(JessieIntegrationService.name);
@@ -159,6 +171,85 @@ export class JessieIntegrationService {
     return status === 'CONFIRMED' ? 'CONFIRMED' : 'REQUESTED';
   }
 
+  private hhmmToMinutes(value: string): number {
+    const [hours, minutes] = value.split(':').map((part) => parseInt(part, 10));
+    return (Number.isFinite(hours) ? hours : 0) * 60 + (Number.isFinite(minutes) ? minutes : 0);
+  }
+
+  /**
+   * Decide whether a clinician slot is truly bookable before any CONFIRMED
+   * booking is persisted. Mirrors AvailabilityService.getSlots semantics:
+   * times are treated as UTC wall-clock, an appointment conflict or a
+   * time-off block removes the slot, and when the clinician has at least one
+   * active weekly availability window for that weekday the slot must fit
+   * entirely inside one window. A clinician with no configured availability
+   * windows is treated as bookable (windows are an optional hardening layer,
+   * not a launch blocker for existing tenants).
+   */
+  private async isClinicianSlotBookable(
+    tx: any,
+    organizationId: string,
+    clinicianId: string,
+    start: Date,
+    end: Date,
+  ): Promise<{ bookable: boolean; reason: string }> {
+    const conflict = await tx.appointment.findFirst({
+      where: {
+        organizationId,
+        clinicianId,
+        status: { notIn: ['CANCELLED', 'NO_SHOW'] },
+        startTime: { lt: end },
+        endTime: { gt: start },
+      },
+      select: { id: true },
+    });
+    if (conflict) {
+      return { bookable: false, reason: 'conflict' };
+    }
+
+    const timeOff = await tx.clinicianTimeOff.findFirst({
+      where: {
+        organizationId,
+        clinicianId,
+        startsAt: { lt: end },
+        endsAt: { gt: start },
+      },
+      select: { id: true },
+    });
+    if (timeOff) {
+      return { bookable: false, reason: 'time_off' };
+    }
+
+    const dayOfWeek = start.getUTCDay();
+    const windows = await tx.clinicianAvailability.findMany({
+      where: { organizationId, clinicianId, dayOfWeek, isActive: true },
+      select: { startTime: true, endTime: true },
+    });
+
+    if (windows.length > 0) {
+      const startMinutes =
+        start.getUTCHours() * 60 + start.getUTCMinutes();
+      const endMinutes =
+        end.getUTCHours() * 60 + end.getUTCMinutes();
+      const inside = windows.some(
+        (w: { startTime: string; endTime: string }) =>
+          this.hhmmToMinutes(w.startTime) <= startMinutes &&
+          this.hhmmToMinutes(w.endTime) >= endMinutes,
+      );
+      // A slot crossing midnight does not fit a single same-day window.
+      if (end.getTime() - start.getTime() >= 24 * 60 * 60_000 || !inside) {
+        return { bookable: false, reason: 'outside_availability' };
+      }
+    }
+
+    return { bookable: true, reason: 'ok' };
+  }
+
+  /**
+   * Safety-critical invariant (issue #57): a blocked or unassignable
+   * requested slot must NEVER persist an Appointment in a calendar-counted
+   * status. Blocked requests are persisted as non-booking WaitlistEntry rows.
+   */
   private async createAppointmentWithinTransaction(
     tx: any,
     organizationId: string,
@@ -166,11 +257,7 @@ export class JessieIntegrationService {
     preferredStart: Date,
     preferredEnd: Date,
     durationMinutes: number,
-  ): Promise<{
-    appointment: { id: string; status: string; startTime: Date };
-    status: 'CONFIRMED' | 'REQUESTED';
-    message?: string;
-  }> {
+  ): Promise<AppointmentCreateResult> {
     if (dto.preferredClinicianId) {
       const clinician = await tx.clinician.findFirst({
         where: { id: dto.preferredClinicianId, organizationId },
@@ -181,18 +268,15 @@ export class JessieIntegrationService {
         throw new NotFoundException(`Clinician ${dto.preferredClinicianId} not found`);
       }
 
-      const conflict = await tx.appointment.findFirst({
-        where: {
-          organizationId,
-          clinicianId: dto.preferredClinicianId,
-          status: { notIn: ['CANCELLED', 'NO_SHOW'] },
-          startTime: { lt: preferredEnd },
-          endTime: { gt: preferredStart },
-        },
-        select: { id: true },
-      });
+      const { bookable, reason } = await this.isClinicianSlotBookable(
+        tx,
+        organizationId,
+        dto.preferredClinicianId,
+        preferredStart,
+        preferredEnd,
+      );
 
-      if (!conflict) {
+      if (bookable) {
         const appointment = await tx.appointment.create({
           data: {
             organizationId,
@@ -210,87 +294,86 @@ export class JessieIntegrationService {
         return { appointment, status: 'CONFIRMED' };
       }
 
-      const appointment = await tx.appointment.create({
+      const waitlistEntry = await tx.waitlistEntry.create({
         data: {
           organizationId,
           clientId: dto.clientId,
           clinicianId: dto.preferredClinicianId,
-          type: dto.type as any,
-          status: 'SCHEDULED',
-          startTime: preferredStart,
-          endTime: preferredEnd,
-          durationMinutes,
-          cptCode: dto.reason,
+          appointmentType: dto.type as any,
+          status: 'WAITING',
+          preferredNotes: JSON.stringify({
+            requestedStartTime: preferredStart.toISOString(),
+            requestedEndTime: preferredEnd.toISOString(),
+            reason: dto.reason ?? null,
+            blockReason: reason,
+          }),
         },
       });
 
       return {
-        appointment,
+        waitlistEntry,
         status: 'REQUESTED',
-        message: 'Preferred clinician unavailable at requested time; request queued for review.',
+        message: 'Preferred clinician unavailable at requested time; request added to waitlist for review. No calendar booking was created.',
       };
     }
 
-    const availableClinician = await tx.clinician.findFirst({
-      where: {
-        organizationId,
-        isAcceptingNewClients: true,
-        appointments: {
-          none: {
-            status: { notIn: ['CANCELLED', 'NO_SHOW'] },
-            startTime: { lt: preferredEnd },
-            endTime: { gt: preferredStart },
-          },
-        },
-      },
-      select: { id: true },
-    });
-
-    if (availableClinician) {
-      const appointment = await tx.appointment.create({
-        data: {
-          organizationId,
-          clientId: dto.clientId,
-          clinicianId: availableClinician.id,
-          type: dto.type as any,
-          status: 'CONFIRMED',
-          startTime: preferredStart,
-          endTime: preferredEnd,
-          durationMinutes,
-          cptCode: dto.reason,
-        },
-      });
-
-      return { appointment, status: 'CONFIRMED' };
-    }
-
-    const anyClinician = await tx.clinician.findFirst({
+    const candidates = await tx.clinician.findMany({
       where: { organizationId, isAcceptingNewClients: true },
       select: { id: true },
+      take: 25,
     });
 
-    if (!anyClinician) {
+    for (const candidate of candidates) {
+      const { bookable } = await this.isClinicianSlotBookable(
+        tx,
+        organizationId,
+        candidate.id,
+        preferredStart,
+        preferredEnd,
+      );
+
+      if (bookable) {
+        const appointment = await tx.appointment.create({
+          data: {
+            organizationId,
+            clientId: dto.clientId,
+            clinicianId: candidate.id,
+            type: dto.type as any,
+            status: 'CONFIRMED',
+            startTime: preferredStart,
+            endTime: preferredEnd,
+            durationMinutes,
+            cptCode: dto.reason,
+          },
+        });
+
+        return { appointment, status: 'CONFIRMED' };
+      }
+    }
+
+    if (candidates.length === 0) {
       throw new BadRequestException('No clinicians available to accept appointments');
     }
 
-    const appointment = await tx.appointment.create({
+    const waitlistEntry = await tx.waitlistEntry.create({
       data: {
         organizationId,
         clientId: dto.clientId,
-        clinicianId: anyClinician.id,
-        type: dto.type as any,
-        status: 'SCHEDULED',
-        startTime: preferredStart,
-        endTime: preferredEnd,
-        durationMinutes,
-        cptCode: dto.reason,
+        appointmentType: dto.type as any,
+        status: 'WAITING',
+        preferredNotes: JSON.stringify({
+          requestedStartTime: preferredStart.toISOString(),
+          requestedEndTime: preferredEnd.toISOString(),
+          reason: dto.reason ?? null,
+          blockReason: 'no_available_clinician',
+        }),
       },
     });
 
     return {
-      appointment,
+      waitlistEntry,
       status: 'REQUESTED',
-      message: 'No clinician available at requested time; request queued for review.',
+      message: 'No clinician available at requested time; request added to waitlist for review. No calendar booking was created.',
     };
   }
 
@@ -496,7 +579,27 @@ export class JessieIntegrationService {
         select: { id: true, status: true, startTime: true },
       });
 
-      if (!existingAppointment) {
+      if (existingAppointment) {
+        return {
+          success: true,
+          data: {
+            appointmentId: existingAppointment.id,
+            status: this.mapAppointmentStatus(existingAppointment.status),
+            confirmedStartTime:
+              existingAppointment.status === 'CONFIRMED'
+                ? existingAppointment.startTime.toISOString()
+                : undefined,
+          },
+          requestId,
+        };
+      }
+
+      const existingWaitlistEntry = await this.prisma.waitlistEntry.findUnique({
+        where: { id: idempotencyCheck.resourceId },
+        select: { id: true, status: true },
+      });
+
+      if (!existingWaitlistEntry) {
         throw new NotFoundException(
           `Appointment not found for idempotency key ${dto.idempotencyKey}`,
         );
@@ -505,12 +608,10 @@ export class JessieIntegrationService {
       return {
         success: true,
         data: {
-          appointmentId: existingAppointment.id,
-          status: this.mapAppointmentStatus(existingAppointment.status),
-          confirmedStartTime:
-            existingAppointment.status === 'CONFIRMED'
-              ? existingAppointment.startTime.toISOString()
-              : undefined,
+          appointmentId: existingWaitlistEntry.id,
+          waitlistEntryId: existingWaitlistEntry.id,
+          status: 'REQUESTED',
+          message: 'Appointment request is on the waitlist; no calendar booking was created.',
         },
         requestId,
       };
@@ -529,7 +630,7 @@ export class JessieIntegrationService {
     const durationMinutes = dto.durationMinutes ? parseInt(dto.durationMinutes, 10) : 60;
     const preferredEnd = new Date(preferredStart.getTime() + durationMinutes * 60_000);
 
-    let appointmentResult;
+    let appointmentResult: AppointmentCreateResult;
     try {
       appointmentResult = await this.prisma.$transaction(async (tx) => {
         await this.claimIdempotencyKey(
@@ -556,7 +657,7 @@ export class JessieIntegrationService {
             },
           },
           data: {
-            resourceId: created.appointment.id,
+            resourceId: created.appointment?.id ?? created.waitlistEntry?.id,
           },
         });
 
@@ -564,27 +665,47 @@ export class JessieIntegrationService {
       });
     } catch (error: any) {
       if (this.isUniqueConstraintError(error)) {
-        const existingAppointment = await this.resolveExistingIdempotentResource(
+        const existing = await this.resolveExistingIdempotentResource(
           ctx.organizationId,
           dto.idempotencyKey,
           'Appointment',
-          (resourceId) =>
-            this.prisma.appointment.findUnique({
-              where: { id: resourceId },
-              select: { id: true, status: true, startTime: true },
-            }),
+          (resourceId) => this.prisma.appointment.findUnique({
+            where: { id: resourceId },
+            select: { id: true, status: true, startTime: true },
+          }),
         );
 
-        if (existingAppointment) {
+        if (existing) {
           return {
             success: true,
             data: {
-              appointmentId: existingAppointment.id,
-              status: this.mapAppointmentStatus(existingAppointment.status),
+              appointmentId: existing.id,
+              status: this.mapAppointmentStatus(existing.status),
               confirmedStartTime:
-                existingAppointment.status === 'CONFIRMED'
-                  ? existingAppointment.startTime.toISOString()
-                  : undefined,
+                existing.status === 'CONFIRMED' ? existing.startTime.toISOString() : undefined,
+            },
+            requestId,
+          };
+        }
+
+        const existingWaitlist = await this.resolveExistingIdempotentResource(
+          ctx.organizationId,
+          dto.idempotencyKey,
+          'Appointment',
+          (resourceId) => this.prisma.waitlistEntry.findUnique({
+            where: { id: resourceId },
+            select: { id: true, status: true },
+          }),
+        );
+
+        if (existingWaitlist) {
+          return {
+            success: true,
+            data: {
+              appointmentId: existingWaitlist.id,
+              waitlistEntryId: existingWaitlist.id,
+              status: 'REQUESTED',
+              message: 'Appointment request is on the waitlist; no calendar booking was created.',
             },
             requestId,
           };
@@ -593,15 +714,21 @@ export class JessieIntegrationService {
       throw error;
     }
 
-    const { appointment, status, message } = appointmentResult;
+    const { appointment, waitlistEntry, status, message } = appointmentResult;
+    const resourceId = appointment?.id ?? waitlistEntry!.id;
 
     await this.audit.record({
       organizationId: ctx.organizationId,
       actorId: ctx.userId,
       action: AuditAction.CREATE,
-      entityType: 'Appointment',
-      entityId: appointment.id,
-      metadata: { clientId: dto.clientId, type: dto.type, status },
+      entityType: appointment ? 'Appointment' : 'WaitlistEntry',
+      entityId: resourceId,
+      metadata: {
+        clientId: dto.clientId,
+        type: dto.type,
+        status,
+        waitlisted: appointment ? undefined : true,
+      },
     });
 
     await this.emitMakeEvent(ctx.organizationId, {
@@ -611,18 +738,23 @@ export class JessieIntegrationService {
       event_type: 'create_or_request_appointment',
       payload: {
         status,
-        appointmentId: appointment.id,
+        appointmentId: appointment?.id,
+        waitlistEntryId: waitlistEntry?.id,
         confirmedStartTime:
-          status === 'CONFIRMED' ? appointment.startTime.toISOString() : undefined,
+          status === 'CONFIRMED' && appointment
+            ? appointment.startTime.toISOString()
+            : undefined,
       },
     });
 
     return {
       success: true,
       data: {
-        appointmentId: appointment.id,
+        appointmentId: resourceId,
+        waitlistEntryId: waitlistEntry?.id,
         status,
-        confirmedStartTime: status === 'CONFIRMED' ? appointment.startTime.toISOString() : undefined,
+        confirmedStartTime:
+          status === 'CONFIRMED' && appointment ? appointment.startTime.toISOString() : undefined,
         message,
       },
       requestId,
