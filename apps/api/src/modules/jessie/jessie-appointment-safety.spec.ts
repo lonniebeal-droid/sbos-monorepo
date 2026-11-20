@@ -107,6 +107,8 @@ describe('Jessie appointment slot safety (issue #57)', () => {
     expect(result.data!.status).toBe('REQUESTED');
     expect(result.data!.waitlistEntryId).toBe('wl-1');
     expect(s.appointmentCreate).not.toHaveBeenCalled();
+    const notes = JSON.parse(s.waitlistCreate.mock.calls[0][0].data.preferredNotes);
+    expect(notes.blockReason).toBe('time_off');
   });
 
   it('does not book outside configured weekly availability windows', async () => {
@@ -123,6 +125,8 @@ describe('Jessie appointment slot safety (issue #57)', () => {
     expect(result.data!.status).toBe('REQUESTED');
     expect(result.data!.waitlistEntryId).toBe('wl-1');
     expect(s.appointmentCreate).not.toHaveBeenCalled();
+    const notes = JSON.parse(s.waitlistCreate.mock.calls[0][0].data.preferredNotes);
+    expect(notes.blockReason).toBe('outside_availability');
   });
 
   it('books inside configured weekly availability windows', async () => {
