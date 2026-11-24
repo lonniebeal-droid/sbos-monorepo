@@ -12,6 +12,69 @@ function makeService(overrides?: { prisma?: Partial<PrismaService> }) {
   return { service: new DiagnosesService(prisma, audit), audit };
 }
 
+describe('DiagnosesService.create', () => {
+  it('creates a diagnosis only after confirming the client belongs to the org', async () => {
+    const created = {
+      id: 'd1',
+      organizationId: 'org1',
+      clientId: 'c1',
+      icd10Code: 'F41.1',
+      description: 'GAD',
+    };
+    const prisma = {
+      client: {
+        findFirst: vi.fn().mockResolvedValue({ id: 'c1' }),
+      },
+      diagnosis: {
+        create: vi.fn().mockResolvedValue(created),
+      },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    const result = await service.create('org1', {
+      clientId: 'c1',
+      icd10Code: 'F41.1',
+      description: 'GAD',
+    });
+
+    expect(prisma.client.findFirst).toHaveBeenCalledWith({
+      where: { id: 'c1', organizationId: 'org1', deletedAt: null },
+      select: { id: true },
+    });
+    expect(prisma.diagnosis.create).toHaveBeenCalledWith({
+      data: {
+        icd10Code: 'F41.1',
+        description: 'GAD',
+        clientId: 'c1',
+        organizationId: 'org1',
+      },
+    });
+    expect(result).toEqual(created);
+  });
+
+  it('throws NotFoundException and never inserts when clientId is outside the org', async () => {
+    const prisma = {
+      client: {
+        findFirst: vi.fn().mockResolvedValue(null),
+      },
+      diagnosis: {
+        create: vi.fn(),
+      },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+
+    await expect(
+      service.create('org1', {
+        clientId: 'foreign-client',
+        icd10Code: 'F41.1',
+        description: 'GAD',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(prisma.diagnosis.create).not.toHaveBeenCalled();
+  });
+});
+
 describe('DiagnosesService.remove', () => {
   it('deletes the diagnosis and records a DELETE audit entry', async () => {
     const existing = { id: 'd1', clientId: 'c1', icd10Code: 'F41.1' };

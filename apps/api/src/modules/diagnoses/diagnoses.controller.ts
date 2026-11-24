@@ -51,7 +51,7 @@ export class DiagnosesController {
     @Param('id') id: string,
     @Body() dto: UpdateDiagnosisDto,
   ) {
-    return this.diagnosesService.update(user.organizationId, id, dto);
+    return this.diagnosesService.update(user.organizationId, user.id, id, dto);
   }
 
   @Delete(':id')
