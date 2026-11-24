@@ -23,7 +23,9 @@ development default in code, or must be set explicitly. Full lists live in
 | `AUTH_SECRET` | web | ✅ required | `sbos-development-secret-change-me-in-production` |
 | `CORS_ORIGINS` | api | recommended (exact origin) | `http://localhost:3000` |
 | `PORT` | api | optional | `4000` |
-| `SBOS_API_URL` / `NEXT_PUBLIC_API_URL` | web | recommended (internal URL in prod) | `http://localhost:4000` |
+| `SBOS_API_URL` / `NEXT_PUBLIC_API_URL` | web | required for hosted web (`SBOS_API_URL` internal, `NEXT_PUBLIC_API_URL` public) | `http://localhost:4000` |
+| `JESSIE_AGENT_SECRETS` | api | required for live Jessie webhook tools | unset |
+| `ADMIN_BOOTSTRAP_TOKEN` | api | optional one-time token for a fresh environment | unset |
 | `OPENAI_API_KEY`, `AI_BASE_URL`, `AI_MODEL` | api | optional — activates live Jessie chat | unset → heuristic offline provider |
 | `STRIPE_SECRET_KEY` | api | optional — activates Stripe payments | unset → manual payment provider |
 | `RESEND_API_KEY`, `EMAIL_FROM` | api | optional — activates live email | unset → console email provider |
@@ -121,7 +123,7 @@ Condensed for launch:
 
 - ✅ Structured per-request logging (method/path/status/duration/user) via a
   logging interceptor — ships to container stdout today.
-- ✅ Health endpoints: `GET /api/v1/health` (api), `GET /api/health` (web),
+- ✅ Health endpoints: `GET /api/v1/health` (api, now 503 when DB is down), `GET /api/health` (web),
   `GET /api/v1/platform/system-health` (authenticated admin snapshot — DB
   probe, table counts, uptime, memory).
 - ⬜ Centralized log aggregation + retention policy (ship stdout to your
@@ -171,11 +173,10 @@ Condensed for launch:
 
 ## Go / No-Go Summary
 
-**Already true today (verified live this session):** all packages build
-clean, dependencies install clean, both apps boot and serve real traffic
-(`/api/v1/health` → 200, `/login` → 200), migrations apply cleanly to a real
-Postgres, the demo seed works, and the security/RBAC/audit code paths are all
-implemented and exercised.
+**Already true today (verified locally on August 29, 2026):** all packages
+build clean, the API/core tests pass, browser-side hosted auth/setup pages no
+longer hardcode localhost, migrations apply cleanly in the current local flow,
+and the security/RBAC/audit code paths are implemented and exercised.
 
 **Must be closed before handling real PHI in production** (ship-blocking):
 managed database + tested backups, production secrets in a real secret store,
@@ -187,6 +188,7 @@ and a full pre-launch smoke test on a clean host.
 error tracking, WCAG full audit, dependency/SAST/image scanning in CI, a
 connection pooler.
 
-Everything above is infrastructure provisioning, credentials, or an
-operator/compliance decision — not a code gap. The application itself (auth,
-RBAC, API, database, containers, CI) is implemented and verified working.
+Remaining blockers are now mostly infrastructure, credentials, and operator
+actions rather than missing Jessie code. The material code-side readiness gaps
+closed here were hosted web API URL wiring, bootstrap hardening, and health
+endpoint readiness semantics.
