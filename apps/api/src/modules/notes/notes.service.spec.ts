@@ -340,3 +340,35 @@ describe('NotesService.create — tenant ownership of clientId/clinicianId', () 
     expect(result).toBe(created);
   });
 });
+
+
+describe('NotesService relationship ownership', () => {
+  it('rejects a foreign cosigner before creating a note', async () => {
+    const prisma = {
+      user: { findFirst: vi.fn().mockResolvedValue(null) },
+      note: { create: vi.fn() },
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+    await expect(service.create('org1', 'author1', {
+      clientId: 'c1', clinicianId: 'cl1', type: NoteTypeDto.PROGRESS,
+      cosignerId: 'foreign-user',
+    })).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.user.findFirst).toHaveBeenCalledWith({
+      where: { id: 'foreign-user', organizationId: 'org1' }, select: { id: true },
+    });
+    expect(prisma.note.create).not.toHaveBeenCalled();
+  });
+
+  it.each(['appointmentId', 'cosignerId'] as const)('rejects foreign %s before updating', async (field) => {
+    const prisma = {
+      note: { findFirst: vi.fn().mockResolvedValue({ id: 'n1', status: NoteStatus.DRAFT }) },
+      appointment: { findFirst: vi.fn().mockResolvedValue(null) },
+      user: { findFirst: vi.fn().mockResolvedValue(null) },
+      $transaction: vi.fn(),
+    } as unknown as PrismaService;
+    const { service } = makeService({ prisma });
+    await expect(service.update('org1', 'n1', 'editor1', { [field]: 'foreign-id' }))
+      .rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+});
