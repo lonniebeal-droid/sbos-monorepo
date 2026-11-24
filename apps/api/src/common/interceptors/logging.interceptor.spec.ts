@@ -1,5 +1,5 @@
 import type { CallHandler, ExecutionContext } from '@nestjs/common';
-import { Logger } from '@nestjs/common';
+import { ForbiddenException, Logger } from '@nestjs/common';
 import { of, throwError } from 'rxjs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -106,10 +106,15 @@ describe('LoggingInterceptor', () => {
     expect(errorSpy.mock.calls[0][0] as string).toContain(' 503 ');
   });
 
-  it('still logs on a handler error, using the response statusCode already set (or 500 if unset)', () => {
+  it('logs a thrown plain Error at status 500, ignoring the still-default res.statusCode', () => {
+    // The global exception filter runs after interceptors, so res.statusCode
+    // is still Express's default 200 at the point this error handler fires --
+    // regression coverage for a bug where the interceptor logged every thrown
+    // error using res.statusCode (still 200) instead of the error's real status.
     const interceptor = new LoggingInterceptor();
     const errorSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
-    const context = makeHttpContext({ statusCode: 500 });
+    const logSpy = vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
+    const context = makeHttpContext({ statusCode: 200 });
 
     interceptor
       .intercept(context, handlerThrowing(new Error('boom')))
@@ -117,6 +122,22 @@ describe('LoggingInterceptor', () => {
 
     expect(errorSpy).toHaveBeenCalledTimes(1);
     expect(errorSpy.mock.calls[0][0] as string).toContain(' 500 ');
+    expect(logSpy).not.toHaveBeenCalled();
+  });
+
+  it('logs a thrown HttpException using its actual status, not res.statusCode', () => {
+    const interceptor = new LoggingInterceptor();
+    const warnSpy = vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
+    const errorSpy = vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined);
+    const context = makeHttpContext({ statusCode: 200 });
+
+    interceptor
+      .intercept(context, handlerThrowing(new ForbiddenException()))
+      .subscribe({ next: () => undefined, error: () => undefined });
+
+    expect(warnSpy).toHaveBeenCalledTimes(1);
+    expect(warnSpy.mock.calls[0][0] as string).toContain(' 403 ');
+    expect(errorSpy).not.toHaveBeenCalled();
   });
 
   it('propagates the original error from the handler unchanged', () => {

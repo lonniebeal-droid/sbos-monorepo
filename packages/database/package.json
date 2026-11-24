@@ -22,15 +22,13 @@
     "db:seed": "node --experimental-strip-types prisma/seed.ts",
     "test": "node --test"
   },
-  "prisma": {
-    "seed": "node --experimental-strip-types prisma/seed.ts"
-  },
   "dependencies": {
     "@prisma/client": "^6.2.1"
   },
   "devDependencies": {
     "@sbos/tsconfig": "workspace:*",
     "@types/node": "^22.10.5",
+    "dotenv": "^16.4.5",
     "prisma": "^6.2.1",
     "typescript": "^5.7.2"
   }
