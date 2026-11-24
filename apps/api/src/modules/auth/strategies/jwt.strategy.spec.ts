@@ -146,4 +146,13 @@ describe('JwtStrategy.validate', () => {
 
     await expect(strategy.validate(ok)).resolves.toMatchObject({ id: 'u1' });
   });
+
+  it('throws UnauthorizedException for a payload missing the type claim entirely', async () => {
+    const strategy = makeStrategy();
+    const { type: _type, ...payloadWithoutType } = basePayload;
+
+    await expect(
+      strategy.validate(payloadWithoutType as JwtPayload),
+    ).rejects.toThrow(UnauthorizedException);
+  });
 });

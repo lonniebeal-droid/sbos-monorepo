@@ -57,6 +57,10 @@ the operator's responsibility.
   is committed; `.env*` files are git-ignored; templates ship `*.example`.
 - Provider keys (LLM/Stripe/Resend/Twilio) are never persisted or returned by
   the API.
+- **Secrets must never be committed to git or pasted into chat/AI-assistant
+  sessions** (including this one) — not in commit messages, code, docs, or
+  conversation. Set real values directly in environment/secret storage; use
+  a placeholder like `<real-postgres-url>` in any example or instruction.
 
 ## Error handling & logging
 

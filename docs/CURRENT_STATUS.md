@@ -274,8 +274,11 @@ installed — `docker-compose.yml` could not be run directly — so the same
   that they exist.
 - Still open: **no staging/production database exists yet** — this only
   closes the "can these migrations even apply cleanly" question, not
-  production readiness. `DATABASE_URL=<real-postgres-url> npx prisma migrate deploy`
-  is the same command to run against a real environment when one exists.
+  production readiness. Same deploy command against a real environment, see
+  `docs/DEPLOYMENT.md`.
+
+## Known issues / notes
+
 - **Interim web credential store** — `apps/web/src/lib/dev-users.ts` exists for
   local sign-in until API auth is wired; not used in production paths.
 - **Prisma deprecation warning** — `package.json#prisma` seed config warns it
