@@ -263,7 +263,7 @@ export class JessieIntegrationService {
     dto: CaptureLeadRequestDto,
   ): Promise<CaptureLeadResponseDto> {
     const business = await this.ensureBusinessInOrg(organizationId, dto.clientId);
-    const idempotencyKey = `lead:${dto.requestId}`;
+    const idempotencyKey = JSON.stringify([organizationId, 'lead', dto.requestId]);
     const cached = this.idempotencyCache.get(idempotencyKey);
     if (cached) {
       return { ...cached.response as CaptureLeadResponseDto, status: 'duplicate' };
@@ -329,7 +329,7 @@ export class JessieIntegrationService {
     dto: CreateAppointmentRequestDto,
   ): Promise<AppointmentRequestResponseDto> {
     const business = await this.ensureBusinessInOrg(organizationId, dto.clientId);
-    const idempotencyKey = `appt:${dto.requestId}`;
+    const idempotencyKey = JSON.stringify([organizationId, 'appt', dto.requestId]);
     const cached = this.idempotencyCache.get(idempotencyKey);
     if (cached) {
       return { ...cached.response as AppointmentRequestResponseDto, status: AppointmentRequestStatus.REQUESTED };
@@ -425,7 +425,7 @@ export class JessieIntegrationService {
     dto: SendMessageOrCallbackRequestDto,
   ): Promise<CallbackMessageResponseDto> {
     const business = await this.ensureBusinessInOrg(organizationId, dto.clientId);
-    const idempotencyKey = `callback:${dto.requestId}`;
+    const idempotencyKey = JSON.stringify([organizationId, 'callback', dto.requestId]);
     const cached = this.idempotencyCache.get(idempotencyKey);
     if (cached) {
       return { ...cached.response as CallbackMessageResponseDto, status: 'request_recorded' };
@@ -492,7 +492,7 @@ export class JessieIntegrationService {
     dto: LogCallOutcomeRequestDto,
   ): Promise<LogCallOutcomeResponseDto> {
     const business = await this.ensureBusinessInOrg(organizationId, dto.clientId);
-    const idempotencyKey = `outcome:${dto.requestId}`;
+    const idempotencyKey = JSON.stringify([organizationId, 'outcome', dto.requestId]);
     const cached = this.idempotencyCache.get(idempotencyKey);
     if (cached) {
       return { ...cached.response as LogCallOutcomeResponseDto, status: 'duplicate' };
