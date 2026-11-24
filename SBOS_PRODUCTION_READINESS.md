@@ -1,8 +1,8 @@
 # SBOS Production Readiness Report
 
-**Date:** 2026-08-26
-**Branch:** `claude/sbos-demo-readiness-docs`
-**HEAD:** `a871644` (demo-readiness) + pending hardening commit
+**Date:** 2026-08-29
+**Branch:** `docs/jessie-live-call-readiness`
+**HEAD:** current branch head after Jessie readiness updates
 
 ---
 
@@ -29,6 +29,8 @@
 | `TWILIO_ACCOUNT_SID` | OPTIONAL | SMS (console provider used when unset) | None | No |
 | `TWILIO_AUTH_TOKEN` | OPTIONAL | SMS auth token | None | No |
 | `TWILIO_FROM_NUMBER` | OPTIONAL | SMS sender number | None | No |
+| `JESSIE_AGENT_SECRETS` | REQUIRED for live Jessie webhooks | Per-org Jessie agent secrets | None | Yes for live Jessie |
+| `ADMIN_BOOTSTRAP_TOKEN` | OPTIONAL one-time | First org/admin bootstrap token | None | Only for a fresh install |
 
 ### Web (apps/web) — Runtime
 
@@ -36,7 +38,7 @@
 |----------|---------------|---------|---------|-------------------|
 | `AUTH_SECRET` | REQUIRED | Session cookie signing key | Dev default | Yes |
 | `SBOS_API_URL` | REQUIRED | Server-side API URL | `http://localhost:4000` | Yes |
-| `NEXT_PUBLIC_API_URL` | OPTIONAL | Client-side API URL fallback | `http://localhost:4000` | Yes |
+| `NEXT_PUBLIC_API_URL` | REQUIRED for hosted browser-side auth/setup flows | Client-side public API URL | `http://localhost:4000` | Yes when web is hosted |
 | `NODE_ENV` | REQUIRED | Enables secure cookies in production | None | Yes |
 
 ### Database (packages/database) — Runtime
@@ -60,10 +62,10 @@
 
 ## 3. Health / Startup
 
-- **API health:** `GET /api/v1/health` — public, returns `{ status, database: { status, latencyMs }, uptime, timestamp }`
+- **API health:** `GET /api/v1/health` — public, returns HTTP `200` only when DB probe is up; returns HTTP `503` with `status: "degraded"` when the process is up but DB is unavailable
 - **API system health:** `GET /api/v1/platform/system-health` — auth required, returns DB connectivity + org-scoped counts
 - **Web health:** `GET /api/health` — returns `{ status: "ok", service: "sbos-web" }`
-- **Startup validation:** `validateRuntimeConfig()` refuses to start in production if JWT secrets use dev defaults
+- **Startup validation:** `validateRuntimeConfig()` refuses to start in production if JWT secrets use dev defaults or if `JESSIE_AGENT_SECRETS` is empty/malformed
 - **Missing env behavior:** Config falls back to safe defaults; production mode throws on insecure config
 
 ---
@@ -115,7 +117,7 @@ All services scope queries by `organizationId`:
 ## 6. Observability / Error Handling
 
 - **Global exception filter:** `AllExceptionsFilter` — consistent error envelope, no stack traces to client
-- **Logging interceptor:** Structured request logging (method, path, status, duration, user/org) — no request bodies logged
+- **Logging interceptor:** Structured request logging (method, path, status, duration, user/org / `agentOrg`) — no request bodies or secrets logged
 - **Sensitive data:** Passwords never logged, request bodies never dumped, PHI protected
 - **Error levels:** 5xx → error, 4xx → warn, 2xx/3xx → log
 
@@ -215,7 +217,12 @@ Verified against live local API + Postgres:
 
 ## 12. Production Blockers
 
-- **None identified from this work.** All gates green, no security issues found.
+- No verified live Railway or other hosted environment exists yet from this branch.
+- No public HTTPS API domain is provisioned yet for ElevenLabs webhooks.
+- A real PostgreSQL target still must be provisioned and wired to `DATABASE_URL`.
+- `JESSIE_AGENT_SECRETS` still requires a real organization id plus generated secret.
+- If this is a fresh environment, the first org/admin must still be created via `ADMIN_BOOTSTRAP_TOKEN` bootstrap or an authenticated admin path.
+- No live smoke test has been run against a hosted environment, and no production deploy was performed in this work.
 
 ---
 
