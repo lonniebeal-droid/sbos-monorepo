@@ -69,11 +69,8 @@ production (`NODE_ENV=production`).
 
 ```bash
 # Apply pending migrations (idempotent; safe to run on every deploy)
-cd packages/database && DATABASE_URL=<real-postgres-url> npx prisma migrate deploy
+pnpm --filter @sbos/database prisma:deploy
 ```
-
-Equivalently, with `DATABASE_URL` already set in the environment:
-`pnpm --filter @sbos/database prisma:deploy`.
 
 All migrations are additive and backwards-compatible (see
 `docs/DATABASE_REVIEW.md`), so rolling deploys are safe. Take a database backup
