@@ -15,12 +15,18 @@ if (!process.env.DATABASE_URL) {
 
 }
 
-const migrate = spawnSync(
-  'packages/database/node_modules/.bin/prisma',
-  ['migrate', 'deploy', '--schema=packages/database/prisma/schema.prisma'],
-  { stdio: 'inherit', env: process.env }
-);
-if (migrate.status !== 0) process.exit(migrate.status ?? 1);
+// Schema migrations are opt-in so a redeploy never mutates the database
+// unless an operator explicitly sets RUN_DB_MIGRATIONS=true.
+if (process.env.RUN_DB_MIGRATIONS === 'true') {
+  const migrate = spawnSync(
+    'packages/database/node_modules/.bin/prisma',
+    ['migrate', 'deploy', '--schema=packages/database/prisma/schema.prisma'],
+    { stdio: 'inherit', env: process.env }
+  );
+  if (migrate.status !== 0) process.exit(migrate.status ?? 1);
+} else {
+  console.log('RUN_DB_MIGRATIONS!=true: skipping prisma migrate deploy');
+}
 
 const api = spawnSync('node', ['apps/api/dist/main.js'], {
   stdio: 'inherit',
