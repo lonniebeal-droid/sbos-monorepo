@@ -23,8 +23,15 @@ export class PaymentsService {
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
   ) {}
 
-  /** Ensure the client exists in this org (and is not soft-deleted). */
-  private async ensureClientInOrg(organizationId: string, clientId: string) {
+  /**
+   * Client-supplied ownership IDs must belong to this organization.
+   * Prevents cross-tenant payment attachment via clientId/invoiceId/claimId.
+   * Validated before any external charge side effect.
+   */
+  private async ensureClientInOrg(
+    organizationId: string,
+    clientId: string,
+  ): Promise<void> {
     const client = await this.prisma.client.findFirst({
       where: { id: clientId, organizationId, deletedAt: null },
       select: { id: true },
@@ -32,7 +39,32 @@ export class PaymentsService {
     if (!client) {
       throw new NotFoundException(`Client ${clientId} not found`);
     }
-    return client;
+  }
+
+  private async ensureInvoiceInOrg(
+    organizationId: string,
+    invoiceId: string,
+  ): Promise<void> {
+    const invoice = await this.prisma.invoice.findFirst({
+      where: { id: invoiceId, organizationId },
+      select: { id: true },
+    });
+    if (!invoice) {
+      throw new NotFoundException(`Invoice ${invoiceId} not found`);
+    }
+  }
+
+  private async ensureClaimInOrg(
+    organizationId: string,
+    claimId: string,
+  ): Promise<void> {
+    const claim = await this.prisma.claim.findFirst({
+      where: { id: claimId, organizationId },
+      select: { id: true },
+    });
+    if (!claim) {
+      throw new NotFoundException(`Claim ${claimId} not found`);
+    }
   }
 
   /**
@@ -45,6 +77,12 @@ export class PaymentsService {
     dto: RecordPaymentDto,
   ) {
     await this.ensureClientInOrg(organizationId, dto.clientId);
+    if (dto.invoiceId) {
+      await this.ensureInvoiceInOrg(organizationId, dto.invoiceId);
+    }
+    if (dto.claimId) {
+      await this.ensureClaimInOrg(organizationId, dto.claimId);
+    }
 
     // Card/ACH route through the provider; cash/check/adjustment are manual.
     const charge = await this.provider.charge({

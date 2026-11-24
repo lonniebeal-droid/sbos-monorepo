@@ -15,7 +15,7 @@ async function bootstrap(): Promise<void> {
   // Fail fast on insecure/missing configuration in production.
   validateRuntimeConfig(configuration());
 
-  const app = await NestFactory.create(AppModule, { cors: false });
+  const app = await NestFactory.create(AppModule, { cors: false, rawBody: true });
   const configService = app.get<ConfigService<AppConfig, true>>(ConfigService);
 
   // Security headers (CSP is relaxed here because the API serves JSON + Swagger).

@@ -1,0 +1,3 @@
+services:
+  api:
+    image: sbos-api:jessie-admin-20261019

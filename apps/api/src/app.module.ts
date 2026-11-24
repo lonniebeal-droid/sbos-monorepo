@@ -1,17 +1,17 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
+import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
 import configuration from './config/configuration';
+import { validateConfig } from './config/validate-config';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
-import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { PrismaModule } from './prisma/prisma.module';
 import { AuditModule } from './audit/audit.module';
-import { AiModule } from './ai/ai.module';
 import { StorageModule } from './storage/storage.module';
-import { PaymentsModule } from './payments/payments.module';
 import { ChannelsModule } from './channels/channels.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -24,11 +24,14 @@ import { SchedulingModule } from './modules/scheduling/scheduling.module';
 import { NotesModule } from './modules/notes/notes.module';
 import { DiagnosesModule } from './modules/diagnoses/diagnoses.module';
 import { AssessmentsModule } from './modules/assessments/assessments.module';
+import { AdmissionsModule } from './modules/admissions/admissions.module';
 import { MedicationsModule } from './modules/medications/medications.module';
 import { TreatmentPlansModule } from './modules/treatment-plans/treatment-plans.module';
 import { DocumentsModule } from './modules/documents/documents.module';
 import { BillingModule } from './modules/billing/billing.module';
+import { PaymentsModule } from './payments/payments.module';
 import { JessieModule } from './modules/jessie/jessie.module';
+import { JessieIntegrationModule } from './modules/jessie-integration/jessie-integration.module';
 import { ElevenLabsAgentToolsModule } from './modules/jessie/agent-tools/elevenlabs-agent-tools.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
@@ -36,33 +39,34 @@ import { MessagingModule } from './modules/messaging/messaging.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { PlatformModule } from './modules/platform/platform.module';
 import { MedicalConnectorsModule } from './modules/integrations/medical-connectors/medical-connectors.module';
+import { IntegrationAdminModule } from './integrations/admin/integration-admin.module';
 import { HealthController } from './modules/health/health.controller';
 import { RedisThrottlerStorage } from './common/throttler/redis-throttler.storage';
 
-interface RedisConfig {
-  url?: string;
-  enabled: boolean;
-  connectTimeout: number;
-  maxRetriesPerRequest: number;
-}
-
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, load: [configuration], cache: true }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      load: [configuration],
+      validate: validateConfig,
+    }),
     ThrottlerModule.forRootAsync({
-      imports: [ConfigModule],
       inject: [ConfigService],
-      useFactory: (configService: ConfigService) => {
-        const redisConfig = configService.get<RedisConfig>('redis', { infer: true });
-        const storage = redisConfig?.enabled && redisConfig?.url ? new RedisThrottlerStorage(configService) : undefined;
-        return { throttlers: [{ ttl: 60_000, limit: 120 }], storage };
-      },
+      useFactory: (config: ConfigService) => ({
+        throttlers: [
+          {
+            ttl: config.get<number>('THROTTLE_TTL', 60) * 1000,
+            limit: config.get<number>('THROTTLE_LIMIT', 100),
+          },
+        ],
+        storage: config.get<boolean>('REDIS_RATE_LIMIT_ENABLED')
+          ? new RedisThrottlerStorage(config)
+          : undefined,
+      }),
     }),
     PrismaModule,
     AuditModule,
-    AiModule,
     StorageModule,
-    PaymentsModule,
     ChannelsModule,
     AuthModule,
     UsersModule,
@@ -75,11 +79,14 @@ interface RedisConfig {
     NotesModule,
     DiagnosesModule,
     AssessmentsModule,
+    AdmissionsModule,
     MedicationsModule,
     TreatmentPlansModule,
     DocumentsModule,
     BillingModule,
+    PaymentsModule,
     JessieModule,
+    JessieIntegrationModule,
     ElevenLabsAgentToolsModule,
     TasksModule,
     NotificationsModule,
@@ -87,9 +94,11 @@ interface RedisConfig {
     AnalyticsModule,
     PlatformModule,
     MedicalConnectorsModule,
+    IntegrationAdminModule,
   ],
   controllers: [HealthController],
   providers: [
+    { provide: APP_FILTER, useClass: AllExceptionsFilter },
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },

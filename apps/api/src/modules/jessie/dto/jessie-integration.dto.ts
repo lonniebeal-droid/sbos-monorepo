@@ -180,7 +180,11 @@ export class CreateOrRequestAppointmentRequestDto {
 }
 
 export class CreateOrRequestAppointmentResponseDto {
-  @ApiProperty({ example: '550e8400-e29b-41d4-a716-446655440000' })
+  @ApiProperty({
+    example: '550e8400-e29b-41d4-a716-446655440000',
+    description:
+      'The created appointment id when status is CONFIRMED; otherwise the id of the non-booking waitlist entry created for the request.',
+  })
   @IsUUID()
   appointmentId!: string;
 
@@ -192,6 +196,15 @@ export class CreateOrRequestAppointmentResponseDto {
   @IsOptional()
   @IsDateString()
   confirmedStartTime?: string;
+
+  @ApiPropertyOptional({
+    example: '550e8400-e29b-41d4-a716-446655440009',
+    description:
+      'Set when the requested slot could not be booked and a non-booking waitlist entry was created instead of a calendar appointment.',
+  })
+  @IsOptional()
+  @IsUUID()
+  waitlistEntryId?: string;
 
   @ApiPropertyOptional({ example: 'No clinician available at requested time; request queued.' })
   @IsOptional()

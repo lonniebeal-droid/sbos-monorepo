@@ -3,6 +3,10 @@ import { IsEmail, IsEnum, IsString, MinLength } from 'class-validator';
 
 import { Role } from '../../../common/enums/role.enum';
 
+/**
+ * Client must not supply organizationId — it is taken from the authenticated
+ * actor so a caller cannot create users in another tenant.
+ */
 export class CreateUserDto {
   @ApiProperty({ example: 'newuser@sbos.health' })
   @IsEmail()

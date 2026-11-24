@@ -310,6 +310,29 @@ export async function addAssessmentAction(
   }
 }
 
+export interface NewAdmissionInput {
+  clientId: string;
+  program: string;
+  levelOfCare?: string;
+  status?: string;
+  admittedAt?: string;
+}
+
+export async function addAdmissionAction(
+  input: NewAdmissionInput,
+): Promise<ActionResult> {
+  try {
+    await apiFetch("/admissions", {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    revalidatePath(`/clients/${input.clientId}`);
+    return { ok: true };
+  } catch (error) {
+    return toError(error);
+  }
+}
+
 export interface UpdateOrganizationInput {
   name?: string;
   npi?: string;
@@ -393,5 +416,107 @@ export async function previewSyntheticX12Action(
   } catch (error) {
     const result = toError(error);
     return result.ok ? { ok: false, error: "Request failed" } : result;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Medical provider lifecycle (IntegrationAdminService / ProviderAdapter) */
+/* Backend: /v1/integrations/admin/medical-providers (ORG_ADMIN only)     */
+/* ------------------------------------------------------------------ */
+
+export interface MedicalProviderConfigInput {
+  provider: string;
+  baseUrl: string;
+  clientId: string;
+  scopes?: string[];
+}
+
+export type MedicalProviderActionResult =
+  | { ok: true; data?: Record<string, unknown> }
+  | { ok: false; error: string };
+
+const MEDICAL_PROVIDERS_BASE = "/integrations/admin/medical-providers";
+
+export async function configureMedicalProviderAction(
+  input: MedicalProviderConfigInput,
+): Promise<MedicalProviderActionResult> {
+  try {
+    const data = await apiFetch<Record<string, unknown>>(MEDICAL_PROVIDERS_BASE, {
+      method: "POST",
+      body: JSON.stringify(input),
+    });
+    revalidatePath("/admin/integrations");
+    return { ok: true, data };
+  } catch (error) {
+    const result = toError(error);
+    return result.ok ? { ok: false, error: "Request failed" } : result;
+  }
+}
+
+export async function authorizeMedicalProviderAction(
+  code?: string,
+): Promise<MedicalProviderActionResult> {
+  try {
+    const data = await apiFetch<Record<string, unknown>>(`${MEDICAL_PROVIDERS_BASE}/authorize`, {
+      method: "POST",
+      body: JSON.stringify(code ? { code } : {}),
+    });
+    revalidatePath("/admin/integrations");
+    return { ok: true, data };
+  } catch (error) {
+    const result = toError(error);
+    return result.ok ? { ok: false, error: "Request failed" } : result;
+  }
+}
+
+export async function testMedicalProviderAction(): Promise<MedicalProviderActionResult> {
+  try {
+    const data = await apiFetch<Record<string, unknown>>(`${MEDICAL_PROVIDERS_BASE}/test`, {
+      method: "POST",
+    });
+    revalidatePath("/admin/integrations");
+    return { ok: true, data };
+  } catch (error) {
+    const result = toError(error);
+    return result.ok ? { ok: false, error: "Request failed" } : result;
+  }
+}
+
+export async function syncMedicalProviderAction(
+  resourceTypes: string[],
+): Promise<MedicalProviderActionResult> {
+  try {
+    const data = await apiFetch<Record<string, unknown>>(`${MEDICAL_PROVIDERS_BASE}/sync`, {
+      method: "POST",
+      body: JSON.stringify({ resourceTypes }),
+    });
+    revalidatePath("/admin/integrations");
+    return { ok: true, data };
+  } catch (error) {
+    const result = toError(error);
+    return result.ok ? { ok: false, error: "Request failed" } : result;
+  }
+}
+
+export async function retryMedicalProviderAction(): Promise<MedicalProviderActionResult> {
+  try {
+    const data = await apiFetch<Record<string, unknown>>(`${MEDICAL_PROVIDERS_BASE}/retry`, {
+      method: "POST",
+    });
+    revalidatePath("/admin/integrations");
+    return { ok: true, data };
+  } catch (error) {
+    const result = toError(error);
+    return result.ok ? { ok: false, error: "Request failed" } : result;
+  }
+}
+
+export async function revokeMedicalProviderAction(): Promise<ActionResult> {
+  try {
+    await apiFetch(MEDICAL_PROVIDERS_BASE, { method: "DELETE" });
+    revalidatePath("/admin/integrations");
+    return { ok: true };
+  } catch (error) {
+    return toError(error);
   }
 }

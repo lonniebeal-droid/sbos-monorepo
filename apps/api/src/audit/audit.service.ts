@@ -5,7 +5,8 @@ import { PrismaService } from '../prisma/prisma.service';
 
 export interface AuditEntry {
   organizationId: string;
-  actorId?: string;
+  /** Null/undefined for system or agent actions (no User FK). */
+  actorId?: string | null;
   action: AuditAction;
   entityType: string;
   entityId?: string;

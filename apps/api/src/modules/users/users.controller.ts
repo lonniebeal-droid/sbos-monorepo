@@ -13,7 +13,6 @@ import type { AuthenticatedUser } from '../../common/interfaces/authenticated-us
 import { CreateUserDto } from './dto/create-user.dto';
 import { UsersService } from './users.service';
 import { InviteUserDto } from './dto/invite-user.dto';
-import { AuthService } from '../auth/auth.service';
 
 @ApiTags('Users')
 @ApiBearerAuth()
@@ -22,6 +21,7 @@ export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
   // Admin-only invite: create a single-use invite token scoped to the org.
+  // Grant authority is enforced in the service against the inviter's stored role.
   @Post('invite')
   @Roles(Role.ORG_ADMIN)
   @ApiOperation({ summary: 'Invite a user to the organization' })
@@ -32,7 +32,12 @@ export class UsersController {
     if (dto.role === Role.SUPER_ADMIN && user.role !== Role.SUPER_ADMIN) {
       throw new ForbiddenException('Only a SUPER_ADMIN may grant SUPER_ADMIN');
     }
-    return this.usersService.createInvite(dto.email, dto.role, user.id, user.organizationId);
+    return this.usersService.createInvite(
+      dto.email,
+      dto.role,
+      user.id,
+      user.organizationId,
+    );
   }
 
   @Get()
@@ -48,24 +53,29 @@ export class UsersController {
   @Get('me')
   @ApiOperation({ summary: 'Get the current authenticated user' })
   me(@CurrentUser() user: AuthenticatedUser) {
-    return this.usersService.findByIdInOrganization(user.id, user.organizationId);
+    return this.usersService.findActiveById(user.id);
   }
 
   @Get(':id')
   @Roles(Role.SUPERVISOR)
-  @ApiOperation({ summary: 'Get a user by id' })
-  findOne(@Param('id') id: string, @CurrentUser() user: AuthenticatedUser) {
-    return this.usersService.findByIdInOrganization(id, user.organizationId);
+  @ApiOperation({ summary: 'Get a user by id within the current organization' })
+  findOne(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.usersService.findByIdInOrg(user.organizationId, id);
   }
 
   @Post()
   @Roles(Role.ORG_ADMIN)
-  @ApiOperation({ summary: 'Create a new user' })
-  create(@Body() dto: CreateUserDto, @CurrentUser() user: AuthenticatedUser) {
+  @ApiOperation({ summary: 'Create a new user in the current organization' })
+  create(
+    @Body() dto: CreateUserDto,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
     if (dto.role === Role.SUPER_ADMIN && user.role !== Role.SUPER_ADMIN) {
       throw new ForbiddenException('Only a SUPER_ADMIN may grant SUPER_ADMIN');
     }
-    // Tenant identity is established by the verified JWT, never request input.
-    return this.usersService.create(user.organizationId, dto);
+    return this.usersService.create(user.organizationId, user.role, dto);
   }
 }

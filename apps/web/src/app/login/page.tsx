@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
 
 export default function LoginPage() {
   const showDemoCredentials =
+    process.env.NODE_ENV !== "production" &&
     process.env.NEXT_PUBLIC_SHOW_DEMO_CREDENTIALS === "true";
 
   return (

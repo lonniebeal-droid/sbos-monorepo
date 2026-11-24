@@ -325,12 +325,12 @@ export class AuthService {
       },
     });
 
-    const admin = await this.usersService.create(org.id, {
+    const admin = await this.usersService.create(org.id, Role.SUPER_ADMIN, {
       email: dto.adminEmail,
       password: dto.adminPassword,
       name: 'Administrator',
       role: Role.ORG_ADMIN,
-    } as any);
+    });
     await this.audit.record({
       organizationId: org.id, actorId: admin.id, action: AuditAction.CREATE,
       entityType: 'Organization', entityId: org.id, metadata: { source: 'bootstrap' },
@@ -341,32 +341,53 @@ export class AuthService {
 
   /** Accept an invite: validate token, create user, mark invite used. */
   async acceptInvite(dto: AcceptInviteDto): Promise<{ success: true }> {
-    const invite = await this.prisma.userInvite.findUnique({ where: { id: dto.inviteId } });
-    if (!invite) throw new BadRequestException('Invalid invite');
-    if (invite.usedAt) throw new BadRequestException('Invite already used');
-    if (invite.expiresAt <= new Date()) throw new BadRequestException('Invite expired');
-    if (!(await bcrypt.compare(dto.token, invite.tokenHash))) throw new BadRequestException('Invalid invite token');
-    const email = invite.email.trim().toLowerCase();
-    const passwordHash = await bcrypt.hash(dto.password, 10);
-    const [firstName, ...rest] = dto.name.trim().split(' ');
-    const created = await this.prisma.$transaction(async (tx) => {
+    let createdId = '';
+    let createdOrgId = '';
+    let grantedRole: Role | undefined;
+    await this.prisma.$transaction(async (tx) => {
+      const invite = await tx.userInvite.findUnique({
+        where: { id: dto.inviteId },
+      });
+      if (!invite) throw new BadRequestException('Invalid invite');
+      if (invite.usedAt) throw new BadRequestException('Invite already used');
+      if (invite.expiresAt <= new Date()) {
+        throw new BadRequestException('Invite expired');
+      }
+
+      const ok = await bcrypt.compare(dto.token, invite.tokenHash);
+      if (!ok) throw new BadRequestException('Invalid invite token');
+
+      // Atomic single-claimer: second concurrent caller gets count 0.
       const claimed = await tx.userInvite.updateMany({
-        where: { id: invite.id, usedAt: null, expiresAt: { gt: new Date() } },
+        where: {
+          id: invite.id,
+          usedAt: null,
+          expiresAt: { gt: new Date() },
+        },
         data: { usedAt: new Date() },
       });
-      if (claimed.count !== 1) throw new BadRequestException('Invite already used');
-      const existing = await tx.user.findFirst({ where: { organizationId: invite.organizationId, email }, select: { id: true } });
-      if (existing) throw new BadRequestException('A user with that email already exists');
-      const record = await tx.user.create({ data: {
-        organizationId: invite.organizationId, email, passwordHash, firstName: firstName || dto.name,
-        lastName: rest.join(' '), role: invite.role,
-      }});
-      if (record.role === 'CLINICIAN') await tx.clinician.create({ data: { organizationId: record.organizationId, userId: record.id } });
-      return record;
+      if (claimed.count !== 1) {
+        throw new BadRequestException('Invite already used');
+      }
+
+      grantedRole = invite.role as unknown as Role;
+      const created = await this.usersService.create(
+        invite.organizationId,
+        grantedRole,
+        {
+          email: invite.email,
+          password: dto.password,
+          name: dto.name,
+          role: grantedRole,
+        },
+        tx,
+      );
+      createdId = created.id;
+      createdOrgId = invite.organizationId;
     });
     await this.audit.record({
-      organizationId: invite.organizationId, actorId: created.id, action: AuditAction.CREATE,
-      entityType: 'User', entityId: created.id, metadata: { source: 'invite_accept', role: invite.role },
+      organizationId: createdOrgId, actorId: createdId, action: AuditAction.CREATE,
+      entityType: 'User', entityId: createdId, metadata: { source: 'invite_accept', role: grantedRole },
     });
     return { success: true };
   }
