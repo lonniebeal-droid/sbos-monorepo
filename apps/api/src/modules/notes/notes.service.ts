@@ -160,6 +160,16 @@ export class NotesService {
     }
   }
 
+  private async ensureCosignerInOrg(organizationId: string, cosignerId: string): Promise<void> {
+    const user = await this.prisma.user.findFirst({
+      where: { id: cosignerId, organizationId },
+      select: { id: true },
+    });
+    if (!user) {
+      throw new NotFoundException(`Cosigner ${cosignerId} not found`);
+    }
+  }
+
   async create(organizationId: string, authorId: string, dto: CreateNoteDto) {
     await this.ensureClientInOrg(organizationId, dto.clientId);
     await this.ensureClinicianInOrg(organizationId, dto.clinicianId);
@@ -169,7 +179,9 @@ export class NotesService {
 
     const type = dto.type as unknown as NoteType;
     this.validateSections(type, dto.sections);
-    await this.ensureClientInOrg(organizationId, dto.clientId);
+    if (dto.cosignerId) {
+      await this.ensureCosignerInOrg(organizationId, dto.cosignerId);
+    }
 
     const narrative = this.renderNarrative(type, dto.sections, dto.content);
 
@@ -292,6 +304,12 @@ export class NotesService {
       );
     }
 
+    if (dto.appointmentId) {
+      await this.ensureAppointmentInOrg(organizationId, dto.appointmentId);
+    }
+    if (dto.cosignerId) {
+      await this.ensureCosignerInOrg(organizationId, dto.cosignerId);
+    }
     if (dto.sections) {
       this.validateSections(note.type, dto.sections);
     }
@@ -549,7 +567,7 @@ export class NotesService {
     let clientName: string | undefined;
     if (dto.clientId) {
       const client = await this.prisma.client.findFirst({
-        where: { id: dto.clientId, organizationId },
+        where: { id: dto.clientId, organizationId, deletedAt: null },
         select: { firstName: true, lastName: true },
       });
       if (client) {
