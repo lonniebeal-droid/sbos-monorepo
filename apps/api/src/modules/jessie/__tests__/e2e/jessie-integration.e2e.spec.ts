@@ -64,6 +64,13 @@ const mockPrisma: any = {
   clinician: {
     findFirst: vi.fn(),
     findUnique: vi.fn(),
+    findMany: vi.fn(),
+  },
+  clinicianTimeOff: {
+    findFirst: vi.fn(),
+  },
+  clinicianAvailability: {
+    findMany: vi.fn(),
   },
   conversation: {
     findFirst: vi.fn(),
@@ -394,6 +401,9 @@ describe('JessieIntegrationController - E2E Tests', () => {
     });
     mockPrisma.clinician.findFirst.mockResolvedValue({ id: VALID_CLINICIAN_ID, isAcceptingNewClients: true });
     mockPrisma.clinician.findUnique.mockResolvedValue({ id: VALID_CLINICIAN_ID });
+    mockPrisma.clinician.findMany.mockResolvedValue([{ id: VALID_CLINICIAN_ID }]);
+    mockPrisma.clinicianTimeOff.findFirst.mockResolvedValue(null);
+    mockPrisma.clinicianAvailability.findMany.mockResolvedValue([]);
     mockPrisma.conversation.findFirst.mockResolvedValue({
       id: VALID_CONVERSATION_ID,
       clientId: VALID_CLIENT_ID,
